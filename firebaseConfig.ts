@@ -1,7 +1,7 @@
 // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeApp, FirebaseApp } from "firebase/app";
+import { getAuth, Auth } from "firebase/auth";
+import { getFirestore, Firestore } from "firebase/firestore";
 
 // User's Firebase configuration using environment variables for security
 const firebaseConfig = {
@@ -14,9 +14,20 @@ const firebaseConfig = {
   measurementId: "G-L9F6XNW862"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let db: Firestore | null = null;
+
+// Only initialize Firebase if the API key is provided
+// This prevents the app from crashing with a blank screen on a missing key
+if (firebaseConfig.apiKey) {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+} else {
+    console.error("CRITICAL: Firebase API Key is not configured. The app will not function.");
+}
+
 
 // Export the services you need
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+export { auth, db };
