@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import FlameIcon from '../components/icons/FlameIcon';
 import { auth } from '../firebaseConfig';
@@ -16,6 +17,7 @@ const AuthScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleFirebaseError = (err: AuthError) => {
+    console.error("Firebase Auth Error:", err); // Log the full error for detailed debugging
     switch (err.code) {
       case 'auth/user-not-found':
       case 'auth/wrong-password':
@@ -28,7 +30,8 @@ const AuthScreen: React.FC = () => {
         setError('Password should be at least 6 characters.');
         break;
       default:
-        setError('An unexpected error occurred. Please try again.');
+        // Display a more informative error message for debugging
+        setError(`An error occurred: ${err.code}. Please try again.`);
         break;
     }
   }
@@ -152,7 +155,7 @@ const AuthScreen: React.FC = () => {
         <p className="text-center text-xs text-gray-400 mt-6">
           By continuing, you agree to our <a href="#" className="underline">Terms of Service</a> and <a href="#" className="underline">Privacy Policy</a>.
         </p>
-        <p className="text-center text-xs text-gray-400 mt-2">v1.2 - Final Test</p>
+        <p className="text-center text-xs text-gray-400 mt-2">v1.3 - Debug Mode</p>
       </div>
     </div>
   );
