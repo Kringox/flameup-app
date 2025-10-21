@@ -17,7 +17,7 @@ const AuthScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleFirebaseError = (err: AuthError) => {
-    console.error("Firebase Auth Error:", err); // Log the full error for detailed debugging
+    console.error("Firebase Auth Error:", err); // Keep detailed log for developers
     switch (err.code) {
       case 'auth/user-not-found':
       case 'auth/wrong-password':
@@ -29,9 +29,11 @@ const AuthScreen: React.FC = () => {
       case 'auth/weak-password':
         setError('Password should be at least 6 characters.');
         break;
+      case 'auth/api-key-not-valid':
+        setError('There is a configuration issue with the app. Please contact support.');
+        break;
       default:
-        // Display a more informative error message for debugging
-        setError(`An error occurred: ${err.code}. Please try again.`);
+        setError('An unexpected error occurred. Please try again.');
         break;
     }
   }
@@ -155,7 +157,7 @@ const AuthScreen: React.FC = () => {
         <p className="text-center text-xs text-gray-400 mt-6">
           By continuing, you agree to our <a href="#" className="underline">Terms of Service</a> and <a href="#" className="underline">Privacy Policy</a>.
         </p>
-        <p className="text-center text-xs text-gray-400 mt-2">v1.3 - Debug Mode</p>
+        <p className="text-center text-xs text-gray-400 mt-2">v1.4 - Final Fix</p>
       </div>
     </div>
   );
