@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import FlameIcon from '../components/icons/FlameIcon';
 import { auth } from '../firebaseConfig';
@@ -30,7 +29,7 @@ const AuthScreen: React.FC = () => {
         setError('Password should be at least 6 characters.');
         break;
       case 'auth/api-key-not-valid':
-        setError('There is a configuration issue with the app. Please contact support.');
+        setError('Configuration error: The API key is invalid. Please check your environment variables and ensure the correct Firebase API key is provided.');
         break;
       default:
         setError('An unexpected error occurred. Please try again.');
@@ -157,7 +156,7 @@ const AuthScreen: React.FC = () => {
         <p className="text-center text-xs text-gray-400 mt-6">
           By continuing, you agree to our <a href="#" className="underline">Terms of Service</a> and <a href="#" className="underline">Privacy Policy</a>.
         </p>
-        <p className="text-center text-xs text-gray-400 mt-2">v1.4 - Final Fix</p>
+        <p className="text-center text-xs text-gray-400 mt-2">v1.5 - Config Fix</p>
       </div>
     </div>
   );
