@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { User } from '../types';
 
 interface EditProfileScreenProps {
@@ -11,21 +11,83 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
   const [name, setName] = useState(user.name);
   const [bio, setBio] = useState(user.bio);
   const [interests, setInterests] = useState([...user.interests]);
-  const [photos, setPhotos] = useState([...user.profilePhotos]);
+  const [photos, setPhotos] = useState<(string | File)[]>([...user.profilePhotos]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([...user.profilePhotos]);
+  const [isLoading, setIsLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  useEffect(() => {
+    // Create or revoke object URLs for previews
+    const newPreviews = photos.map(p => typeof p === 'string' ? p : URL.createObjectURL(p));
+    setPhotoPreviews(newPreviews);
+    
+    return () => {
+      newPreviews.forEach(p => {
+        if (p.startsWith('blob:')) {
+          URL.revokeObjectURL(p);
+        }
+      });
+    };
+  }, [photos]);
+
 
   const handleSave = () => {
-    onSave({
-      ...user,
-      name,
-      bio,
-      interests,
-      profilePhotos: photos,
-    });
+    setIsLoading(true);
+    try {
+      const finalPhotoUrls = photos.map((photo, index) => {
+        if (typeof photo === 'string') {
+          return photo; // It's already an uploaded URL
+        }
+        // It's a new File, generate a placeholder
+        const seed = `${user.id}-${Date.now()}-${index}`;
+        return `https://picsum.photos/seed/${seed}/800/1200`;
+      });
+
+      onSave({
+        ...user,
+        name,
+        bio,
+        interests,
+        profilePhotos: finalPhotoUrls,
+      });
+    } catch (error) {
+      console.error("Error saving profile:", error);
+      alert("Could not save changes. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   const removeInterest = (interestToRemove: string) => {
     setInterests(interests.filter(i => i !== interestToRemove));
   };
+
+  const handlePhotoClick = (index: number) => {
+    // Trigger file input for the clicked slot
+    fileInputRef.current?.setAttribute('data-index', String(index));
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    const indexStr = event.currentTarget.getAttribute('data-index');
+    if (file && indexStr !== null) {
+      const index = parseInt(indexStr, 10);
+      const newPhotos = [...photos];
+      newPhotos[index] = file;
+      setPhotos(newPhotos);
+    }
+    if(event.target) {
+        event.target.value = '';
+    }
+  };
+  
+  const removePhoto = (index: number) => {
+      const newPhotos = [...photos];
+      newPhotos.splice(index, 1);
+      setPhotos(newPhotos);
+  }
+
 
   return (
     <div className="fixed inset-0 bg-gray-50 z-50 flex flex-col">
@@ -33,7 +95,9 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
       <header className="flex justify-between items-center p-4 border-b border-gray-200 bg-white flex-shrink-0">
         <button onClick={onClose} className="text-lg text-gray-600">Cancel</button>
         <h1 className="text-xl font-bold text-dark-gray">Edit Profile</h1>
-        <button onClick={handleSave} className="text-lg font-bold text-flame-orange">Save</button>
+        <button onClick={handleSave} disabled={isLoading} className="text-lg font-bold text-flame-orange disabled:opacity-50">
+            {isLoading ? 'Saving...' : 'Save'}
+        </button>
       </header>
       
       {/* Form Content */}
@@ -41,18 +105,28 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
         {/* Photos */}
         <div>
           <h2 className="text-md font-semibold text-gray-500 mb-2">Photos</h2>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden"
+            accept="image/*"
+          />
           <div className="grid grid-cols-3 gap-2">
             {Array.from({ length: 6 }).map((_, index) => (
               <div key={index} className="aspect-square rounded-lg bg-gray-200 flex items-center justify-center relative overflow-hidden">
-                {photos[index] ? (
+                {photoPreviews[index] ? (
                   <>
-                    <img src={photos[index]} alt={`Profile ${index + 1}`} className="w-full h-full object-cover" />
-                    <button className="absolute top-1 right-1 w-5 h-5 bg-black/50 rounded-full text-white text-xs flex items-center justify-center">
+                    <img src={photoPreviews[index]} alt={`Profile ${index + 1}`} className="w-full h-full object-cover" />
+                    <button onClick={() => removePhoto(index)} className="absolute top-1 right-1 w-5 h-5 bg-black/50 rounded-full text-white text-xs flex items-center justify-center z-10">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                     <button onClick={() => handlePhotoClick(index)} className="absolute inset-0 bg-black/20 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <span className="text-white font-bold text-sm">Change</span>
                     </button>
                   </>
                 ) : (
-                  <button className="w-8 h-8 bg-gray-300 rounded-full text-gray-500 flex items-center justify-center">
+                  <button onClick={() => handlePhotoClick(index)} className="w-8 h-8 bg-gray-300 rounded-full text-gray-500 flex items-center justify-center">
                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                   </button>
                 )}
@@ -99,6 +173,12 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
                 </button>
               </div>
             ))}
+             <input type="text" placeholder="Add interest..." onKeyDown={(e) => {
+                 if (e.key === 'Enter' && e.currentTarget.value.trim() !== '' && interests.length < 10) {
+                     setInterests([...interests, e.currentTarget.value.trim()]);
+                     e.currentTarget.value = '';
+                 }
+             }} className="bg-gray-100 rounded-full px-3 py-1 text-sm flex-1 min-w-[100px]" />
           </div>
         </div>
       </div>

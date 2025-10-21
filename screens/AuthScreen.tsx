@@ -1,16 +1,61 @@
 import React, { useState } from 'react';
 import FlameIcon from '../components/icons/FlameIcon';
+import { auth } from '../firebaseConfig';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword,
+  AuthError
+} from 'firebase/auth';
 
-interface AuthScreenProps {
-  onAuthSuccess: (action: 'login' | 'signup') => void;
-}
-
-const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
+const AuthScreen: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleFirebaseError = (err: AuthError) => {
+    switch (err.code) {
+      case 'auth/user-not-found':
+      case 'auth/wrong-password':
+        setError('Invalid email or password.');
+        break;
+      case 'auth/email-already-in-use':
+        setError('An account with this email already exists.');
+        break;
+      case 'auth/weak-password':
+        setError('Password should be at least 6 characters.');
+        break;
+      default:
+        setError('An unexpected error occurred. Please try again.');
+        break;
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onAuthSuccess(isLogin ? 'login' : 'signup');
+    setError('');
+    setIsLoading(true);
+
+    if (!isLogin && password !== confirmPassword) {
+      setError('Passwords do not match.');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      if (isLogin) {
+        await signInWithEmailAndPassword(auth, email, password);
+      } else {
+        await createUserWithEmailAndPassword(auth, email, password);
+      }
+      // On success, the onAuthStateChanged listener in App.tsx will handle navigation.
+    } catch (err) {
+      handleFirebaseError(err as AuthError);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -27,13 +72,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         <div className="bg-white rounded-2xl shadow-xl p-6">
           <div className="flex border-b mb-6">
             <button 
-              onClick={() => setIsLogin(true)} 
+              onClick={() => { setIsLogin(true); setError(''); }} 
               className={`flex-1 py-2 text-center font-semibold transition-colors ${isLogin ? 'text-flame-orange border-b-2 border-flame-orange' : 'text-gray-500'}`}
             >
               Login
             </button>
             <button 
-              onClick={() => setIsLogin(false)} 
+              onClick={() => { setIsLogin(false); setError(''); }} 
               className={`flex-1 py-2 text-center font-semibold transition-colors ${!isLogin ? 'text-flame-orange border-b-2 border-flame-orange' : 'text-gray-500'}`}
             >
               Sign Up
@@ -41,18 +86,23 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           </div>
 
           <form onSubmit={handleSubmit}>
+            {error && <p className="text-error-red text-sm text-center mb-4">{error}</p>}
             <div className="space-y-4">
               <input 
                 type="email" 
                 placeholder="Email Address" 
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-flame-orange" 
                 required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
               <input 
                 type="password" 
                 placeholder="Password" 
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-flame-orange" 
                 required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
               {!isLogin && (
                 <input 
@@ -60,15 +110,18 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                   placeholder="Confirm Password" 
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-flame-orange"
                   required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                 />
               )}
             </div>
             
             <button 
               type="submit"
-              className="w-full mt-6 py-3 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold rounded-lg shadow-lg transform hover:scale-105 transition-transform"
+              disabled={isLoading}
+              className="w-full mt-6 py-3 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold rounded-lg shadow-lg transform hover:scale-105 transition-transform disabled:opacity-75"
             >
-              {isLogin ? 'Log In' : 'Create Account'}
+              {isLoading ? 'Processing...' : (isLogin ? 'Log In' : 'Create Account')}
             </button>
 
             {isLogin && (
@@ -85,7 +138,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           </div>
 
           <div className="space-y-3">
-            {/* Social Login Buttons - Add onClick handlers for real implementation */}
             <button className="w-full flex items-center justify-center py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
               <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" className="w-5 h-5 mr-3" alt="Google" />
               <span className="font-semibold text-gray-700">Continue with Google</span>
@@ -100,6 +152,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         <p className="text-center text-xs text-gray-400 mt-6">
           By continuing, you agree to our <a href="#" className="underline">Terms of Service</a> and <a href="#" className="underline">Privacy Policy</a>.
         </p>
+        <p className="text-center text-xs text-gray-400 mt-2">v1.2 - Final Test</p>
       </div>
     </div>
   );

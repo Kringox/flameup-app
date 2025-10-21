@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { MOCK_USERS } from '../constants';
+import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import FlameIcon from '../components/icons/FlameIcon';
+import { db } from '../firebaseConfig';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 
 const ProfileCard: React.FC<{ user: User }> = ({ user }) => {
   return (
@@ -23,7 +24,7 @@ const ProfileCard: React.FC<{ user: User }> = ({ user }) => {
   );
 };
 
-const MatchModal: React.FC<{ user: User; onClose: () => void }> = ({ user, onClose }) => {
+const MatchModal: React.FC<{ user: User; currentUser: User; onClose: () => void }> = ({ user, currentUser, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-50 animate-fade-in">
       <style>{`
@@ -37,7 +38,7 @@ const MatchModal: React.FC<{ user: User; onClose: () => void }> = ({ user, onClo
         <h2 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-flame-orange to-flame-red">It's a Match! 🔥</h2>
         <p className="text-gray-600 mt-2">You and {user.name} have liked each other.</p>
         <div className="flex items-center space-x-4 my-6">
-          <img src="https://picsum.photos/seed/alex/200/200" alt="Current User" className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-lg" />
+          <img src={currentUser.profilePhotos[0]} alt={currentUser.name} className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-lg" />
           <img src={user.profilePhotos[0]} alt={user.name} className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-lg" />
         </div>
         <button className="w-full py-3 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold rounded-full mb-3 shadow-lg transform hover:scale-105 transition-transform">
@@ -51,12 +52,43 @@ const MatchModal: React.FC<{ user: User; onClose: () => void }> = ({ user, onClo
   );
 };
 
-const SwipeScreen: React.FC = () => {
-    const [users, setUsers] = useState(MOCK_USERS);
+interface SwipeScreenProps {
+    currentUser: User;
+}
+
+const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser }) => {
+    const [users, setUsers] = useState<User[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [coins, setCoins] = useState(125);
     const [showMatch, setShowMatch] = useState<User | null>(null);
     const [swipedUserId, setSwipedUserId] = useState<string | null>(null);
     const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | 'up' | null>(null);
+
+    useEffect(() => {
+        const fetchUsers = async () => {
+            setIsLoading(true);
+            try {
+                const usersCollection = collection(db, 'users');
+                const q = query(usersCollection, where("id", "!=", currentUser.id));
+                const userSnapshot = await getDocs(q);
+                const userList = userSnapshot.docs.map(doc => doc.data() as User);
+                setUsers(userList);
+            } catch (error) {
+                console.error("Error fetching users: ", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchUsers();
+    }, [currentUser.id]);
+
+    useEffect(() => {
+        navigator.geolocation.getCurrentPosition(
+            () => { /* Successfully got location */ },
+            () => { console.warn('Geolocation permission denied.') }
+        );
+    }, []);
 
     const handleSwipe = (direction: 'left' | 'right' | 'up') => {
         if (users.length === 0 || swipedUserId) return;
@@ -64,18 +96,24 @@ const SwipeScreen: React.FC = () => {
         const cost = direction === 'up' ? 2 : 1;
         if (coins >= cost) {
             setCoins(c => c - cost);
+            const targetUser = users[0];
             setSwipeDirection(direction);
-            setSwipedUserId(users[0].id);
+            setSwipedUserId(targetUser.id);
 
             setTimeout(() => {
-                const isMatch = Math.random() > 0.7; // 30% chance of a match
+                const sharedInterests = currentUser.interests.filter(i => targetUser.interests.includes(i));
+                const interestScore = sharedInterests.length / (currentUser.interests.length || 1);
+                const matchProbability = 0.15 + interestScore * 0.6; 
+                
+                const isMatch = Math.random() < matchProbability;
+
                 if (isMatch && direction !== 'left') {
-                    setShowMatch(users[0]);
+                    setShowMatch(targetUser);
                 }
                 setUsers(currentUsers => currentUsers.slice(1));
                 setSwipedUserId(null);
                 setSwipeDirection(null);
-            }, 400); // Corresponds to animation duration
+            }, 400);
         } else {
             alert("No more coins!");
         }
@@ -87,7 +125,7 @@ const SwipeScreen: React.FC = () => {
   
     return (
     <div className="flex flex-col h-full w-full bg-gray-100 overflow-hidden">
-      {showMatch && <MatchModal user={showMatch} onClose={closeMatchModal} />}
+      {showMatch && <MatchModal user={showMatch} currentUser={currentUser} onClose={closeMatchModal} />}
       <header className="flex justify-between items-center p-4 bg-white border-b flex-shrink-0">
         <FlameIcon className="w-8 h-8" isGradient={true} />
         <div className="flex items-center space-x-2 bg-yellow-100 text-yellow-700 font-bold px-3 py-1 rounded-full">
@@ -97,7 +135,9 @@ const SwipeScreen: React.FC = () => {
       </header>
 
       <div className="flex-1 relative flex items-center justify-center p-4">
-        {users.length > 0 ? (
+        {isLoading ? (
+            <div className="text-gray-500">Loading profiles...</div>
+        ) : users.length > 0 ? (
             users.slice(0, 2).reverse().map((user, index) => {
                 const isTopCard = index === 1;
                 const isSwiping = isTopCard && swipedUserId === user.id;

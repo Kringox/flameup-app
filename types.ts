@@ -1,4 +1,3 @@
-
 export enum Tab {
   Home = 'Home',
   Swipe = 'Swipe',
@@ -7,7 +6,7 @@ export enum Tab {
 }
 
 export interface User {
-  id: string;
+  id: string; // Corresponds to Firebase Auth UID
   name: string;
   age: number;
   gender: string;
@@ -15,6 +14,7 @@ export interface User {
   bio: string;
   distance: number;
   interests: string[];
+  email: string;
 }
 
 export interface Story {
@@ -31,7 +31,7 @@ export interface Story {
 export interface Post {
   id: string;
   user: {
-    id: string;
+    id:string;
     name: string;
     profilePhoto: string;
   };

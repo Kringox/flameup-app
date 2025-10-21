@@ -1,5 +1,8 @@
 {
   "name": "FlameUp",
   "description": "A hybrid dating and social media app that combines Tinder-style swiping with an Instagram-style feed, allowing users to connect and share their lives.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
 }

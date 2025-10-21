@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { MOCK_STORIES, MOCK_POSTS } from '../constants';
 import { Story, Post } from '../types';
 import StoryViewer from '../components/StoryViewer';
+import BellIcon from '../components/icons/BellIcon';
 
 const StoryCircle: React.FC<{ story: Story; onClick: () => void }> = ({ story, onClick }) => {
   const isOwnStory = story.user.name === 'Your Story';
@@ -62,6 +63,7 @@ const PostCard: React.FC<{ post: Post }> = ({ post }) => {
 const HomeScreen: React.FC = () => {
   const [stories, setStories] = useState<Story[]>(MOCK_STORIES);
   const [viewingStoryIndex, setViewingStoryIndex] = useState<number | null>(null);
+  const [hasNotifications, setHasNotifications] = useState(true); // Example state
 
   const openStoryViewer = (index: number) => {
     // We only want to view stories that have content
@@ -96,9 +98,14 @@ const HomeScreen: React.FC = () => {
                 onStoryViewed={handleStoryViewed}
             />
         )}
-        <header className="flex justify-between items-center p-4 border-b border-gray-200 bg-white sticky top-0 z-10">
+        <header className="relative flex justify-center items-center p-4 border-b border-gray-200 bg-white sticky top-0 z-10">
+            <button className="absolute left-4">
+                <BellIcon hasNotification={hasNotifications} />
+            </button>
             <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-flame-orange to-flame-red">FlameUp</h1>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <button className="absolute right-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </button>
         </header>
 
       {/* Stories */}
