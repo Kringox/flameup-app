@@ -3,7 +3,7 @@ import { Post, User } from '../types';
 import EditProfileScreen from './EditProfileScreen';
 import SettingsScreen from './SettingsScreen';
 import { db } from '../firebaseConfig';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import LoadingScreen from '../components/LoadingScreen';
 
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
@@ -21,26 +21,29 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLog
   const [isLoadingPosts, setIsLoadingPosts] = useState(true);
 
   useEffect(() => {
-    const fetchUserPosts = async () => {
-      if (!db || !user?.id) return;
-      setIsLoadingPosts(true);
-      try {
-        const postsQuery = query(
-          collection(db, 'posts'),
-          where('userId', '==', user.id),
-          orderBy('timestamp', 'desc')
-        );
-        const postSnapshot = await getDocs(postsQuery);
-        const postList = postSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
-        setUserPosts(postList);
-      } catch (error) {
-        console.error("Error fetching user posts:", error);
-      } finally {
+    if (!db || !user?.id) {
         setIsLoadingPosts(false);
-      }
+        return;
     };
 
-    fetchUserPosts();
+    setIsLoadingPosts(true);
+    const postsQuery = query(
+      collection(db, 'posts'),
+      where('userId', '==', user.id),
+      orderBy('timestamp', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(postsQuery, (querySnapshot) => {
+      const postList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
+      setUserPosts(postList);
+      setIsLoadingPosts(false);
+    }, (error) => {
+      console.error("Error fetching user posts in real-time:", error);
+      setIsLoadingPosts(false);
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
   }, [user.id]);
 
 

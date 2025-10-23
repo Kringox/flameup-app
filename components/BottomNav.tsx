@@ -33,7 +33,7 @@ const NavItem: React.FC<{
 
 const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, onOpenCreate }) => {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-200 flex justify-around items-center shadow-lg z-50">
+    <nav className="flex-shrink-0 h-16 bg-white border-t border-gray-200 flex justify-around items-center shadow-lg md:rounded-b-2xl">
       <NavItem
         label={Tab.Home}
         icon={<HomeIcon />}
