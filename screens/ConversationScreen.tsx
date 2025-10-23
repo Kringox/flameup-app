@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Message } from '../types';
 import { db } from '../firebaseConfig';
-import { collection, doc, getDoc, query, onSnapshot, serverTimestamp, setDoc, addDoc, runTransaction, Timestamp, deleteDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, query, onSnapshot, serverTimestamp, setDoc, addDoc, runTransaction, Timestamp, deleteDoc, updateDoc } from 'firebase/firestore';
 import GiftIcon from '../components/icons/GiftIcon';
 import MoreVerticalIcon from '../components/icons/MoreVerticalIcon';
 
@@ -96,57 +96,56 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
     const handleSendMessage = async () => {
         if (!db || newMessage.trim() === '' || !partner) return;
-
+    
         const tempMessage = newMessage;
         setNewMessage('');
-
+    
         const chatDocRef = doc(db, 'chats', chatId);
         const messagesCollectionRef = collection(chatDocRef, 'messages');
-
+    
         try {
-            await runTransaction(db, async (transaction) => {
-                const chatDoc = await transaction.get(chatDocRef);
-
-                const lastMessagePayload = {
-                    text: tempMessage,
-                    senderId: currentUser.id,
-                    timestamp: serverTimestamp()
-                };
-
-                if (!chatDoc.exists()) {
-                    transaction.set(chatDocRef, {
-                        userIds: [currentUser.id, partner.id],
-                        users: {
-                            [currentUser.id]: { name: currentUser.name, profilePhoto: currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR },
-                            [partner.id]: { name: partner.name, profilePhoto: partner.profilePhotos?.[0] || PLACEHOLDER_AVATAR }
-                        },
-                        lastMessage: lastMessagePayload,
-                        unreadCount: {
-                            [partner.id]: 1,
-                            [currentUser.id]: 0
-                        }
-                    });
-                } else {
-                    const currentUnread = chatDoc.data().unreadCount?.[partner.id] || 0;
-                    const unreadCountKey = `unreadCount.${partner.id}`;
-                    transaction.update(chatDocRef, {
-                        lastMessage: lastMessagePayload,
-                        [unreadCountKey]: currentUnread + 1
-                    });
-                }
-            });
-
+            // First, add the new message to the subcollection.
             await addDoc(messagesCollectionRef, {
                 text: tempMessage,
                 senderId: currentUser.id,
                 timestamp: serverTimestamp(),
             });
-
+    
+            // Then, update the parent chat document for chat list metadata.
+            const chatDoc = await getDoc(chatDocRef);
+            const lastMessagePayload = {
+                text: tempMessage,
+                senderId: currentUser.id,
+                timestamp: Timestamp.now() // Use client timestamp for the payload
+            };
+    
+            if (!chatDoc.exists()) {
+                // If chat doesn't exist, create it.
+                await setDoc(chatDocRef, {
+                    userIds: [currentUser.id, partner.id],
+                    users: {
+                        [currentUser.id]: { name: currentUser.name, profilePhoto: currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR },
+                        [partner.id]: { name: partner.name, profilePhoto: partner.profilePhotos?.[0] || PLACEHOLDER_AVATAR }
+                    },
+                    lastMessage: lastMessagePayload,
+                    unreadCount: { [partner.id]: 1, [currentUser.id]: 0 }
+                });
+            } else {
+                // If chat exists, update it using set with merge to avoid 'update' permission issues.
+                const currentUnread = chatDoc.data().unreadCount?.[partner.id] || 0;
+                const newUnreadCount = { ...chatDoc.data().unreadCount, [partner.id]: currentUnread + 1 };
+                
+                await setDoc(chatDocRef, {
+                    lastMessage: lastMessagePayload,
+                    unreadCount: newUnreadCount
+                }, { merge: true });
+            }
+    
         } catch (error: any) {
             console.error("Error sending message:", error);
             let detailedError = "Could not send message. Please try again.";
             if (error.code === 'permission-denied') {
-                detailedError = "PERMISSION DENIED: Your Firestore Security Rules are blocking this message.\n\nFIX: Go to Firebase -> Firestore -> Rules and ensure your rule for `match /chats/{chatId}` includes `allow update: if request.auth.uid in resource.data.userIds;`";
+                detailedError = "PERMISSION DENIED: Your Firestore Security Rules are blocking this message.\n\nFIX: Go to Firebase -> Firestore -> Rules and ensure your rule for `match /chats/{chatId}` includes `allow write: if request.auth.uid in resource.data.userIds;`";
             }
             alert(detailedError);
             setNewMessage(tempMessage); // Restore message on failure

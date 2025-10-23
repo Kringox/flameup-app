@@ -73,6 +73,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
             setUsers(filteredUsers);
         } catch (error) {
             console.error("Error loading swipeable users:", error);
+            alert(`Failed to load profiles. Please check your Firestore security rules. Reading from the "users" and "swipes" collections might be denied. Error: ${error}`);
         } finally {
             setIsLoading(false);
         }
@@ -102,49 +103,53 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
         await batch.commit();
 
         setTimeout(async () => {
-            if (direction !== 'left') {
-                const otherUserSwipeRef = query(collection(db, 'swipes'), 
-                    where("swiperId", "==", targetUser.id),
-                    where("swipedUserId", "==", currentUser.id),
-                    where("action", "==", "like")
-                );
-                
-                const otherUserSwipeSnapshot = await getDocs(otherUserSwipeRef);
-                
-                if (!otherUserSwipeSnapshot.empty) {
-                    setShowMatch(targetUser);
+            try {
+                if (direction !== 'left') {
+                    const otherUserSwipeRef = query(collection(db, 'swipes'), 
+                        where("swiperId", "==", targetUser.id),
+                        where("swipedUserId", "==", currentUser.id),
+                        where("action", "==", "like")
+                    );
                     
-                    const chatId = getChatId(currentUser.id, targetUser.id);
-                    const chatDocRef = doc(db, 'chats', chatId);
-                    await setDoc(chatDocRef, {
-                        userIds: [currentUser.id, targetUser.id],
-                        users: {
-                            [currentUser.id]: { name: currentUser.name, profilePhoto: currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR },
-                            [targetUser.id]: { name: targetUser.name, profilePhoto: targetUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR }
-                        },
-                        lastMessage: null,
-                        unreadCount: { [currentUser.id]: 0, [targetUser.id]: 0 }
-                    }, { merge: true });
+                    const otherUserSwipeSnapshot = await getDocs(otherUserSwipeRef);
+                    
+                    if (!otherUserSwipeSnapshot.empty) {
+                        setShowMatch(targetUser);
+                        
+                        const chatId = getChatId(currentUser.id, targetUser.id);
+                        const chatDocRef = doc(db, 'chats', chatId);
+                        await setDoc(chatDocRef, {
+                            userIds: [currentUser.id, targetUser.id],
+                            users: {
+                                [currentUser.id]: { name: currentUser.name, profilePhoto: currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR },
+                                [targetUser.id]: { name: targetUser.name, profilePhoto: targetUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR }
+                            },
+                            lastMessage: null,
+                            unreadCount: { [currentUser.id]: 0, [targetUser.id]: 0 }
+                        }, { merge: true });
 
-                    const notificationsRef = collection(db, 'users', targetUser.id, 'notifications');
-                    await addDoc(notificationsRef, {
-                        type: NotificationType.Match,
-                        fromUser: {
-                            id: currentUser.id,
-                            name: currentUser.name,
-                            profilePhoto: currentUser.profilePhotos?.[0] || '',
-                        },
-                        read: false,
-                        timestamp: serverTimestamp(),
-                    });
+                        const notificationsRef = collection(db, 'users', targetUser.id, 'notifications');
+                        await addDoc(notificationsRef, {
+                            type: NotificationType.Match,
+                            fromUser: {
+                                id: currentUser.id,
+                                name: currentUser.name,
+                                profilePhoto: currentUser.profilePhotos?.[0] || '',
+                            },
+                            read: false,
+                            timestamp: serverTimestamp(),
+                        });
+                    }
                 }
+            } catch (error) {
+                console.error("Error processing swipe action:", error);
+            } finally {
+                const remainingUsers = users.slice(1);
+                setUsers(remainingUsers);
+                
+                setSwipedUserId(null);
+                setSwipeDirection(null);
             }
-
-            const remainingUsers = users.slice(1);
-            setUsers(remainingUsers);
-            
-            setSwipedUserId(null);
-            setSwipeDirection(null);
         }, 400);
     };
 
