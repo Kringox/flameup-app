@@ -5,9 +5,11 @@ import { getFirestore, Firestore } from "firebase/firestore";
 
 // User's Firebase configuration using Vite's standard environment variables for security.
 const firebaseConfig = {
-  // FIX: Safely access environment variables using optional chaining to prevent crashes
-  // when `import.meta.env` is not defined in certain environments.
-  apiKey: (import.meta as any).env?.VITE_API_KEY,
+  // Use // @ts-ignore to bypass TypeScript errors in environments where Vite's
+  // client types might not be automatically recognized. This allows Vite's static
+  // replacement of environment variables to work correctly at build time.
+  // @ts-ignore
+  apiKey: import.meta.env.VITE_API_KEY,
   authDomain: "flameup-9943c.firebaseapp.com",
   projectId: "flameup-9943c",
   storageBucket: "flameup-9943c.appspot.com",

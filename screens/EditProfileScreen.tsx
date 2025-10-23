@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User } from '../types';
+import { uploadPhotos } from '../utils/photoUploader';
 
 interface EditProfileScreenProps {
   user: User;
@@ -31,24 +32,20 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
   }, [photos]);
 
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsLoading(true);
     try {
-      const finalPhotoUrls = photos.map((photo, index) => {
-        if (typeof photo === 'string') {
-          return photo; // It's already an uploaded URL
-        }
-        // It's a new File, generate a placeholder
-        const seed = `${user.id}-${Date.now()}-${index}`;
-        return `https://picsum.photos/seed/${seed}/800/1200`;
-      });
+      const newFilesToUpload = photos.filter(p => p instanceof File) as File[];
+      const existingUrls = photos.filter(p => typeof p === 'string') as string[];
+      
+      const uploadedUrls = newFilesToUpload.length > 0 ? await uploadPhotos(newFilesToUpload) : [];
 
       onSave({
         ...user,
         name,
         bio,
         interests,
-        profilePhotos: finalPhotoUrls,
+        profilePhotos: [...existingUrls, ...uploadedUrls],
       });
     } catch (error) {
       console.error("Error saving profile:", error);

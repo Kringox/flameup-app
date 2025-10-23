@@ -11,6 +11,7 @@ import { Tab, User } from './types';
 import { auth, db, firebaseInitializationError } from './firebaseConfig';
 import { onAuthStateChanged, User as FirebaseUser, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { uploadPhotos } from './utils/photoUploader';
 
 const App: React.FC = () => {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
@@ -53,12 +54,14 @@ const App: React.FC = () => {
     if (firebaseUser && db) {
       setIsLoading(true);
       try {
-        // Generate placeholder URLs instead of uploading to Firebase Storage
         const { photos, ...profileData } = newUserProfileData;
-        const photoURLs = photos.map((_, index) => {
-          const seed = `${firebaseUser.uid}-${Date.now()}-${index}`;
-          return `https://picsum.photos/seed/${seed}/800/1200`;
-        });
+        
+        // Upload photos and get their public URLs from our new utility
+        const photoURLs = await uploadPhotos(photos);
+
+        if (photoURLs.length === 0) {
+          throw new Error("Photo upload failed. Please try again.");
+        }
 
         const newUser: User = {
           id: firebaseUser.uid,
