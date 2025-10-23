@@ -112,6 +112,7 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
 
         try {
             // Step 1: Add the comment document. This is the critical operation.
+            // If this fails, the user will see the error alert.
             await addDoc(commentsRef, {
                 userId: currentUser.id,
                 userName: currentUser.name,
@@ -121,18 +122,19 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
                 timestamp: serverTimestamp()
             });
             
-            // Step 2 (Optional): Atomically increment the post's comment count.
-            // This might fail due to security rules, but we won't block the user.
-            try {
-                await updateDoc(postRef, { commentCount: increment(1) });
-            } catch (error) {
-                console.warn("Could not update comment count. This may be due to security rules.", error);
-            }
+            // From this point on, subsequent operations are "fire and forget".
+            // Their failure won't block the user or show an error, as the main
+            // action (posting the comment) has succeeded.
 
-            // Step 3: Create a notification for the post author.
+            // Step 2 (Optional): Atomically increment the post's comment count.
+            updateDoc(postRef, { commentCount: increment(1) }).catch(error => {
+                console.warn("Could not update comment count. This may be due to security rules.", error);
+            });
+
+            // Step 3 (Optional): Create a notification for the post author.
             if (post.userId !== currentUser.id) {
                 const notificationsRef = collection(db, 'users', post.userId, 'notifications');
-                await addDoc(notificationsRef, {
+                addDoc(notificationsRef, {
                     type: NotificationType.Comment,
                     fromUser: {
                         id: currentUser.id, name: currentUser.name, profilePhoto: currentUser.profilePhotos?.[0] || ''
@@ -141,6 +143,8 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
                     commentText: tempComment,
                     read: false,
                     timestamp: serverTimestamp(),
+                }).catch(error => {
+                    console.warn("Could not create notification. This may be due to security rules.", error);
                 });
             }
         } catch (e) {
@@ -161,11 +165,9 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
             await deleteDoc(commentRef);
             
             // Step 2 (Optional): Decrement the post's comment count.
-            try {
-                await updateDoc(postRef, { commentCount: increment(-1) });
-            } catch (error) {
+            updateDoc(postRef, { commentCount: increment(-1) }).catch(error => {
                 console.warn("Could not update comment count on delete. This may be due to security rules.", error);
-            }
+            });
         } catch (e) {
             console.error("Failed to delete comment:", e);
             alert("Could not delete comment. Please try again.");
