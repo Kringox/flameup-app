@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, query, getDocs, orderBy, where, Timestamp } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, where, Timestamp, onSnapshot } from 'firebase/firestore';
 import { Story, Post, User } from '../types';
 import StoryViewer from '../components/StoryViewer';
 import BellIcon from '../components/icons/BellIcon';
@@ -47,63 +47,69 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser }) => {
   const [hasNotifications, setHasNotifications] = useState(true);
 
   useEffect(() => {
-      const fetchData = async () => {
-          if (!db) return;
-          setIsLoading(true);
-          try {
-              // Fetch stories from the last 24 hours
-              const twentyFourHoursAgo = Timestamp.fromMillis(Date.now() - 24 * 60 * 60 * 1000);
-              const storiesQuery = query(collection(db, 'stories'), where('timestamp', '>=', twentyFourHoursAgo), orderBy('timestamp', 'desc'));
-              const storySnapshot = await getDocs(storiesQuery);
-              const storyList = storySnapshot.docs.map(doc => {
-                  const data = doc.data();
-                  return {
-                      id: doc.id,
-                      mediaUrl: data.mediaUrl,
-                      viewed: data.viewed,
-                      timestamp: data.timestamp,
-                      user: {
-                          id: data.userId,
-                          name: data.userName,
-                          profilePhoto: data.userProfilePhoto,
-                      },
-                  } as Story;
-              });
-              setStories(storyList);
+      if (!db) {
+          setIsLoading(false);
+          return;
+      }
+      setIsLoading(true);
 
-              // Fetch posts
-              const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'));
-              const postSnapshot = await getDocs(postsQuery);
-              const postList = postSnapshot.docs.map(doc => {
-                  const data = doc.data();
-                  return {
-                      id: doc.id,
-                      userId: data.userId,
-                      mediaUrls: data.mediaUrls,
-                      caption: data.caption,
-                      likedBy: data.likedBy || [],
-                      commentCount: data.commentCount || 0,
-                      timestamp: data.timestamp,
-                      user: {
-                          id: data.userId,
-                          name: data.userName,
-                          profilePhoto: data.userProfilePhoto,
-                      },
-                  } as Post;
-              });
-              setPosts(postList);
+      // Fetch stories once
+      const twentyFourHoursAgo = Timestamp.fromMillis(Date.now() - 24 * 60 * 60 * 1000);
+      const storiesQuery = query(collection(db, 'stories'), where('timestamp', '>=', twentyFourHoursAgo), orderBy('timestamp', 'desc'));
+      getDocs(storiesQuery).then(storySnapshot => {
+          const storyList = storySnapshot.docs.map(doc => {
+              const data = doc.data();
+              return {
+                  id: doc.id,
+                  mediaUrl: data.mediaUrl,
+                  viewed: data.viewed,
+                  timestamp: data.timestamp,
+                  user: {
+                      id: data.userId,
+                      name: data.userName,
+                      profilePhoto: data.userProfilePhoto,
+                  },
+              } as Story;
+          });
+          setStories(storyList);
+      }).catch(error => console.error("Error fetching stories:", error));
 
-          } catch (error) {
-              console.error("Error fetching data:", error);
-          } finally {
-              setIsLoading(false);
-          }
+      // Fetch posts in real-time
+      const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'));
+      const unsubscribePosts = onSnapshot(postsQuery, (postSnapshot) => {
+          const postList = postSnapshot.docs.map(doc => {
+              const data = doc.data();
+              return {
+                  id: doc.id,
+                  userId: data.userId,
+                  mediaUrls: data.mediaUrls,
+                  caption: data.caption,
+                  likedBy: data.likedBy || [],
+                  commentCount: data.commentCount || 0,
+                  timestamp: data.timestamp,
+                  user: {
+                      id: data.userId,
+                      name: data.userName,
+                      profilePhoto: data.userProfilePhoto,
+                  },
+              } as Post;
+          });
+          setPosts(postList);
+          setIsLoading(false);
+      }, (error) => {
+          console.error("Error fetching posts:", error);
+          setIsLoading(false);
+      });
+
+      // Cleanup subscription on unmount
+      return () => {
+          unsubscribePosts();
       };
-
-      fetchData();
   }, []);
   
   const handlePostDeleted = (postId: string) => {
+    // Optimistic update: remove the post from local state immediately.
+    // The real-time listener will eventually sync, but this makes the UI feel faster.
     setPosts(currentPosts => currentPosts.filter(p => p.id !== postId));
   };
 

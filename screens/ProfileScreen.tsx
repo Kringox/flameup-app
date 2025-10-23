@@ -34,7 +34,23 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLog
     );
 
     const unsubscribe = onSnapshot(postsQuery, (querySnapshot) => {
-      const postList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
+      const postList = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            userId: data.userId,
+            mediaUrls: data.mediaUrls,
+            caption: data.caption,
+            likedBy: data.likedBy || [],
+            commentCount: data.commentCount || 0,
+            timestamp: data.timestamp,
+            user: { // Use fresh user data from props for consistency
+                id: user.id,
+                name: user.name,
+                profilePhoto: user.profilePhotos?.[0] || PLACEHOLDER_AVATAR,
+            },
+        } as Post;
+      });
       setUserPosts(postList);
       setIsLoadingPosts(false);
     }, (error) => {

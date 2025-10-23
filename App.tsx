@@ -20,7 +20,6 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>(Tab.Home);
   const [isCreateScreenOpen, setIsCreateScreenOpen] = useState(false);
-  const [homeScreenKey, setHomeScreenKey] = useState(0); // Key to force HomeScreen remount
 
   useEffect(() => {
     if (!auth) {
@@ -105,7 +104,6 @@ const App: React.FC = () => {
   const handleCreationSuccess = () => {
     setIsCreateScreenOpen(false);
     setActiveTab(Tab.Home); // Switch to home tab to see the new content
-    setHomeScreenKey(k => k + 1); // Increment key to force HomeScreen to remount and refetch data
   };
 
   if (firebaseInitializationError) {
@@ -131,7 +129,7 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (activeTab) {
       case Tab.Home:
-        return <HomeScreen key={homeScreenKey} currentUser={currentUser} />;
+        return <HomeScreen currentUser={currentUser} />;
       case Tab.Swipe:
         return <SwipeScreen currentUser={currentUser} />;
       case Tab.Chat:
@@ -139,7 +137,7 @@ const App: React.FC = () => {
       case Tab.Profile:
         return <ProfileScreen user={currentUser} onUpdateUser={handleUpdateUser} onLogout={handleLogout} />;
       default:
-        return <HomeScreen key={homeScreenKey} currentUser={currentUser} />;
+        return <HomeScreen currentUser={currentUser} />;
     }
   };
 
