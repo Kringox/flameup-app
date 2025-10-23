@@ -6,6 +6,8 @@ import StoryViewer from '../components/StoryViewer';
 import BellIcon from '../components/icons/BellIcon';
 import LoadingScreen from '../components/LoadingScreen';
 
+const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
+
 const formatTimestamp = (timestamp: any): string => {
     if (!timestamp || !timestamp.toDate) {
         return 'Just now';
@@ -139,7 +141,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser }) => {
     // "Your Story" circle
     {
         id: 'currentUserStory',
-        user: { id: currentUser.id, name: 'Your Story', profilePhoto: currentUser.profilePhotos[0] },
+        user: { id: currentUser.id, name: 'Your Story', profilePhoto: currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR },
         mediaUrl: ownStories.length > 0 ? ownStories[0].mediaUrl : '',
         viewed: !hasUnviewedOwnStory,
         timestamp: null,

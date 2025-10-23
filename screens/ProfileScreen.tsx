@@ -4,6 +4,8 @@ import { User } from '../types';
 import EditProfileScreen from './EditProfileScreen';
 import SettingsScreen from './SettingsScreen';
 
+const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
+
 interface ProfileScreenProps {
   user: User;
   onUpdateUser: (updatedUser: User) => void;
@@ -17,7 +19,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLog
   const userPosts = MOCK_POSTS.filter(p => {
       if (p.user.id === 'currentUser' || p.user.id === user.id) {
           p.user.name = user.name;
-          p.user.profilePhoto = user.profilePhotos[0];
+          p.user.profilePhoto = user.profilePhotos?.[0] || PLACEHOLDER_AVATAR;
           return true;
       }
       return false;
@@ -49,7 +51,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLog
 
       <div className="p-4">
         <div className="flex flex-col items-center">
-          <img className="w-24 h-24 rounded-full object-cover" src={user.profilePhotos[0]} alt={user.name} />
+          <img className="w-24 h-24 rounded-full object-cover" src={user.profilePhotos?.[0] || PLACEHOLDER_AVATAR} alt={user.name} />
           <h2 className="text-xl font-bold mt-3">{user.name}, {user.age}</h2>
           <p className="text-center text-gray-600 mt-2">{user.bio}</p>
         </div>

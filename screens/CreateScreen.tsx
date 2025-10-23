@@ -10,6 +10,8 @@ interface CreateScreenProps {
   onSuccess: () => void;
 }
 
+const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
+
 const CreateScreen: React.FC<CreateScreenProps> = ({ user, onClose, onSuccess }) => {
   const [mode, setMode] = useState<'select' | 'post' | 'story'>('select');
   const [file, setFile] = useState<File | null>(null);
@@ -52,12 +54,13 @@ const CreateScreen: React.FC<CreateScreenProps> = ({ user, onClose, onSuccess })
     if (!file || !db) return;
     setIsLoading(true);
     try {
+        const profilePhoto = (user.profilePhotos && user.profilePhotos.length > 0) ? user.profilePhotos[0] : PLACEHOLDER_AVATAR;
         const [photoUrl] = await uploadPhotos([file]);
         await addDoc(collection(db, 'posts'), {
             user: {
                 id: user.id,
                 name: user.name,
-                profilePhoto: user.profilePhotos[0],
+                profilePhoto: profilePhoto,
             },
             mediaUrls: [photoUrl],
             caption: caption,
@@ -77,12 +80,13 @@ const CreateScreen: React.FC<CreateScreenProps> = ({ user, onClose, onSuccess })
      if (!file || !db) return;
      setIsLoading(true);
      try {
+        const profilePhoto = (user.profilePhotos && user.profilePhotos.length > 0) ? user.profilePhotos[0] : PLACEHOLDER_AVATAR;
         const [photoUrl] = await uploadPhotos([file]);
         await addDoc(collection(db, 'stories'), {
             user: {
                 id: user.id,
                 name: user.name,
-                profilePhoto: user.profilePhotos[0],
+                profilePhoto: profilePhoto,
             },
             mediaUrl: photoUrl,
             viewed: false,

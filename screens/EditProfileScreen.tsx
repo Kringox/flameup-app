@@ -80,6 +80,10 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
   };
   
   const removePhoto = (index: number) => {
+      if (photos.length <= 1) {
+          alert("You must have at least one profile photo.");
+          return;
+      }
       const newPhotos = [...photos];
       newPhotos.splice(index, 1);
       setPhotos(newPhotos);

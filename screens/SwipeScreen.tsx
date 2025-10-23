@@ -5,10 +5,12 @@ import { db } from '../firebaseConfig';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { DEMO_USERS_FOR_UI } from '../constants';
 
+const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
+
 const ProfileCard: React.FC<{ user: User }> = ({ user }) => {
   return (
     <div className="absolute top-0 left-0 w-full h-full rounded-2xl overflow-hidden shadow-2xl bg-gray-300">
-      <img src={user.profilePhotos[0]} alt={user.name} className="w-full h-full object-cover" />
+      <img src={user.profilePhotos?.[0] || PLACEHOLDER_AVATAR} alt={user.name} className="w-full h-full object-cover" />
       <div className="absolute bottom-0 left-0 w-full h-2/5 bg-gradient-to-t from-black/80 to-transparent p-4 flex flex-col justify-end">
         <div className="flex justify-between items-end">
           <div>
@@ -39,8 +41,8 @@ const MatchModal: React.FC<{ user: User; currentUser: User; onClose: () => void 
         <h2 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-flame-orange to-flame-red">It's a Match! 🔥</h2>
         <p className="text-gray-600 mt-2">You and {user.name} have liked each other.</p>
         <div className="flex items-center space-x-4 my-6">
-          <img src={currentUser.profilePhotos[0]} alt={currentUser.name} className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-lg" />
-          <img src={user.profilePhotos[0]} alt={user.name} className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-lg" />
+          <img src={currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR} alt={currentUser.name} className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-lg" />
+          <img src={user.profilePhotos?.[0] || PLACEHOLDER_AVATAR} alt={user.name} className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-lg" />
         </div>
         <button className="w-full py-3 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold rounded-full mb-3 shadow-lg transform hover:scale-105 transition-transform">
           Send a Message
