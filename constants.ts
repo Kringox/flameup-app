@@ -18,8 +18,8 @@ export const DEMO_USERS_FOR_UI: User[] = [
     email: 'jessica@example.com',
     followers: [],
     following: [],
-    // FIX: Added missing 'coins' property to satisfy the User interface.
     coins: 100,
+    createdAt: Timestamp.fromDate(new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)),
   },
   {
     id: '2',
@@ -33,8 +33,8 @@ export const DEMO_USERS_FOR_UI: User[] = [
     email: 'mike@example.com',
     followers: [],
     following: [],
-    // FIX: Added missing 'coins' property to satisfy the User interface.
     coins: 100,
+    createdAt: Timestamp.fromDate(new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)),
   },
   {
     id: '3',
@@ -48,8 +48,8 @@ export const DEMO_USERS_FOR_UI: User[] = [
     email: 'chloe@example.com',
     followers: [],
     following: [],
-    // FIX: Added missing 'coins' property to satisfy the User interface.
     coins: 100,
+    createdAt: Timestamp.fromDate(new Date(Date.now() - 1 * 24 * 60 * 60 * 1000)),
   },
    {
     id: '4',
@@ -63,8 +63,8 @@ export const DEMO_USERS_FOR_UI: User[] = [
     email: 'david@example.com',
     followers: [],
     following: [],
-    // FIX: Added missing 'coins' property to satisfy the User interface.
     coins: 100,
+    createdAt: Timestamp.fromDate(new Date()),
   },
 ];
 

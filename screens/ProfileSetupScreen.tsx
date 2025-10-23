@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { User } from '../types';
 
 interface ProfileSetupScreenProps {
-  onComplete: (newUserProfileData: Omit<User, 'id' | 'email' | 'profilePhotos' | 'followers' | 'following' | 'coins'> & { photos: File[] }) => void;
+  onComplete: (newUserProfileData: Omit<User, 'id' | 'email' | 'profilePhotos' | 'followers' | 'following' | 'coins' | 'createdAt'> & { photos: File[] }) => void;
 }
 
 const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ onComplete }) => {

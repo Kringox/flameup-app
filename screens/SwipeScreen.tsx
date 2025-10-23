@@ -3,7 +3,7 @@ import { User, NotificationType } from '../types';
 import FlameIcon from '../components/icons/FlameIcon';
 import MatchModal from '../components/MatchModal';
 import { db } from '../firebaseConfig';
-import { collection, getDocs, query, where, doc, getDoc, writeBatch, serverTimestamp, addDoc, setDoc, limit } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc, writeBatch, serverTimestamp, addDoc, setDoc, limit, orderBy } from 'firebase/firestore';
 
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
 const getChatId = (uid1: string, uid2: string) => [uid1, uid2].sort().join('_');
@@ -58,10 +58,8 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
             const idsToExclude = new Set([currentUser.id, ...alreadySwipedIds, ...swipedIds]);
 
             const usersCollection = collection(db, 'users');
-            // Fetch users that are not in the exclusion list. Firestore's `not-in` query is limited to 10 items,
-            // so we fetch a batch and filter client-side. This is not ideal for massive scale but works for this app.
-            // A more scalable solution would involve Cloud Functions to manage swipe decks.
-            const q = query(usersCollection, limit(20));
+            // Fetch users that are not in the exclusion list, ordered by most recent.
+            const q = query(usersCollection, orderBy('createdAt', 'desc'), limit(20));
             const userSnapshot = await getDocs(q);
             
             const userList = userSnapshot.docs

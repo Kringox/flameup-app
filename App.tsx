@@ -17,7 +17,7 @@ import MatchModal from './components/MatchModal';
 import { Tab, User, Post, Chat, Notification as NotificationType, NotificationType as NotifEnum } from './types';
 import { auth, db, firebaseInitializationError } from './firebaseConfig';
 import { onAuthStateChanged, User as FirebaseUser, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, collection, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
 import { uploadPhotos } from './utils/photoUploader';
 
 const App: React.FC = () => {
@@ -114,7 +114,7 @@ const App: React.FC = () => {
   }, [firebaseUser, activeChatPartnerId]);
 
 
-  const handleProfileSetupComplete = async (newUserProfileData: Omit<User, 'id' | 'email' | 'profilePhotos' | 'followers' | 'following' | 'coins'> & { photos: File[] }) => {
+  const handleProfileSetupComplete = async (newUserProfileData: Omit<User, 'id' | 'email' | 'profilePhotos' | 'followers' | 'following' | 'coins' | 'createdAt'> & { photos: File[] }) => {
     if (firebaseUser && db) {
       setIsLoading(true);
       try {
@@ -134,10 +134,12 @@ const App: React.FC = () => {
           followers: [],
           following: [],
           coins: 100, // Starting coins
+          createdAt: serverTimestamp(),
         };
         
         await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
-        setCurrentUser(newUser);
+        // The onSnapshot listener will automatically update `currentUser` with the full profile data from Firestore.
+        // No need to call setCurrentUser here.
       } catch (error: any) {
         console.error("Error setting up profile:", error);
         alert(`Could not set up profile. Please try again.\n\nError: ${String(error)}`);

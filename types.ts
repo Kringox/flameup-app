@@ -20,6 +20,7 @@ export interface User {
   followers: string[]; // Array of user IDs
   following: string[]; // Array of user IDs
   coins: number; // For sending gifts
+  createdAt: any; // For sorting by new users
 }
 
 export interface Story {
