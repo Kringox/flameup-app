@@ -84,29 +84,44 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         const messagesCollectionRef = collection(chatDocRef, 'messages');
 
         try {
-            // Step 1: Create or update the chat document.
-            await setDoc(chatDocRef, {
-                userIds: [currentUser.id, partner.id],
-                users: {
-                    [currentUser.id]: {
-                        name: currentUser.name,
-                        profilePhoto: currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR
+            // First, ensure the chat document exists and is updated correctly.
+            // This is crucial for unread counts and last message display.
+            try {
+                // This is the common case: update an existing chat document.
+                // Using dot notation is the correct way to update a field in a nested object.
+                await updateDoc(chatDocRef, {
+                    lastMessage: {
+                        text: tempMessage,
+                        senderId: currentUser.id,
+                        timestamp: serverTimestamp()
                     },
-                    [partner.id]: {
-                        name: partner.name,
-                        profilePhoto: partner.profilePhotos?.[0] || PLACEHOLDER_AVATAR
-                    }
-                },
-                lastMessage: {
-                    text: tempMessage,
-                    senderId: currentUser.id,
-                    timestamp: serverTimestamp()
-                },
-                // Increment unread count for the partner. Initialize if it doesn't exist.
-                [`unreadCount.${partner.id}`]: increment(1)
-            }, { merge: true });
-
-            // Step 2: Add the new message to the 'messages' subcollection.
+                    [`unreadCount.${partner.id}`]: increment(1)
+                });
+            } catch (error: any) {
+                // If the document doesn't exist, `updateDoc` throws 'not-found'. We create it.
+                if (error.code === 'not-found') {
+                    await setDoc(chatDocRef, {
+                        userIds: [currentUser.id, partner.id],
+                        users: {
+                            [currentUser.id]: { name: currentUser.name, profilePhoto: currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR },
+                            [partner.id]: { name: partner.name, profilePhoto: partner.profilePhotos?.[0] || PLACEHOLDER_AVATAR }
+                        },
+                        lastMessage: {
+                            text: tempMessage,
+                            senderId: currentUser.id,
+                            timestamp: serverTimestamp()
+                        },
+                        unreadCount: {
+                            [partner.id]: 1,
+                            [currentUser.id]: 0 // Initialize count for both users
+                        }
+                    });
+                } else {
+                    throw error; // Re-throw other errors (e.g., permission-denied)
+                }
+            }
+            
+            // After the chat document is settled, add the new message to the subcollection.
             await addDoc(messagesCollectionRef, {
                 text: tempMessage,
                 senderId: currentUser.id,
@@ -120,7 +135,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 detailedError = "PERMISSION DENIED: Your Firestore Security Rules are blocking this message.\n\nFIX: Go to Firebase -> Firestore -> Rules and ensure your rule for `match /chats/{chatId}` includes `allow update: if request.auth.uid in resource.data.userIds;`";
             }
             alert(detailedError);
-            setNewMessage(tempMessage);
+            setNewMessage(tempMessage); // Restore message on failure
         }
     };
 

@@ -27,6 +27,9 @@ const ChatListItem: React.FC<{ chat: Chat; currentUser: User; onSelect: (partner
   const partner = chat.users[partnerId];
   if (!partner) return null;
 
+  const unreadCount = chat.unreadCount?.[currentUser.id] || 0;
+  const isUnread = unreadCount > 0;
+
   return (
     <div onClick={() => onSelect(partnerId)} className="flex items-center p-4 hover:bg-gray-100 cursor-pointer">
       <div className="relative">
@@ -34,12 +37,14 @@ const ChatListItem: React.FC<{ chat: Chat; currentUser: User; onSelect: (partner
       </div>
       <div className="flex-1 ml-4 border-b border-gray-200 pb-4">
         <div className="flex justify-between items-center">
-          <h3 className="font-semibold text-lg">{partner.name}</h3>
+          <h3 className={`text-lg transition-all ${isUnread ? 'font-bold text-dark-gray' : 'font-semibold text-gray-800'}`}>{partner.name}</h3>
           <span className="text-xs text-gray-500">{formatTimestamp(chat.lastMessage?.timestamp)}</span>
         </div>
         <div className="flex justify-between items-center mt-1">
-          <p className="text-gray-600 text-sm truncate w-4/5">{chat.lastMessage?.text || 'No messages yet'}</p>
-          {/* Unread count can be implemented later */}
+          <p className={`text-sm truncate w-11/12 transition-all ${isUnread ? 'font-semibold text-dark-gray' : 'text-gray-600'}`}>{chat.lastMessage?.text || 'No messages yet'}</p>
+          {isUnread && (
+             <span className="w-2.5 h-2.5 bg-flame-red rounded-full flex-shrink-0" aria-label="Unread message"></span>
+          )}
         </div>
       </div>
     </div>
