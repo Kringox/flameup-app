@@ -85,12 +85,21 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
 
     useEffect(() => {
         if (!db) return;
-        // Query the top-level 'comments' collection for comments related to this post
+        
         const commentsRef = collection(db, 'comments');
-        const q = query(commentsRef, where('postId', '==', post.id), orderBy('timestamp', 'asc'));
+        // Query without server-side ordering to avoid needing a composite index
+        const q = query(commentsRef, where('postId', '==', post.id));
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const commentsList = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Comment));
+            
+            // Sort comments on the client-side
+            commentsList.sort((a, b) => {
+                const timeA = a.timestamp?.toMillis() || 0;
+                const timeB = b.timestamp?.toMillis() || 0;
+                return timeA - timeB;
+            });
+
             setComments(commentsList);
             setIsLoading(false);
             setTimeout(() => listRef.current?.scrollTo(0, listRef.current.scrollHeight), 100);
@@ -186,6 +195,8 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
             <div ref={listRef} className="flex-1 overflow-y-auto">
                 {isLoading ? (
                      <div className="flex justify-center items-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div></div>
+                ) : comments.length === 0 ? (
+                    <p className="text-center text-gray-500 mt-8">No comments yet. Be the first!</p>
                 ) : (
                     comments.map(comment => <CommentRow key={comment.id} comment={comment} currentUser={currentUser} postAuthorId={post.userId} onDelete={handleDeleteComment} />)
                 )}
