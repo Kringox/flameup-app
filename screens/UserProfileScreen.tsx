@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { Post, User, NotificationType } from '../types';
 import { db } from '../firebaseConfig';
-import { collection, doc, getDoc, query, where, onSnapshot, orderBy, writeBatch, arrayUnion, arrayRemove, serverTimestamp, addDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, query, where, onSnapshot, orderBy, writeBatch, arrayUnion, arrayRemove, serverTimestamp, addDoc, runTransaction } from 'firebase/firestore';
 import PostDetailView from '../components/PostDetailView';
 
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
@@ -19,6 +18,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, currentUs
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [isTogglingFollow, setIsTogglingFollow] = useState(false);
 
   useEffect(() => {
     if (!db) return;
@@ -74,25 +74,36 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, currentUs
   }, [user]);
   
   const handleFollowToggle = async () => {
-    if (!db || !user) return;
+    if (!db || !user || isTogglingFollow) return;
     
-    const isCurrentlyFollowing = currentUser.following.includes(user.id);
-
+    setIsTogglingFollow(true);
+    const wasFollowingBeforeToggle = currentUser.following.includes(user.id);
     const currentUserRef = doc(db, 'users', currentUser.id);
     const targetUserRef = doc(db, 'users', user.id);
-    const batch = writeBatch(db);
-
-    if (!isCurrentlyFollowing) {
-        batch.update(currentUserRef, { following: arrayUnion(user.id) });
-        batch.update(targetUserRef, { followers: arrayUnion(currentUser.id) });
-    } else {
-        batch.update(currentUserRef, { following: arrayRemove(user.id) });
-        batch.update(targetUserRef, { followers: arrayRemove(currentUser.id) });
-    }
     
     try {
-        await batch.commit();
-        if(!isCurrentlyFollowing) {
+        await runTransaction(db, async (transaction) => {
+            const currentUserDoc = await transaction.get(currentUserRef);
+            if (!currentUserDoc.exists()) {
+                throw "Current user document does not exist!";
+            }
+            
+            const currentFollowingList = currentUserDoc.data().following || [];
+            const isCurrentlyFollowing = currentFollowingList.includes(user.id);
+
+            if (isCurrentlyFollowing) {
+                // Unfollow logic
+                transaction.update(currentUserRef, { following: arrayRemove(user.id) });
+                transaction.update(targetUserRef, { followers: arrayRemove(currentUser.id) });
+            } else {
+                // Follow logic
+                transaction.update(currentUserRef, { following: arrayUnion(user.id) });
+                transaction.update(targetUserRef, { followers: arrayUnion(currentUser.id) });
+            }
+        });
+
+        // Create notification only on a successful follow
+        if (!wasFollowingBeforeToggle) {
             const notificationsRef = collection(db, 'users', user.id, 'notifications');
             await addDoc(notificationsRef, {
               type: NotificationType.Follow,
@@ -108,8 +119,11 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, currentUs
     } catch(error) {
         console.error("Failed to update follow status:", error);
         alert("Could not update follow status. Please check your Firestore security rules and network connection.");
+    } finally {
+        setIsTogglingFollow(false);
     }
   };
+
 
   const handleOpenCommentsFromDetail = (post: Post) => {
     setSelectedPost(null);
@@ -165,7 +179,13 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, currentUs
                 </div>
 
                 <div className="flex space-x-2">
-                    <button onClick={handleFollowToggle} className={`flex-1 font-semibold py-2 px-4 rounded-lg ${isFollowing ? 'bg-gray-200 text-gray-800' : 'bg-flame-orange text-white'}`}>{isFollowing ? 'Following' : 'Follow'}</button>
+                    <button 
+                        onClick={handleFollowToggle} 
+                        disabled={isTogglingFollow}
+                        className={`flex-1 font-semibold py-2 px-4 rounded-lg transition-colors ${isFollowing ? 'bg-gray-200 text-gray-800' : 'bg-flame-orange text-white'} ${isTogglingFollow ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                        {isFollowing ? 'Following' : 'Follow'}
+                    </button>
                     <button className="flex-1 bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg">Message</button>
                 </div>
             </div>
