@@ -98,13 +98,25 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser }) => {
               const twentyFourHoursAgo = Timestamp.fromMillis(Date.now() - 24 * 60 * 60 * 1000);
               const storiesQuery = query(collection(db, 'stories'), where('timestamp', '>=', twentyFourHoursAgo), orderBy('timestamp', 'desc'));
               const storySnapshot = await getDocs(storiesQuery);
-              const storyList = storySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Story));
+              const storyList = storySnapshot.docs.map(doc => {
+                  const data = doc.data();
+                  return {
+                      id: doc.id,
+                      ...data,
+                  } as Story;
+              });
               setStories(storyList);
 
               // Fetch posts
               const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'));
               const postSnapshot = await getDocs(postsQuery);
-              const postList = postSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
+              const postList = postSnapshot.docs.map(doc => {
+                  const data = doc.data();
+                  return {
+                      id: doc.id,
+                      ...data,
+                  } as Post;
+              });
               setPosts(postList);
 
           } catch (error) {

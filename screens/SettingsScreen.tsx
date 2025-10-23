@@ -92,17 +92,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose, onLogout }) =>
                     <span className="ml-2 text-xs font-bold bg-premium-gold text-white px-2 py-0.5 rounded-full">PREMIUM</span>
                 </div>
                 <ChevronRightIcon />
+{/* FIX: Correctly closed the SettingsItem tag to fix the JSX syntax error. */}
             </SettingsItem>
         </SettingsSection>
 
-        <SettingsSection title="Support & Legal">
-            <SettingsItem isButton><span className="text-lg">Help Center</span><ChevronRightIcon /></SettingsItem>
-            <SettingsItem isButton><span className="text-lg">Terms of Service</span><ChevronRightIcon /></SettingsItem>
-            <SettingsItem isButton><span className="text-lg">Privacy Policy</span><ChevronRightIcon /></SettingsItem>
-        </SettingsSection>
-
-        <div className="p-4 mt-4">
-            <button onClick={onLogout} className="w-full bg-white text-error-red font-semibold py-3 px-4 rounded-lg border border-gray-200 active:bg-gray-100">
+        <div className="p-4">
+            <button onClick={onLogout} className="w-full text-center text-error-red font-semibold py-3 bg-white border border-gray-200 rounded-lg active:bg-gray-100">
                 Log Out
             </button>
         </div>
@@ -111,4 +106,5 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose, onLogout }) =>
   );
 };
 
+// FIX: Added missing default export.
 export default SettingsScreen;

@@ -5,21 +5,19 @@
 import { put } from '@vercel/blob';
 
 export async function POST(request: Request): Promise<Response> {
-  const { searchParams } = new URL(request.url);
-  const filename = searchParams.get('filename');
-
-  if (!filename || !request.body) {
-    return new Response(
-      JSON.stringify({ message: 'Missing filename or request body' }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } },
-    );
-  }
-
   try {
-    // The Vercel Blob SDK reads the BLOB_READ_WRITE_TOKEN from the environment automatically.
-    const blob = await put(filename, request.body, {
+    const formData = await request.formData();
+    const file = formData.get('file') as File | null;
+
+    if (!file) {
+      return new Response(
+        JSON.stringify({ message: 'No file found in form data.' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+    
+    const blob = await put(file.name, file, {
       access: 'public',
-      // The `Content-Type` header from the client's request is automatically forwarded.
     });
 
     // Return the blob object, which includes the public URL

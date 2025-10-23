@@ -7,11 +7,15 @@ export const uploadPhotos = async (files: File[]): Promise<string[]> => {
   const uploadedUrls: string[] = [];
   for (const file of files) {
     try {
-      // POST the file to our serverless function. Filename is in the query.
-      const response = await fetch(`/api/generate-upload-url?filename=${encodeURIComponent(file.name)}`, {
+      const formData = new FormData();
+      formData.append('file', file, file.name);
+      
+      // POST the form data to our serverless function.
+      // The browser will automatically set the 'Content-Type' header to 'multipart/form-data'
+      // with the correct boundary.
+      const response = await fetch('/api/generate-upload-url', {
         method: 'POST',
-        headers: { 'Content-Type': file.type },
-        body: file,
+        body: formData,
       });
       
       if (!response.ok) {

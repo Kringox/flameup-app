@@ -54,16 +54,6 @@ const CreateScreen: React.FC<CreateScreenProps> = ({ user, onClose, onSuccess })
     if (!file || !db) return;
     setIsLoading(true);
     try {
-        const safeUserProfile = {
-            id: user.id,
-            name: user.name || 'FlameUp User', // Fallback for missing name
-            profilePhoto: user.profilePhotos?.[0] || PLACEHOLDER_AVATAR, // Safer access and fallback
-        };
-
-        if (!safeUserProfile.id) {
-            throw new Error("User ID is missing.");
-        }
-
         const [photoUrl] = await uploadPhotos([file]);
         
         if (!photoUrl) {
@@ -71,7 +61,11 @@ const CreateScreen: React.FC<CreateScreenProps> = ({ user, onClose, onSuccess })
         }
 
         await addDoc(collection(db, 'posts'), {
-            user: safeUserProfile,
+            user: {
+              id: user.id,
+              name: user.name || 'FlameUp User',
+              profilePhoto: user.profilePhotos?.[0] || PLACEHOLDER_AVATAR,
+            },
             mediaUrls: [photoUrl],
             caption: caption,
             likes: 0,
@@ -90,16 +84,6 @@ const CreateScreen: React.FC<CreateScreenProps> = ({ user, onClose, onSuccess })
      if (!file || !db) return;
      setIsLoading(true);
      try {
-        const safeUserProfile = {
-            id: user.id,
-            name: user.name || 'FlameUp User', // Fallback for missing name
-            profilePhoto: user.profilePhotos?.[0] || PLACEHOLDER_AVATAR, // Safer access and fallback
-        };
-        
-        if (!safeUserProfile.id) {
-            throw new Error("User ID is missing.");
-        }
-
         const [photoUrl] = await uploadPhotos([file]);
 
         if (!photoUrl) {
@@ -107,7 +91,11 @@ const CreateScreen: React.FC<CreateScreenProps> = ({ user, onClose, onSuccess })
         }
 
         await addDoc(collection(db, 'stories'), {
-            user: safeUserProfile,
+            user: {
+              id: user.id,
+              name: user.name || 'FlameUp User',
+              profilePhoto: user.profilePhotos?.[0] || PLACEHOLDER_AVATAR,
+            },
             mediaUrl: photoUrl,
             viewed: false,
             timestamp: serverTimestamp(),
@@ -179,39 +167,40 @@ const CreateScreen: React.FC<CreateScreenProps> = ({ user, onClose, onSuccess })
   }
   
   const handleAction = () => {
-      if (mode === 'post') handleSharePost();
-      if (mode === 'story') handleShareStory();
+      if (mode === 'post') {
+          handleSharePost();
+      } else if (mode === 'story') {
+          handleShareStory();
+      }
   }
 
-
   return (
-    <div className="fixed inset-0 bg-white z-50 flex flex-col">
-      {/* Hidden File Input */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileSelect}
-        className="hidden"
-        accept="image/*"
-      />
-
-      {/* Header */}
-      <header className="flex justify-between items-center p-4 border-b border-gray-200 bg-white flex-shrink-0">
-        <button onClick={handleCancel} className="text-lg text-gray-600 w-24 text-left">Cancel</button>
-        <h1 className="text-xl font-bold text-dark-gray">{getHeaderTitle()}</h1>
-        <div className="w-24 text-right">
-            {mode !== 'select' && (
-                <button onClick={handleAction} disabled={isLoading || !file} className="text-lg font-bold text-flame-orange disabled:opacity-50">
+    <div className="fixed inset-0 bg-white z-[60] flex flex-col">
+        <header className="flex justify-between items-center p-4 border-b border-gray-200 flex-shrink-0">
+            <button onClick={handleCancel} className="text-lg text-gray-600 w-20 text-left">
+                {mode === 'select' ? 'Close' : 'Back'}
+            </button>
+            <h1 className="text-xl font-bold text-dark-gray">{getHeaderTitle()}</h1>
+            {getActionText() ? (
+                <button 
+                    onClick={handleAction} 
+                    disabled={isLoading || (mode === 'post' && !file)} 
+                    className="text-lg font-bold text-flame-orange disabled:opacity-50 w-20 text-right"
+                >
                     {getActionText()}
                 </button>
-            )}
-        </div>
-      </header>
-      
-      {/* Content */}
-      <div className={`flex-1 overflow-y-auto ${mode === 'story' && preview ? 'bg-black' : 'bg-gray-50'}`}>
-        {renderContent()}
-      </div>
+            ) : <div className="w-20"></div> /* spacer */}
+        </header>
+        <main className="flex-1 bg-gray-50 overflow-y-auto">
+            {renderContent()}
+        </main>
+        <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            className="hidden"
+            accept="image/*"
+        />
     </div>
   );
 };
