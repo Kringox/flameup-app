@@ -52,12 +52,13 @@ export const DEMO_USERS_FOR_UI: User[] = [
 ];
 
 
+// FIX: Added missing 'timestamp' property to each story object to satisfy the Story interface.
 export const MOCK_STORIES: Story[] = [
-    { id: 's1', user: { id: 'currentUser', name: 'Your Story', profilePhoto: 'https://picsum.photos/seed/alex/800/1200' }, mediaUrl: '', viewed: true },
-    { id: 's2', user: { id: '1', name: 'Jessica', profilePhoto: DEMO_USERS_FOR_UI[0].profilePhotos[0] }, mediaUrl: 'https://picsum.photos/seed/story_jessica/400/600', viewed: false },
-    { id: 's3', user: { id: '2', name: 'Mike', profilePhoto: DEMO_USERS_FOR_UI[1].profilePhotos[0] }, mediaUrl: 'https://picsum.photos/seed/story_mike/400/600', viewed: false },
-    { id: 's4', user: { id: '3', name: 'Chloe', profilePhoto: DEMO_USERS_FOR_UI[2].profilePhotos[0] }, mediaUrl: 'https://picsum.photos/seed/story_chloe/400/600', viewed: true },
-    { id: 's5', user: { id: '4', name: 'David', profilePhoto: DEMO_USERS_FOR_UI[3].profilePhotos[0] }, mediaUrl: 'https://picsum.photos/seed/story_david/400/600', viewed: false },
+    { id: 's1', user: { id: 'currentUser', name: 'Your Story', profilePhoto: 'https://picsum.photos/seed/alex/800/1200' }, mediaUrl: '', viewed: true, timestamp: new Date() },
+    { id: 's2', user: { id: '1', name: 'Jessica', profilePhoto: DEMO_USERS_FOR_UI[0].profilePhotos[0] }, mediaUrl: 'https://picsum.photos/seed/story_jessica/400/600', viewed: false, timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000) },
+    { id: 's3', user: { id: '2', name: 'Mike', profilePhoto: DEMO_USERS_FOR_UI[1].profilePhotos[0] }, mediaUrl: 'https://picsum.photos/seed/story_mike/400/600', viewed: false, timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000) },
+    { id: 's4', user: { id: '3', name: 'Chloe', profilePhoto: DEMO_USERS_FOR_UI[2].profilePhotos[0] }, mediaUrl: 'https://picsum.photos/seed/story_chloe/400/600', viewed: true, timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000) },
+    { id: 's5', user: { id: '4', name: 'David', profilePhoto: DEMO_USERS_FOR_UI[3].profilePhotos[0] }, mediaUrl: 'https://picsum.photos/seed/story_david/400/600', viewed: false, timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000) },
 ];
 
 export const MOCK_POSTS: Post[] = [

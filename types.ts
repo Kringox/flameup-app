@@ -26,6 +26,7 @@ export interface Story {
   };
   mediaUrl: string;
   viewed: boolean;
+  timestamp: any; // For 24-hour expiration
 }
 
 export interface Post {
@@ -39,7 +40,7 @@ export interface Post {
   caption: string;
   likes: number;
   comments: number;
-  timestamp: string;
+  timestamp: any; // For ordering the feed
 }
 
 export interface Match {

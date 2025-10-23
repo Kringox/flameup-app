@@ -1,14 +1,15 @@
-
 import React from 'react';
 import { Tab } from '../types';
 import HomeIcon from './icons/HomeIcon';
 import FlameIcon from './icons/FlameIcon';
 import ChatIcon from './icons/ChatIcon';
 import UserIcon from './icons/UserIcon';
+import PlusIcon from './icons/PlusIcon';
 
 interface BottomNavProps {
   activeTab: Tab;
   setActiveTab: (tab: Tab) => void;
+  onOpenCreate: () => void;
 }
 
 const NavItem: React.FC<{
@@ -30,7 +31,7 @@ const NavItem: React.FC<{
   );
 };
 
-const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab }) => {
+const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, onOpenCreate }) => {
   return (
     <nav className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-200 flex justify-around items-center shadow-lg z-50">
       <NavItem
@@ -45,6 +46,16 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab }) => {
         isActive={activeTab === Tab.Swipe}
         onClick={() => setActiveTab(Tab.Swipe)}
       />
+      
+      {/* Create Button */}
+      <button
+        onClick={onOpenCreate}
+        className="w-16 h-10 flex items-center justify-center bg-gradient-to-r from-flame-orange to-flame-red text-white rounded-xl shadow-md transform hover:scale-105 transition-transform"
+        aria-label="Create new post or story"
+      >
+        <PlusIcon className="w-8 h-8" strokeWidth={2.5}/>
+      </button>
+
       <NavItem
         label={Tab.Chat}
         icon={<ChatIcon />}

@@ -7,6 +7,7 @@ import ProfileScreen from './screens/ProfileScreen';
 import AuthScreen from './screens/AuthScreen';
 import ProfileSetupScreen from './screens/ProfileSetupScreen';
 import LoadingScreen from './components/LoadingScreen';
+import CreateScreen from './screens/CreateScreen'; // Import the new screen
 import { Tab, User } from './types';
 import { auth, db, firebaseInitializationError } from './firebaseConfig';
 import { onAuthStateChanged, User as FirebaseUser, signOut } from 'firebase/auth';
@@ -18,7 +19,9 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>(Tab.Home);
-  
+  const [isCreateScreenOpen, setIsCreateScreenOpen] = useState(false);
+  const [homeScreenKey, setHomeScreenKey] = useState(0); // Key to force HomeScreen remount
+
   useEffect(() => {
     if (!auth) {
       setIsLoading(false);
@@ -56,7 +59,6 @@ const App: React.FC = () => {
       try {
         const { photos, ...profileData } = newUserProfileData;
         
-        // Upload photos and get their public URLs from our new utility
         const photoURLs = await uploadPhotos(photos);
 
         if (photoURLs.length === 0) {
@@ -100,6 +102,12 @@ const App: React.FC = () => {
     }
   };
 
+  const handleCreationSuccess = () => {
+    setIsCreateScreenOpen(false);
+    setActiveTab(Tab.Home); // Switch to home tab to see the new content
+    setHomeScreenKey(k => k + 1); // Increment key to force HomeScreen to remount and refetch data
+  };
+
   if (firebaseInitializationError) {
     return <AuthScreen preloadedError={firebaseInitializationError} />;
   }
@@ -115,11 +123,15 @@ const App: React.FC = () => {
   if (!currentUser) {
     return <ProfileSetupScreen onComplete={handleProfileSetupComplete} />;
   }
+  
+  if (isCreateScreenOpen) {
+      return <CreateScreen user={currentUser} onClose={() => setIsCreateScreenOpen(false)} onSuccess={handleCreationSuccess} />;
+  }
 
   const renderContent = () => {
     switch (activeTab) {
       case Tab.Home:
-        return <HomeScreen />;
+        return <HomeScreen key={homeScreenKey} currentUser={currentUser} />;
       case Tab.Swipe:
         return <SwipeScreen currentUser={currentUser} />;
       case Tab.Chat:
@@ -127,7 +139,7 @@ const App: React.FC = () => {
       case Tab.Profile:
         return <ProfileScreen user={currentUser} onUpdateUser={handleUpdateUser} onLogout={handleLogout} />;
       default:
-        return <HomeScreen />;
+        return <HomeScreen key={homeScreenKey} currentUser={currentUser} />;
     }
   };
 
@@ -136,7 +148,7 @@ const App: React.FC = () => {
       <main className="flex-1 overflow-y-auto pb-16">
         {renderContent()}
       </main>
-      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
+      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} onOpenCreate={() => setIsCreateScreenOpen(true)} />
     </div>
   );
 };
