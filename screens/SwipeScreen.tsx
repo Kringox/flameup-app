@@ -60,9 +60,9 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
                 const BATCH_SIZE = 10;
                 let q;
 
-                // A very simple, robust query. Filtering happens on the client.
+                // A more robust query, ordering by creation date.
                 const baseQueryConstraints = [
-                    orderBy(documentId()),
+                    orderBy('createdAt', 'desc'),
                     limit(BATCH_SIZE)
                 ];
 
