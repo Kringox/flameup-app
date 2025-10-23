@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Post, User, Comment, NotificationType } from '../types';
 import { db } from '../firebaseConfig';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment, where } from 'firebase/firestore';
 
 const formatTimestamp = (timestamp: any): string => {
     if (!timestamp?.toDate) return 'Just now';
@@ -23,10 +23,9 @@ interface CommentRowProps {
     currentUser: User;
     postAuthorId: string;
     onDelete: (commentId: string) => void;
-    postId: string;
 }
 
-const CommentRow: React.FC<CommentRowProps> = ({ comment, currentUser, postAuthorId, onDelete, postId }) => {
+const CommentRow: React.FC<CommentRowProps> = ({ comment, currentUser, postAuthorId, onDelete }) => {
     const [isLiked, setIsLiked] = useState(false);
 
     useEffect(() => {
@@ -35,7 +34,8 @@ const CommentRow: React.FC<CommentRowProps> = ({ comment, currentUser, postAutho
 
     const handleLike = async () => {
         if (!db) return;
-        const commentRef = doc(db, 'posts', postId, 'comments', comment.id);
+        // Comments are now in a top-level collection
+        const commentRef = doc(db, 'comments', comment.id);
         const newLikedState = !isLiked;
         setIsLiked(newLikedState); // Optimistic update
 
@@ -85,8 +85,9 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
 
     useEffect(() => {
         if (!db) return;
-        const commentsRef = collection(db, 'posts', post.id, 'comments');
-        const q = query(commentsRef, orderBy('timestamp', 'asc'));
+        // Query the top-level 'comments' collection for comments related to this post
+        const commentsRef = collection(db, 'comments');
+        const q = query(commentsRef, where('postId', '==', post.id), orderBy('timestamp', 'asc'));
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const commentsList = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Comment));
@@ -107,13 +108,14 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
         const tempComment = newComment;
         setNewComment('');
 
-        const commentsRef = collection(db, 'posts', post.id, 'comments');
+        // Add to the top-level 'comments' collection
+        const commentsRef = collection(db, 'comments');
         const postRef = doc(db, 'posts', post.id);
 
         try {
-            // Step 1: Add the comment document. This is the critical operation.
-            // If this fails, the user will see the error alert.
+            // Step 1: Add the comment document with a reference to the post.
             await addDoc(commentsRef, {
+                postId: post.id, // Link comment to the post
                 userId: currentUser.id,
                 userName: currentUser.name,
                 userProfilePhoto: currentUser.profilePhotos?.[0] || '',
@@ -122,13 +124,9 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
                 timestamp: serverTimestamp()
             });
             
-            // From this point on, subsequent operations are "fire and forget".
-            // Their failure won't block the user or show an error, as the main
-            // action (posting the comment) has succeeded.
-
-            // Step 2 (Optional): Atomically increment the post's comment count.
+            // Step 2 (Optional): Increment post's comment count.
             updateDoc(postRef, { commentCount: increment(1) }).catch(error => {
-                console.warn("Could not update comment count. This may be due to security rules.", error);
+                console.warn("Could not update comment count.", error);
             });
 
             // Step 3 (Optional): Create a notification for the post author.
@@ -144,7 +142,7 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
                     read: false,
                     timestamp: serverTimestamp(),
                 }).catch(error => {
-                    console.warn("Could not create notification. This may be due to security rules.", error);
+                    console.warn("Could not create notification.", error);
                 });
             }
         } catch (e) {
@@ -157,16 +155,17 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
     const handleDeleteComment = async (commentId: string) => {
         if (!db) return;
 
-        const commentRef = doc(db, 'posts', post.id, 'comments', commentId);
+        // Delete from the top-level 'comments' collection
+        const commentRef = doc(db, 'comments', commentId);
         const postRef = doc(db, 'posts', post.id);
 
         try {
-            // Step 1: Delete the comment. This is the critical part.
+            // Step 1: Delete the comment.
             await deleteDoc(commentRef);
             
             // Step 2 (Optional): Decrement the post's comment count.
             updateDoc(postRef, { commentCount: increment(-1) }).catch(error => {
-                console.warn("Could not update comment count on delete. This may be due to security rules.", error);
+                console.warn("Could not update comment count on delete.", error);
             });
         } catch (e) {
             console.error("Failed to delete comment:", e);
@@ -188,7 +187,7 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
                 {isLoading ? (
                      <div className="flex justify-center items-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div></div>
                 ) : (
-                    comments.map(comment => <CommentRow key={comment.id} comment={comment} currentUser={currentUser} postAuthorId={post.userId} onDelete={handleDeleteComment} postId={post.id} />)
+                    comments.map(comment => <CommentRow key={comment.id} comment={comment} currentUser={currentUser} postAuthorId={post.userId} onDelete={handleDeleteComment} />)
                 )}
             </div>
 
