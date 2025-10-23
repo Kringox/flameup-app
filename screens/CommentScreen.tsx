@@ -183,7 +183,7 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
     };
 
     return (
-        <div className="absolute inset-0 bg-white z-50 flex flex-col">
+        <div className="absolute inset-0 bg-white z-[90] flex flex-col">
             <header className="flex items-center p-4 border-b border-gray-200 flex-shrink-0">
                 <div className="w-8"></div>
                 <h1 className="text-xl font-bold text-dark-gray text-center flex-1">Comments</h1>
