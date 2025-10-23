@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Message } from '../types';
 import { db } from '../firebaseConfig';
-import { collection, doc, getDoc, query, onSnapshot, serverTimestamp, setDoc, addDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, query, onSnapshot, serverTimestamp, setDoc, addDoc, updateDoc, increment } from 'firebase/firestore';
 
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
 
@@ -40,6 +40,14 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     
     useEffect(() => {
         if (!db) return;
+
+        // Mark messages as read when opening the conversation
+        const chatDocRef = doc(db, 'chats', chatId);
+        updateDoc(chatDocRef, {
+            [`unreadCount.${currentUser.id}`]: 0
+        }).catch(err => console.log("No chat document to update yet or permission error. This is okay on first message."));
+
+
         const messagesRef = collection(db, 'chats', chatId, 'messages');
         const q = query(messagesRef);
 
@@ -60,7 +68,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         });
 
         return () => unsubscribe();
-    }, [chatId]);
+    }, [chatId, currentUser.id]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -77,8 +85,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
         try {
             // Step 1: Create or update the chat document.
-            // This ensures the document exists before we try to add a message to its subcollection,
-            // which works around a Firestore security rule limitation with batch writes.
             await setDoc(chatDocRef, {
                 userIds: [currentUser.id, partner.id],
                 users: {
@@ -95,7 +101,9 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                     text: tempMessage,
                     senderId: currentUser.id,
                     timestamp: serverTimestamp()
-                }
+                },
+                // Increment unread count for the partner. Initialize if it doesn't exist.
+                [`unreadCount.${partner.id}`]: increment(1)
             }, { merge: true });
 
             // Step 2: Add the new message to the 'messages' subcollection.
@@ -109,7 +117,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             console.error("Error sending message:", error);
             let detailedError = "Could not send message. Please try again.";
             if (error.code === 'permission-denied') {
-                detailedError = "PERMISSION DENIED: Your Firestore Security Rules are blocking this message.\n\nThe first message creates a chat, but every message after that must UPDATE it.\n\nFIX: Go to Firebase -> Firestore -> Rules and make sure your rule for `match /chats/{chatId}` includes this line:\n\nallow update: if request.auth.uid in resource.data.userIds;";
+                detailedError = "PERMISSION DENIED: Your Firestore Security Rules are blocking this message.\n\nFIX: Go to Firebase -> Firestore -> Rules and ensure your rule for `match /chats/{chatId}` includes `allow update: if request.auth.uid in resource.data.userIds;`";
             }
             alert(detailedError);
             setNewMessage(tempMessage);
@@ -129,7 +137,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             {/* Header */}
             <header className="flex items-center p-3 border-b border-gray-200 flex-shrink-0">
                 <button onClick={onClose} className="p-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 </button>
                 <img src={partner.profilePhotos?.[0] || PLACEHOLDER_AVATAR} alt={partner.name} className="w-10 h-10 rounded-full object-cover ml-2"/>
                 <span className="ml-3 font-semibold text-lg">{partner.name}</span>
@@ -162,7 +170,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                         onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                     />
                     <button onClick={handleSendMessage} className="bg-flame-orange text-white rounded-full p-3 disabled:opacity-50" disabled={!newMessage.trim()}>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 transform rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 transform rotate-90" fill="none" viewBox="0 0 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
                     </button>
                 </div>
             </footer>

@@ -82,6 +82,10 @@ export interface Chat {
         senderId: string;
         timestamp: Timestamp;
     } | null;
+    // Tracks unread messages for each user in the chat
+    unreadCount: {
+        [key: string]: number;
+    };
 }
 
 

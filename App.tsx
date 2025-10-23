@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import BottomNav from './components/BottomNav';
 import HomeScreen from './screens/HomeScreen';
 import SwipeScreen from './screens/SwipeScreen';
@@ -13,10 +13,11 @@ import CreateScreen from './screens/CreateScreen';
 import CommentScreen from './screens/CommentScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 import FollowListScreen from './screens/FollowListScreen';
-import { Tab, User, Post } from './types';
+import InAppNotification from './components/InAppNotification';
+import { Tab, User, Post, Chat } from './types';
 import { auth, db, firebaseInitializationError } from './firebaseConfig';
 import { onAuthStateChanged, User as FirebaseUser, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
 import { uploadPhotos } from './utils/photoUploader';
 
 const App: React.FC = () => {
@@ -32,6 +33,11 @@ const App: React.FC = () => {
   const [followList, setFollowList] = useState<{title: 'Followers' | 'Following', userIds: string[]} | null>(null);
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
   const [activeChatPartnerId, setActiveChatPartnerId] = useState<string | null>(null);
+
+  // Notification states
+  const [allChats, setAllChats] = useState<Chat[]>([]);
+  const [notification, setNotification] = useState<{ senderName: string; messageText: string; profilePhoto: string; partnerId: string; } | null>(null);
+  const prevChatsRef = useRef<Chat[]>([]);
 
 
   useEffect(() => {
@@ -53,7 +59,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!db || !firebaseUser) {
-        // Not logged in, so not loading anymore
         setIsLoading(false);
         return;
     }
@@ -63,7 +68,7 @@ const App: React.FC = () => {
         if (userDocSnap.exists()) {
             setCurrentUser({ id: firebaseUser.uid, ...userDocSnap.data() } as User);
         } else {
-            setCurrentUser(null); // This triggers the profile setup screen
+            setCurrentUser(null); 
         }
         setIsLoading(false);
     }, (error) => {
@@ -71,9 +76,40 @@ const App: React.FC = () => {
         setCurrentUser(null);
         setIsLoading(false);
     });
+    
+    // Global chat listener for notifications
+    const chatsQuery = query(collection(db, 'chats'), where('userIds', 'array-contains', firebaseUser.uid));
+    const unsubscribeChats = onSnapshot(chatsQuery, (snapshot) => {
+        const newChats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Chat));
+        
+        // Check for new messages to show popup notification
+        newChats.forEach(chat => {
+            const oldChat = prevChatsRef.current.find(c => c.id === chat.id);
+            const isNewMessage = !oldChat || chat.lastMessage?.timestamp > oldChat.lastMessage?.timestamp;
+            const sentByPartner = chat.lastMessage?.senderId !== firebaseUser.uid;
+            const isNotViewingChat = chat.id.replace(/_/g, '').replace(firebaseUser.uid, '') !== activeChatPartnerId;
 
-    return () => unsubscribeUser();
-  }, [firebaseUser]);
+            if (isNewMessage && sentByPartner && isNotViewingChat) {
+                const partnerId = chat.userIds.find(id => id !== firebaseUser.uid)!;
+                const partnerData = chat.users[partnerId];
+                setNotification({
+                    senderName: partnerData.name,
+                    messageText: chat.lastMessage!.text,
+                    profilePhoto: partnerData.profilePhoto,
+                    partnerId: partnerId,
+                });
+            }
+        });
+        
+        setAllChats(newChats);
+        prevChatsRef.current = newChats;
+    });
+
+    return () => {
+      unsubscribeUser();
+      unsubscribeChats();
+    };
+  }, [firebaseUser, activeChatPartnerId]);
 
 
   const handleProfileSetupComplete = async (newUserProfileData: Omit<User, 'id' | 'email' | 'profilePhotos' | 'followers' | 'following'> & { photos: File[] }) => {
@@ -99,7 +135,6 @@ const App: React.FC = () => {
         
         await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
         setCurrentUser(newUser);
-      // FIX: Correctly handle caught error object to resolve "Cannot find name 'error'" errors.
       } catch (error: any) {
         console.error("Error setting up profile:", error);
         alert(`Could not set up profile. Please try again.\n\nError: ${String(error)}`);
@@ -110,11 +145,9 @@ const App: React.FC = () => {
   };
   
   const handleUpdateUser = async (updatedUser: User) => {
-    // FIX: Ensure firebaseUser and db are available before proceeding.
     if(firebaseUser && db) {
       const userDocRef = doc(db, 'users', firebaseUser.uid);
       await setDoc(userDocRef, updatedUser, { merge: true });
-      // FIX: Ensure setCurrentUser is available in this scope.
       setCurrentUser(updatedUser);
     }
   };
@@ -130,7 +163,6 @@ const App: React.FC = () => {
   };
 
   const handleCreationSuccess = () => {
-    // FIX: Ensure setIsCreateScreenOpen and setActiveTab are available in this scope.
     setIsCreateScreenOpen(false);
     setActiveTab(Tab.Home);
   };
@@ -144,30 +176,41 @@ const App: React.FC = () => {
   };
 
   const handleStartChat = (partnerId: string) => {
-    setViewingUserId(null); // Close profile if open
+    setViewingUserId(null); 
     setActiveChatPartnerId(partnerId);
     setActiveTab(Tab.Chat);
   };
+  
+  const hasUnreadMessages = currentUser ? allChats.some(chat => (chat.unreadCount?.[currentUser.id] || 0) > 0) : false;
+
 
   if (firebaseInitializationError) {
     return <AuthScreen preloadedError={firebaseInitializationError} />;
   }
-  // FIX: Ensure isLoading is available in this scope.
   if (isLoading) {
     return <LoadingScreen />;
   }
-  // FIX: Ensure firebaseUser is available in this scope.
   if (!firebaseUser) {
     return <AuthScreen />;
   }
-  // FIX: Ensure currentUser is available in this scope.
   if (!currentUser) {
     return <ProfileSetupScreen onComplete={handleProfileSetupComplete} />;
   }
 
   return (
-    <div className="relative h-screen w-screen flex flex-col font-sans bg-gray-50 text-dark-gray antialiased md:max-w-md md:mx-auto md:shadow-2xl md:my-4 md:rounded-2xl md:h-[calc(100vh-2rem)]">
+    <div className="relative h-screen w-screen flex flex-col font-sans bg-gray-50 text-dark-gray antialiased md:max-w-md md:mx-auto md:shadow-2xl md:my-4 md:rounded-2xl md:h-[calc(100vh-2rem)] overflow-hidden">
       
+      {notification && (
+          <InAppNotification
+              notification={notification}
+              onReply={(partnerId) => {
+                  handleStartChat(partnerId);
+                  setNotification(null); // Close notification on reply
+              }}
+              onClose={() => setNotification(null)}
+          />
+      )}
+
       {/* Overlays - Rendered on top of main content */}
       {isCreateScreenOpen && <CreateScreen user={currentUser} onClose={() => setIsCreateScreenOpen(false)} onSuccess={handleCreationSuccess} />}
       {isNotificationsOpen && <NotificationsScreen user={currentUser} onClose={() => setIsNotificationsOpen(false)} />}
@@ -202,7 +245,7 @@ const App: React.FC = () => {
           />
         </div>
       </main>
-      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} onOpenCreate={() => setIsCreateScreenOpen(true)} />
+      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} onOpenCreate={() => setIsCreateScreenOpen(true)} hasUnreadMessages={hasUnreadMessages} />
     </div>
   );
 };

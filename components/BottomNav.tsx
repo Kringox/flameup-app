@@ -10,6 +10,7 @@ interface BottomNavProps {
   activeTab: Tab;
   setActiveTab: (tab: Tab) => void;
   onOpenCreate: () => void;
+  hasUnreadMessages?: boolean;
 }
 
 const NavItem: React.FC<{
@@ -17,7 +18,8 @@ const NavItem: React.FC<{
   icon: React.ReactNode;
   isActive: boolean;
   onClick: () => void;
-}> = ({ label, icon, isActive, onClick }) => {
+  hasNotification?: boolean;
+}> = ({ label, icon, isActive, onClick, hasNotification }) => {
   const activeClass = 'text-flame-orange';
   const inactiveClass = 'text-gray-400';
   return (
@@ -25,13 +27,18 @@ const NavItem: React.FC<{
       onClick={onClick}
       className="flex flex-col items-center justify-center w-full h-full transition-colors duration-200"
     >
-      <div className={`w-8 h-8 ${isActive ? activeClass : inactiveClass}`}>{icon}</div>
+      <div className={`relative w-8 h-8 ${isActive ? activeClass : inactiveClass}`}>
+        {icon}
+        {hasNotification && (
+           <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-flame-red ring-2 ring-white" />
+        )}
+      </div>
       <span className={`text-xs mt-1 ${isActive ? activeClass : inactiveClass}`}>{label}</span>
     </button>
   );
 };
 
-const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, onOpenCreate }) => {
+const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, onOpenCreate, hasUnreadMessages }) => {
   return (
     <nav className="flex-shrink-0 h-16 bg-white border-t border-gray-200 flex justify-around items-center shadow-lg md:rounded-b-2xl">
       <NavItem
@@ -61,6 +68,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, onOpenCr
         icon={<ChatIcon />}
         isActive={activeTab === Tab.Chat}
         onClick={() => setActiveTab(Tab.Chat)}
+        hasNotification={hasUnreadMessages}
       />
       <NavItem
         label={Tab.Profile}
