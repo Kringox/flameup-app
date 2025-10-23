@@ -47,9 +47,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLog
             commentCount: data.commentCount || 0,
             timestamp: data.timestamp,
             user: {
-                id: user.id,
-                name: user.name,
-                profilePhoto: user.profilePhotos?.[0] || PLACEHOLDER_AVATAR,
+                id: data.userId,
+                name: data.userName,
+                profilePhoto: data.userProfilePhoto,
             },
         } as Post;
       });
@@ -61,7 +61,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLog
     });
 
     return () => unsubscribe();
-  }, [user.id, user.name, user.profilePhotos]);
+  }, [user.id]);
 
 
   const handleSaveProfile = (updatedUser: User) => {

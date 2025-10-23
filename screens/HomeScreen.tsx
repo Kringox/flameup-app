@@ -64,7 +64,23 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
 
       const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'));
       const unsubscribePosts = onSnapshot(postsQuery, (postSnapshot) => {
-          const postList = postSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Post));
+          const postList = postSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                userId: data.userId,
+                mediaUrls: data.mediaUrls,
+                caption: data.caption,
+                likedBy: data.likedBy || [],
+                commentCount: data.commentCount || 0,
+                timestamp: data.timestamp,
+                user: {
+                    id: data.userId,
+                    name: data.userName,
+                    profilePhoto: data.userProfilePhoto,
+                },
+            } as Post;
+          });
           setPosts(postList);
           setIsLoading(false);
       }, (error) => {
