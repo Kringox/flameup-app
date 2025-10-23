@@ -3,6 +3,7 @@ import { User } from '../types';
 import FlameIcon from '../components/icons/FlameIcon';
 import { db } from '../firebaseConfig';
 import { collection, getDocs, query, where } from 'firebase/firestore';
+import { DEMO_USERS_FOR_UI } from '../constants';
 
 const ProfileCard: React.FC<{ user: User }> = ({ user }) => {
   return (
@@ -67,14 +68,23 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser }) => {
     useEffect(() => {
         const fetchUsers = async () => {
             setIsLoading(true);
+            if (!db) {
+                console.error("Firestore is not available. Falling back to demo data.");
+                setUsers(DEMO_USERS_FOR_UI.filter(u => u.id !== currentUser.id));
+                setIsLoading(false);
+                return;
+            }
+
             try {
                 const usersCollection = collection(db, 'users');
+                // TODO: Add logic here to exclude users the current user has already swiped on.
                 const q = query(usersCollection, where("id", "!=", currentUser.id));
                 const userSnapshot = await getDocs(q);
                 const userList = userSnapshot.docs.map(doc => doc.data() as User);
-                setUsers(userList);
+                setUsers(userList.length > 0 ? userList : DEMO_USERS_FOR_UI); // Fallback to demo users if firestore is empty
             } catch (error) {
-                console.error("Error fetching users: ", error);
+                console.error("Error fetching users, falling back to demo data: ", error);
+                setUsers(DEMO_USERS_FOR_UI); // Use demo data as a fallback on error
             } finally {
                 setIsLoading(false);
             }

@@ -3,26 +3,16 @@ import { MOCK_POSTS } from '../constants';
 import { User } from '../types';
 import EditProfileScreen from './EditProfileScreen';
 import SettingsScreen from './SettingsScreen';
-import { auth } from '../firebaseConfig';
-import { signOut } from 'firebase/auth';
 
 interface ProfileScreenProps {
   user: User;
   onUpdateUser: (updatedUser: User) => void;
+  onLogout: () => void;
 }
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLogout }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      // App component will handle navigation due to onAuthStateChanged
-    } catch (error) {
-      console.error("Error signing out: ", error);
-    }
-  };
 
   const userPosts = MOCK_POSTS.filter(p => {
       if (p.user.id === 'currentUser' || p.user.id === user.id) {
@@ -44,7 +34,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser }) => 
   }
   
   if (isSettingsOpen) {
-    return <SettingsScreen onClose={() => setIsSettingsOpen(false)} onLogout={handleLogout} />;
+    return <SettingsScreen onClose={() => setIsSettingsOpen(false)} onLogout={onLogout} />;
   }
 
 

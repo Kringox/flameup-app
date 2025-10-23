@@ -8,8 +8,8 @@ import AuthScreen from './screens/AuthScreen';
 import ProfileSetupScreen from './screens/ProfileSetupScreen';
 import LoadingScreen from './components/LoadingScreen';
 import { Tab, User } from './types';
-import { auth, db } from './firebaseConfig';
-import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { auth, db, firebaseInitializationError } from './firebaseConfig';
+import { onAuthStateChanged, User as FirebaseUser, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 const App: React.FC = () => {
@@ -18,27 +18,15 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>(Tab.Home);
   
-  // CRITICAL: Check if Firebase is configured. If not, show an error screen.
-  // This prevents the blank screen crash if the API key is missing.
-  if (!auth || !db) {
-    return (
-      <div className="h-screen w-screen flex flex-col justify-center items-center bg-red-100 p-4 text-center">
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-        <h1 className="text-2xl font-bold text-red-800">Application Configuration Error</h1>
-        <p className="text-red-600 mt-2 max-w-md">
-          The connection to the app's services could not be established. This is usually due to a missing configuration key.
-        </p>
-        <p className="mt-6 text-sm text-gray-700 bg-gray-100 p-3 rounded-md border border-gray-200">
-          <strong>Action Required:</strong> Please ensure the <code>API_KEY</code> environment variable is set correctly in your hosting provider (e.g., Vercel).
-        </p>
-      </div>
-    );
-  }
-
   useEffect(() => {
+    if (!auth) {
+      setIsLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
-      if (user) {
+      if (user && db) {
         // User is signed in, check for their profile in Firestore
         const userDocRef = doc(db, 'users', user.uid);
         const userDocSnap = await getDoc(userDocRef);
@@ -62,7 +50,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleProfileSetupComplete = async (newUserProfileData: Omit<User, 'id' | 'email' | 'profilePhotos'> & { photos: File[] }) => {
-    if (firebaseUser) {
+    if (firebaseUser && db) {
       setIsLoading(true);
       try {
         // Generate placeholder URLs instead of uploading to Firebase Storage
@@ -92,12 +80,26 @@ const App: React.FC = () => {
   };
   
   const handleUpdateUser = async (updatedUser: User) => {
-    if(firebaseUser) {
+    if(firebaseUser && db) {
       const userDocRef = doc(db, 'users', firebaseUser.uid);
       await setDoc(userDocRef, updatedUser, { merge: true });
       setCurrentUser(updatedUser);
     }
   };
+
+  const handleLogout = async () => {
+    try {
+      if (auth) {
+        await signOut(auth);
+      }
+    } catch (error) {
+      console.error("Error signing out: ", error);
+    }
+  };
+
+  if (firebaseInitializationError) {
+    return <AuthScreen preloadedError={firebaseInitializationError} />;
+  }
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -120,7 +122,7 @@ const App: React.FC = () => {
       case Tab.Chat:
         return <ChatScreen />;
       case Tab.Profile:
-        return <ProfileScreen user={currentUser} onUpdateUser={handleUpdateUser} />;
+        return <ProfileScreen user={currentUser} onUpdateUser={handleUpdateUser} onLogout={handleLogout} />;
       default:
         return <HomeScreen />;
     }

@@ -3,9 +3,11 @@ import { initializeApp, FirebaseApp } from "firebase/app";
 import { getAuth, Auth } from "firebase/auth";
 import { getFirestore, Firestore } from "firebase/firestore";
 
-// User's Firebase configuration using environment variables for security
+// User's Firebase configuration using Vite's standard environment variables for security.
 const firebaseConfig = {
-  apiKey: process.env.API_KEY,
+  // FIX: Safely access environment variables using optional chaining to prevent crashes
+  // when `import.meta.env` is not defined in certain environments.
+  apiKey: (import.meta as any).env?.VITE_API_KEY,
   authDomain: "flameup-9943c.firebaseapp.com",
   projectId: "flameup-9943c",
   storageBucket: "flameup-9943c.appspot.com",
@@ -17,17 +19,27 @@ const firebaseConfig = {
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
+let firebaseInitializationError: string | null = null;
 
-// Only initialize Firebase if the API key is provided
-// This prevents the app from crashing with a blank screen on a missing key
-if (firebaseConfig.apiKey) {
-    app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
+if (!firebaseConfig.apiKey) {
+    firebaseInitializationError = 'Configuration error: The Firebase API key is missing. Please ensure the VITE_API_KEY environment variable is set correctly.';
 } else {
-    console.error("CRITICAL: Firebase API Key is not configured. The app will not function.");
+    try {
+        app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+    } catch (error) {
+        console.error("Firebase initialization failed:", error);
+        if (error instanceof Error && error.message.includes('auth/api-key-not-valid')) {
+            firebaseInitializationError = 'Configuration error: The Firebase API key is invalid. Please ensure the VITE_API_KEY environment variable is set correctly.';
+        } else if (error instanceof Error) {
+             firebaseInitializationError = `Firebase initialization failed: ${error.message}. Check your project configuration.`;
+        } else {
+             firebaseInitializationError = 'An unknown error occurred during Firebase initialization.';
+        }
+    }
 }
 
 
 // Export the services you need
-export { auth, db };
+export { auth, db, firebaseInitializationError };

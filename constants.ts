@@ -3,7 +3,8 @@ import { User, Story, Post, Match } from './types';
 // MOCK_USERS and MOCK_CURRENT_USER are no longer needed as data comes from Firebase.
 
 // Kept for UI demonstration purposes
-const DEMO_USERS_FOR_UI: User[] = [
+// FIX: Export `DEMO_USERS_FOR_UI` to make it accessible to other modules.
+export const DEMO_USERS_FOR_UI: User[] = [
   {
     id: '1',
     name: 'Jessica',
