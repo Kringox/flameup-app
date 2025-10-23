@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { User, NotificationType } from '../types';
 import FlameIcon from '../components/icons/FlameIcon';
 import MatchModal from '../components/MatchModal';
 import { db } from '../firebaseConfig';
-import { collection, getDocs, query, where, doc, writeBatch, serverTimestamp, addDoc, setDoc, limit, orderBy, startAfter, QueryDocumentSnapshot, documentId } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, writeBatch, serverTimestamp, addDoc, setDoc } from 'firebase/firestore';
 
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
 const getChatId = (uid1: string, uid2: string) => [uid1, uid2].sort().join('_');
@@ -40,98 +40,47 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
     const [swipedUserId, setSwipedUserId] = useState<string | null>(null);
     const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | 'up' | null>(null);
 
-    // Refs to manage fetching logic efficiently
-    const swipedUserIdsRef = useRef<Set<string>>(new Set());
-    const lastFetchedDocRef = useRef<QueryDocumentSnapshot | null>(null);
-    const isFetchingRef = useRef(false);
-    const allUsersLoadedRef = useRef(false);
-
-    const fetchMoreUsers = useCallback(async () => {
-        if (isFetchingRef.current || allUsersLoadedRef.current || !db) return;
-
-        isFetchingRef.current = true;
-        
-        try {
-            let potentialUsers: User[] = [];
-            
-            // Paginate through users until we find some that haven't been swiped.
-            while (potentialUsers.length === 0 && !allUsersLoadedRef.current) {
-                const usersCollection = collection(db, 'users');
-                const BATCH_SIZE = 10;
-                let q;
-
-                // SIMPLIFIED QUERY: Fetch all users and filter on the client.
-                // This is more robust than a complex server-side query.
-                const baseQueryConstraints = [
-                    orderBy(documentId()),
-                    limit(BATCH_SIZE)
-                ];
-
-                if (lastFetchedDocRef.current) {
-                    q = query(usersCollection, ...baseQueryConstraints, startAfter(lastFetchedDocRef.current));
-                } else {
-                    q = query(usersCollection, ...baseQueryConstraints);
-                }
-
-                const userSnapshot = await getDocs(q);
-
-                if (userSnapshot.empty) {
-                    allUsersLoadedRef.current = true;
-                    break;
-                }
-
-                lastFetchedDocRef.current = userSnapshot.docs[userSnapshot.docs.length - 1];
-
-                // Filter on the client: Exclude self AND already-swiped users.
-                potentialUsers = userSnapshot.docs
-                    .map(doc => ({ id: doc.id, ...doc.data() } as User))
-                    .filter(user => user.id !== currentUser.id && !swipedUserIdsRef.current.has(user.id));
-            }
-
-            // Add the found users to our swipe stack
-            if (potentialUsers.length > 0) {
-                setUsers(current => [...current, ...potentialUsers]);
-            }
-        } catch (error) {
-            console.error("Error fetching more users: ", error);
-        } finally {
-            isFetchingRef.current = false;
-        }
-    }, [currentUser.id]);
-
-    const loadInitialData = useCallback(async () => {
+    const loadSwipeableUsers = useCallback(async () => {
         if (!db) {
             setIsLoading(false);
             return;
         }
         setIsLoading(true);
-        setUsers([]);
-        
-        // Reset refs for a clean load
-        lastFetchedDocRef.current = null;
-        isFetchingRef.current = false;
-        allUsersLoadedRef.current = false;
 
         try {
-            // Fetch all users I've already swiped, ONCE.
-            const swipesSnapshot = await getDocs(query(collection(db, 'swipes'), where("swiperId", "==", currentUser.id)));
-            const swipedIds = new Set(swipesSnapshot.docs.map(doc => doc.data().swipedUserId));
-            swipedUserIdsRef.current = swipedIds;
-            
-            // Now start fetching user profiles
-            await fetchMoreUsers();
+            // 1. Fetch all users
+            const usersQuery = query(collection(db, 'users'));
+            const usersPromise = getDocs(usersQuery);
 
+            // 2. Fetch all of the current user's swipes
+            const swipesQuery = query(collection(db, 'swipes'), where("swiperId", "==", currentUser.id));
+            const swipesPromise = getDocs(swipesQuery);
+
+            // 3. Wait for both database calls to complete
+            const [usersSnapshot, swipesSnapshot] = await Promise.all([usersPromise, swipesPromise]);
+
+            // 4. Create a Set of IDs for users that have already been swiped
+            const swipedIds = new Set(swipesSnapshot.docs.map(doc => doc.data().swipedUserId));
+
+            // 5. Map and filter all users in-memory
+            const allUsers = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+            const filteredUsers = allUsers.filter(user => {
+                const isCurrentUser = user.id === currentUser.id;
+                const isAlreadySwiped = swipedIds.has(user.id);
+                return !isCurrentUser && !isAlreadySwiped;
+            });
+
+            setUsers(filteredUsers);
         } catch (error) {
-            console.error("Error loading initial data:", error);
+            console.error("Error loading swipeable users:", error);
         } finally {
             setIsLoading(false);
         }
-    }, [currentUser.id, fetchMoreUsers]);
+    }, [currentUser.id]);
 
-    // Load initial data on mount or when the user changes
     useEffect(() => {
-        loadInitialData();
-    }, [loadInitialData]);
+        loadSwipeableUsers();
+    }, [loadSwipeableUsers]);
 
 
     const handleSwipe = async (direction: 'left' | 'right' | 'up') => {
@@ -140,9 +89,6 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
         const targetUser = users[0];
         setSwipeDirection(direction);
         setSwipedUserId(targetUser.id);
-        
-        // Optimistically add to local swipe cache to prevent seeing this user again
-        swipedUserIdsRef.current.add(targetUser.id);
         
         const batch = writeBatch(db);
         const swipeDocRef = doc(collection(db, 'swipes'));
@@ -197,11 +143,6 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
             const remainingUsers = users.slice(1);
             setUsers(remainingUsers);
             
-            // Fetch more if deck is running low
-            if (remainingUsers.length < 5 && !allUsersLoadedRef.current) {
-                fetchMoreUsers();
-            }
-
             setSwipedUserId(null);
             setSwipeDirection(null);
         }, 400);
@@ -215,8 +156,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
     }
     
     const handleRefresh = () => {
-        // A refresh re-runs the whole initial load process to get the latest data
-        loadInitialData();
+        loadSwipeableUsers();
     };
 
     return (
