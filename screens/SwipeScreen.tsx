@@ -3,7 +3,7 @@ import { User, NotificationType } from '../types';
 import FlameIcon from '../components/icons/FlameIcon';
 import MatchModal from '../components/MatchModal';
 import { db } from '../firebaseConfig';
-import { collection, getDocs, query, where, doc, writeBatch, serverTimestamp, addDoc, setDoc, limit, orderBy, startAfter, QueryDocumentSnapshot, documentId } from 'firestore';
+import { collection, getDocs, query, where, doc, writeBatch, serverTimestamp, addDoc, setDoc, limit, orderBy, startAfter, QueryDocumentSnapshot, documentId } from 'firebase/firestore';
 
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
 const getChatId = (uid1: string, uid2: string) => [uid1, uid2].sort().join('_');
