@@ -54,14 +54,24 @@ const CreateScreen: React.FC<CreateScreenProps> = ({ user, onClose, onSuccess })
     if (!file || !db) return;
     setIsLoading(true);
     try {
-        const profilePhoto = (user.profilePhotos && user.profilePhotos.length > 0) ? user.profilePhotos[0] : PLACEHOLDER_AVATAR;
+        const safeUserProfile = {
+            id: user.id,
+            name: user.name || 'FlameUp User', // Fallback for missing name
+            profilePhoto: user.profilePhotos?.[0] || PLACEHOLDER_AVATAR, // Safer access and fallback
+        };
+
+        if (!safeUserProfile.id) {
+            throw new Error("User ID is missing.");
+        }
+
         const [photoUrl] = await uploadPhotos([file]);
+        
+        if (!photoUrl) {
+            throw new Error("File upload did not return a URL.");
+        }
+
         await addDoc(collection(db, 'posts'), {
-            user: {
-                id: user.id,
-                name: user.name,
-                profilePhoto: profilePhoto,
-            },
+            user: safeUserProfile,
             mediaUrls: [photoUrl],
             caption: caption,
             likes: 0,
@@ -80,14 +90,24 @@ const CreateScreen: React.FC<CreateScreenProps> = ({ user, onClose, onSuccess })
      if (!file || !db) return;
      setIsLoading(true);
      try {
-        const profilePhoto = (user.profilePhotos && user.profilePhotos.length > 0) ? user.profilePhotos[0] : PLACEHOLDER_AVATAR;
+        const safeUserProfile = {
+            id: user.id,
+            name: user.name || 'FlameUp User', // Fallback for missing name
+            profilePhoto: user.profilePhotos?.[0] || PLACEHOLDER_AVATAR, // Safer access and fallback
+        };
+        
+        if (!safeUserProfile.id) {
+            throw new Error("User ID is missing.");
+        }
+
         const [photoUrl] = await uploadPhotos([file]);
+
+        if (!photoUrl) {
+            throw new Error("File upload did not return a URL.");
+        }
+
         await addDoc(collection(db, 'stories'), {
-            user: {
-                id: user.id,
-                name: user.name,
-                profilePhoto: profilePhoto,
-            },
+            user: safeUserProfile,
             mediaUrl: photoUrl,
             viewed: false,
             timestamp: serverTimestamp(),
