@@ -66,8 +66,8 @@ const CreateScreen: React.FC<CreateScreenProps> = ({ user, onClose, onSuccess })
             userProfilePhoto: user.profilePhotos?.[0] || PLACEHOLDER_AVATAR,
             mediaUrls: [photoUrl],
             caption: caption,
-            likes: 0,
-            comments: 0,
+            likedBy: [],
+            commentCount: 0,
             timestamp: serverTimestamp(),
         });
         onSuccess();

@@ -61,32 +61,37 @@ export const MOCK_STORIES: Story[] = [
     { id: 's5', user: { id: '4', name: 'David', profilePhoto: DEMO_USERS_FOR_UI[3].profilePhotos[0] }, mediaUrl: 'https://picsum.photos/seed/story_david/400/600', viewed: false, timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000) },
 ];
 
+// FIX: Updated MOCK_POSTS to align with the Post interface in types.ts.
+// Changed 'likes' to 'likedBy' (an array of user IDs), 'comments' to 'commentCount', and added 'userId'.
 export const MOCK_POSTS: Post[] = [
     {
         id: 'p1',
+        userId: '1',
         user: { id: '1', name: 'Jessica', profilePhoto: DEMO_USERS_FOR_UI[0].profilePhotos[0] },
         mediaUrls: ['https://picsum.photos/seed/post_jessica/1080/1080'],
         caption: 'Beautiful sunset at the beach today! 🌅 #sunset #beachlife #nofilter',
-        likes: 124,
-        comments: 12,
+        likedBy: ['2', '3', '4'],
+        commentCount: 12,
         timestamp: '2 hours ago',
     },
     {
         id: 'p2',
+        userId: '2',
         user: { id: '2', name: 'Mike', profilePhoto: DEMO_USERS_FOR_UI[1].profilePhotos[0] },
         mediaUrls: ['https://picsum.photos/seed/post_mike/1080/1080'],
         caption: 'Morning hike with the best boy! 🐶 #dogsofinstagram #hiking #adventure',
-        likes: 256,
-        comments: 34,
+        likedBy: ['1', '3'],
+        commentCount: 34,
         timestamp: '5 hours ago',
     },
     {
         id: 'p3',
+        userId: 'currentUser',
         user: { id: 'currentUser', name: 'You', profilePhoto: 'https://picsum.photos/seed/alex/800/1200' },
         mediaUrls: ['https://picsum.photos/seed/post_alex/1080/1080'],
         caption: 'New project deployed! Time for some well-deserved coffee. ☕️ #coding #developer #coffee',
-        likes: 98,
-        comments: 21,
+        likedBy: ['1', '2', '4'],
+        commentCount: 21,
         timestamp: '1 day ago',
     }
 ];

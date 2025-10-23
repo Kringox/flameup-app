@@ -5,25 +5,9 @@ import { Story, Post, User } from '../types';
 import StoryViewer from '../components/StoryViewer';
 import BellIcon from '../components/icons/BellIcon';
 import LoadingScreen from '../components/LoadingScreen';
+import PostCard from '../components/PostCard';
 
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
-
-const formatTimestamp = (timestamp: any): string => {
-    if (!timestamp || !timestamp.toDate) {
-        return 'Just now';
-    }
-    const date = timestamp.toDate();
-    const now = new Date();
-    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    
-    if (seconds < 60) return "Just now";
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
-};
 
 const StoryCircle: React.FC<{ story: Story; onClick: () => void, isOwnStory: boolean, hasUnviewed: boolean }> = ({ story, onClick, isOwnStory, hasUnviewed }) => {
   const ringClass = hasUnviewed ? 'bg-gradient-to-tr from-orange-400 to-red-500' : 'bg-gray-200';
@@ -48,33 +32,6 @@ const StoryCircle: React.FC<{ story: Story; onClick: () => void, isOwnStory: boo
       </div>
       <span className="text-xs text-gray-700 w-16 truncate text-center">{story.user.name}</span>
     </button>
-  );
-};
-
-const PostCard: React.FC<{ post: Post }> = ({ post }) => {
-  return (
-    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden mb-4">
-      <div className="flex items-center p-3">
-        <img className="w-8 h-8 rounded-full object-cover" src={post.user.profilePhoto} alt={post.user.name} />
-        <span className="ml-3 font-semibold text-sm">{post.user.name}</span>
-        <button className="ml-auto text-gray-500">
-           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" /></svg>
-        </button>
-      </div>
-      <img className="w-full h-auto object-cover" src={post.mediaUrls[0]} alt="Post content" />
-      <div className="p-3">
-        <div className="flex space-x-4 mb-2">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 cursor-pointer hover:text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 cursor-pointer hover:text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 cursor-pointer hover:text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
-        </div>
-        <div className="font-semibold text-sm">{post.likes} likes</div>
-        <p className="text-sm mt-1">
-          <span className="font-semibold">{post.user.name}</span> {post.caption}
-        </p>
-        <div className="text-xs text-gray-500 mt-2 uppercase">{formatTimestamp(post.timestamp)}</div>
-      </div>
-    </div>
   );
 };
 
@@ -121,10 +78,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser }) => {
                   const data = doc.data();
                   return {
                       id: doc.id,
+                      userId: data.userId,
                       mediaUrls: data.mediaUrls,
                       caption: data.caption,
-                      likes: data.likes,
-                      comments: data.comments,
+                      likedBy: data.likedBy || [],
+                      commentCount: data.commentCount || 0,
                       timestamp: data.timestamp,
                       user: {
                           id: data.userId,
@@ -145,6 +103,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser }) => {
       fetchData();
   }, []);
   
+  const handlePostDeleted = (postId: string) => {
+    setPosts(currentPosts => currentPosts.filter(p => p.id !== postId));
+  };
 
   const openStoryViewer = (index: number) => {
     setViewingStoryIndex(index);
@@ -219,7 +180,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser }) => {
       {/* Posts */}
       <div className="p-2 md:p-4">
         {posts.map((post) => (
-          <PostCard key={post.id} post={post} />
+          <PostCard key={post.id} post={post} currentUser={currentUser} onPostDeleted={handlePostDeleted} />
         ))}
       </div>
     </div>

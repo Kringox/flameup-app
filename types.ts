@@ -31,6 +31,7 @@ export interface Story {
 
 export interface Post {
   id: string;
+  userId: string; // Added for easier querying
   user: {
     id:string;
     name: string;
@@ -38,8 +39,8 @@ export interface Post {
   };
   mediaUrls: string[];
   caption: string;
-  likes: number;
-  comments: number;
+  likedBy: string[]; // Changed from 'likes: number' to track who liked the post
+  commentCount: number; // Changed from 'comments: number'
   timestamp: any; // For ordering the feed
 }
 

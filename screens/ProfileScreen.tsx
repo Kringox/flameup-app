@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { MOCK_POSTS } from '../constants';
-import { User } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Post, User } from '../types';
 import EditProfileScreen from './EditProfileScreen';
 import SettingsScreen from './SettingsScreen';
+import { db } from '../firebaseConfig';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import LoadingScreen from '../components/LoadingScreen';
 
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
 
@@ -15,16 +17,32 @@ interface ProfileScreenProps {
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLogout }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [userPosts, setUserPosts] = useState<Post[]>([]);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(true);
 
-  const userPosts = MOCK_POSTS.filter(p => {
-      if (p.user.id === 'currentUser' || p.user.id === user.id) {
-          p.user.name = user.name;
-          p.user.profilePhoto = user.profilePhotos?.[0] || PLACEHOLDER_AVATAR;
-          return true;
+  useEffect(() => {
+    const fetchUserPosts = async () => {
+      if (!db || !user?.id) return;
+      setIsLoadingPosts(true);
+      try {
+        const postsQuery = query(
+          collection(db, 'posts'),
+          where('userId', '==', user.id),
+          orderBy('timestamp', 'desc')
+        );
+        const postSnapshot = await getDocs(postsQuery);
+        const postList = postSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
+        setUserPosts(postList);
+      } catch (error) {
+        console.error("Error fetching user posts:", error);
+      } finally {
+        setIsLoadingPosts(false);
       }
-      return false;
-    }
-  );
+    };
+
+    fetchUserPosts();
+  }, [user.id]);
+
 
   const handleSaveProfile = (updatedUser: User) => {
     onUpdateUser(updatedUser);
@@ -75,13 +93,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLog
         
       <div className="border-t border-gray-200">
           <h3 className="font-bold text-lg p-4">My Posts</h3>
-          <div className="grid grid-cols-3 gap-1">
-            {userPosts.map(post => (
-                <div key={post.id} className="aspect-square bg-gray-200">
-                    <img src={post.mediaUrls[0]} alt="User post" className="w-full h-full object-cover" />
-                </div>
-            ))}
-          </div>
+          {isLoadingPosts ? (
+            <div className="flex justify-center items-center p-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-1">
+              {userPosts.map(post => (
+                  <div key={post.id} className="aspect-square bg-gray-200">
+                      <img src={post.mediaUrls[0]} alt="User post" className="w-full h-full object-cover" />
+                  </div>
+              ))}
+            </div>
+          )}
       </div>
     </div>
   );
