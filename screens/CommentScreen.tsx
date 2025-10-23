@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Post, User, Comment, NotificationType } from '../types';
 import { db } from '../firebaseConfig';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, runTransaction, deleteDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment } from 'firebase/firestore';
 
 const formatTimestamp = (timestamp: any): string => {
     if (!timestamp?.toDate) return 'Just now';
@@ -108,31 +107,29 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
         const tempComment = newComment;
         setNewComment('');
 
-        const postRef = doc(db, 'posts', post.id);
         const commentsRef = collection(db, 'posts', post.id, 'comments');
+        const postRef = doc(db, 'posts', post.id);
 
         try {
-            await runTransaction(db, async (transaction) => {
-                const postDoc = await transaction.get(postRef);
-                if (!postDoc.exists()) {
-                    throw "Post does not exist!";
-                }
-
-                const newCommentCount = (postDoc.data().commentCount || 0) + 1;
-                transaction.update(postRef, { commentCount: newCommentCount });
-
-                const newCommentRef = doc(commentsRef);
-                transaction.set(newCommentRef, {
-                    userId: currentUser.id,
-                    userName: currentUser.name,
-                    userProfilePhoto: currentUser.profilePhotos?.[0] || '',
-                    text: tempComment,
-                    likedBy: [],
-                    timestamp: serverTimestamp()
-                });
+            // Step 1: Add the comment document. This is the critical operation.
+            await addDoc(commentsRef, {
+                userId: currentUser.id,
+                userName: currentUser.name,
+                userProfilePhoto: currentUser.profilePhotos?.[0] || '',
+                text: tempComment,
+                likedBy: [],
+                timestamp: serverTimestamp()
             });
+            
+            // Step 2 (Optional): Atomically increment the post's comment count.
+            // This might fail due to security rules, but we won't block the user.
+            try {
+                await updateDoc(postRef, { commentCount: increment(1) });
+            } catch (error) {
+                console.warn("Could not update comment count. This may be due to security rules.", error);
+            }
 
-            // Create notification after successful comment
+            // Step 3: Create a notification for the post author.
             if (post.userId !== currentUser.id) {
                 const notificationsRef = collection(db, 'users', post.userId, 'notifications');
                 await addDoc(notificationsRef, {
@@ -147,7 +144,7 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
                 });
             }
         } catch (e) {
-            console.error("Transaction failed: ", e);
+            console.error("Failed to post comment: ", e);
             alert("Failed to post comment. Please try again.");
             setNewComment(tempComment);
         }
@@ -156,18 +153,19 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
     const handleDeleteComment = async (commentId: string) => {
         if (!db) return;
 
-        const postRef = doc(db, 'posts', post.id);
         const commentRef = doc(db, 'posts', post.id, 'comments', commentId);
+        const postRef = doc(db, 'posts', post.id);
 
         try {
-             await runTransaction(db, async (transaction) => {
-                const postDoc = await transaction.get(postRef);
-                if (!postDoc.exists()) throw "Post does not exist!";
-
-                const newCommentCount = Math.max(0, (postDoc.data().commentCount || 0) - 1);
-                transaction.update(postRef, { commentCount: newCommentCount });
-                transaction.delete(commentRef);
-            });
+            // Step 1: Delete the comment. This is the critical part.
+            await deleteDoc(commentRef);
+            
+            // Step 2 (Optional): Decrement the post's comment count.
+            try {
+                await updateDoc(postRef, { commentCount: increment(-1) });
+            } catch (error) {
+                console.warn("Could not update comment count on delete. This may be due to security rules.", error);
+            }
         } catch (e) {
             console.error("Failed to delete comment:", e);
             alert("Could not delete comment. Please try again.");
