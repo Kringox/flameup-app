@@ -21,7 +21,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, currentUser, onCl
 
   return (
     <div 
-      className="absolute inset-0 bg-black/80 flex justify-center items-center z-50 animate-fade-in p-4"
+      className="absolute inset-0 bg-black/80 flex justify-center items-center z-[80] animate-fade-in p-4"
       onClick={handleBackdropClick}
     >
         <style>{`
@@ -39,7 +39,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, currentUser, onCl
             />
         </div>
 
-        <button onClick={onClose} className="absolute top-4 right-4 text-white z-[51]">
+        <button onClick={onClose} className="absolute top-4 right-4 text-white z-[81]">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
