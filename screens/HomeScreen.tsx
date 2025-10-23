@@ -57,10 +57,26 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
 
       const twentyFourHoursAgo = Timestamp.fromMillis(Date.now() - 24 * 60 * 60 * 1000);
       const storiesQuery = query(collection(db, 'stories'), where('timestamp', '>=', twentyFourHoursAgo), orderBy('timestamp', 'desc'));
-      getDocs(storiesQuery).then(storySnapshot => {
-          const storyList = storySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Story));
+      
+      const unsubscribeStories = onSnapshot(storiesQuery, (storySnapshot) => {
+          const storyList = storySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                mediaUrl: data.mediaUrl,
+                viewed: data.viewed,
+                timestamp: data.timestamp,
+                user: {
+                    id: data.userId,
+                    name: data.userName,
+                    profilePhoto: data.userProfilePhoto,
+                },
+            } as Story;
+          });
           setStories(storyList);
-      }).catch(error => console.error("Error fetching stories:", error));
+      }, (error) => {
+          console.error("Error fetching stories:", error);
+      });
 
       const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'));
       const unsubscribePosts = onSnapshot(postsQuery, (postSnapshot) => {
@@ -94,6 +110,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
       });
 
       return () => {
+          unsubscribeStories();
           unsubscribePosts();
           unsubscribeNotifications();
       };
