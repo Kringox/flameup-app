@@ -1,3 +1,4 @@
+import { Timestamp } from 'firebase/firestore';
 import { User, Story, Post, Match } from './types';
 
 // MOCK_USERS and MOCK_CURRENT_USER are no longer needed as data comes from Firebase.
@@ -94,19 +95,28 @@ export const MOCK_POSTS: Post[] = [
     },
 ];
 
+// FIX: Corrected user object shape to match `Match.user` interface and changed timestamp from string to a `Timestamp` object.
 export const MOCK_MATCHES: Match[] = [
     {
         id: 'm1',
-        user: DEMO_USERS_FOR_UI[0],
+        user: {
+            id: DEMO_USERS_FOR_UI[0].id,
+            name: DEMO_USERS_FOR_UI[0].name,
+            profilePhoto: DEMO_USERS_FOR_UI[0].profilePhotos[0],
+        },
         lastMessage: "Hey! Loved your profile. That gallery sounds amazing.",
-        timestamp: "10:32 AM",
+        timestamp: Timestamp.fromDate(new Date(new Date().setHours(10, 32, 0, 0))),
         unreadCount: 2,
     },
     {
         id: 'm2',
-        user: DEMO_USERS_FOR_UI[3],
+        user: {
+            id: DEMO_USERS_FOR_UI[3].id,
+            name: DEMO_USERS_FOR_UI[3].name,
+            profilePhoto: DEMO_USERS_FOR_UI[3].profilePhotos[0],
+        },
         lastMessage: "You had me at tacos. We should definitely go!",
-        timestamp: "Yesterday",
+        timestamp: Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000)),
         unreadCount: 0,
     }
 ];

@@ -11,9 +11,10 @@ interface UserProfileScreenProps {
   currentUser: User;
   onClose: () => void;
   onOpenComments: (post: Post) => void;
+  onStartChat: (userId: string) => void;
 }
 
-const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, currentUser, onClose, onOpenComments }) => {
+const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, currentUser, onClose, onOpenComments, onStartChat }) => {
   const [user, setUser] = useState<User | null>(null);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -186,7 +187,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, currentUs
                     >
                         {isFollowing ? 'Following' : 'Follow'}
                     </button>
-                    <button className="flex-1 bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg">Message</button>
+                    <button onClick={() => onStartChat(user.id)} className="flex-1 bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg">Message</button>
                 </div>
             </div>
 

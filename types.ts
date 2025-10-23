@@ -50,11 +50,40 @@ export interface Post {
 
 export interface Match {
     id: string;
-    user: User;
+    user: {
+        id: string;
+        name: string;
+        profilePhoto: string;
+    };
     lastMessage: string;
-    timestamp: string;
+    timestamp: Timestamp;
     unreadCount: number;
 }
+
+export interface Message {
+    id: string;
+    senderId: string;
+    text: string;
+    timestamp: Timestamp;
+}
+
+export interface Chat {
+    id: string; // Combined, sorted user IDs: e.g., 'uid1_uid2'
+    userIds: string[];
+    // Denormalized user data for easy access in chat list
+    users: {
+        [key: string]: {
+            name: string;
+            profilePhoto: string;
+        }
+    };
+    lastMessage: {
+        text: string;
+        senderId: string;
+        timestamp: Timestamp;
+    } | null;
+}
+
 
 export interface Comment {
     id: string;

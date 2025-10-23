@@ -31,6 +31,7 @@ const App: React.FC = () => {
   const [viewingPostComments, setViewingPostComments] = useState<Post | null>(null);
   const [followList, setFollowList] = useState<{title: 'Followers' | 'Following', userIds: string[]} | null>(null);
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
+  const [activeChatPartnerId, setActiveChatPartnerId] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -142,6 +143,12 @@ const App: React.FC = () => {
     setViewingUserId(userId);
   };
 
+  const handleStartChat = (partnerId: string) => {
+    setViewingUserId(null); // Close profile if open
+    setActiveChatPartnerId(partnerId);
+    setActiveTab(Tab.Chat);
+  };
+
   if (firebaseInitializationError) {
     return <AuthScreen preloadedError={firebaseInitializationError} />;
   }
@@ -166,7 +173,7 @@ const App: React.FC = () => {
       {isNotificationsOpen && <NotificationsScreen user={currentUser} onClose={() => setIsNotificationsOpen(false)} />}
       {viewingPostComments && <CommentScreen post={viewingPostComments} currentUser={currentUser} onClose={() => setViewingPostComments(null)} />}
       {followList && <FollowListScreen title={followList.title} userIds={followList.userIds} currentUser={currentUser} onClose={() => setFollowList(null)} />}
-      {viewingUserId && <UserProfileScreen userId={viewingUserId} currentUser={currentUser} onClose={() => setViewingUserId(null)} onOpenComments={setViewingPostComments} />}
+      {viewingUserId && <UserProfileScreen userId={viewingUserId} currentUser={currentUser} onClose={() => setViewingUserId(null)} onOpenComments={setViewingPostComments} onStartChat={handleStartChat} />}
 
       {/* Main App Content */}
       <main className="flex-1 overflow-hidden">
@@ -176,8 +183,13 @@ const App: React.FC = () => {
         <div className={`w-full h-full overflow-y-auto ${activeTab === Tab.Swipe ? '' : 'hidden'}`}>
           <SwipeScreen currentUser={currentUser} />
         </div>
-        <div className={`w-full h-full overflow-y-auto ${activeTab === Tab.Chat ? '' : 'hidden'}`}>
-          <ChatScreen />
+        <div className={`w-full h-full ${activeTab === Tab.Chat ? '' : 'hidden'}`}>
+          <ChatScreen 
+            currentUser={currentUser} 
+            activeChatPartnerId={activeChatPartnerId}
+            onStartChat={setActiveChatPartnerId}
+            onCloseChat={() => setActiveChatPartnerId(null)}
+          />
         </div>
         <div className={`w-full h-full overflow-y-auto ${activeTab === Tab.Profile ? '' : 'hidden'}`}>
           <ProfileScreen 
