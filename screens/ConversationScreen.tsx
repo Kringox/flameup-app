@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Message } from '../types';
 import { db } from '../firebaseConfig';
-import { collection, doc, getDoc, query, onSnapshot, serverTimestamp, setDoc, addDoc, updateDoc, increment } from 'firebase/firestore';
+import { collection, doc, getDoc, query, onSnapshot, serverTimestamp, setDoc, addDoc, runTransaction, Timestamp } from 'firebase/firestore';
 
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
 
@@ -43,9 +43,15 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
         // Mark messages as read when opening the conversation
         const chatDocRef = doc(db, 'chats', chatId);
-        updateDoc(chatDocRef, {
-            [`unreadCount.${currentUser.id}`]: 0
-        }).catch(err => console.log("No chat document to update yet or permission error. This is okay on first message."));
+        runTransaction(db, async (transaction) => {
+            const chatDoc = await transaction.get(chatDocRef);
+            if (chatDoc.exists()) {
+                const currentUnreadCount = chatDoc.data().unreadCount?.[currentUser.id] || 0;
+                if (currentUnreadCount > 0) {
+                    transaction.update(chatDocRef, { [`unreadCount.${currentUser.id}`]: 0 });
+                }
+            }
+        }).catch(err => console.log("Transaction to reset unread count failed. This is okay if the chat is new.", err));
 
 
         const messagesRef = collection(db, 'chats', chatId, 'messages');
@@ -84,44 +90,42 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         const messagesCollectionRef = collection(chatDocRef, 'messages');
 
         try {
-            // First, ensure the chat document exists and is updated correctly.
-            // This is crucial for unread counts and last message display.
-            try {
-                // This is the common case: update an existing chat document.
-                // Using dot notation is the correct way to update a field in a nested object.
-                await updateDoc(chatDocRef, {
-                    lastMessage: {
-                        text: tempMessage,
-                        senderId: currentUser.id,
-                        timestamp: serverTimestamp()
-                    },
-                    [`unreadCount.${partner.id}`]: increment(1)
-                });
-            } catch (error: any) {
-                // If the document doesn't exist, `updateDoc` throws 'not-found'. We create it.
-                if (error.code === 'not-found') {
-                    await setDoc(chatDocRef, {
+            // Use a transaction to atomically create/update the chat document.
+            // This is more robust than the previous check-then-write approach.
+            await runTransaction(db, async (transaction) => {
+                const chatDoc = await transaction.get(chatDocRef);
+
+                const lastMessagePayload = {
+                    text: tempMessage,
+                    senderId: currentUser.id,
+                    timestamp: serverTimestamp() // Use server-side timestamp for consistency
+                };
+
+                if (!chatDoc.exists()) {
+                    // Chat doesn't exist, so we create it.
+                    transaction.set(chatDocRef, {
                         userIds: [currentUser.id, partner.id],
                         users: {
                             [currentUser.id]: { name: currentUser.name, profilePhoto: currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR },
                             [partner.id]: { name: partner.name, profilePhoto: partner.profilePhotos?.[0] || PLACEHOLDER_AVATAR }
                         },
-                        lastMessage: {
-                            text: tempMessage,
-                            senderId: currentUser.id,
-                            timestamp: serverTimestamp()
-                        },
+                        lastMessage: lastMessagePayload,
                         unreadCount: {
                             [partner.id]: 1,
-                            [currentUser.id]: 0 // Initialize count for both users
+                            [currentUser.id]: 0
                         }
                     });
                 } else {
-                    throw error; // Re-throw other errors (e.g., permission-denied)
+                    // Chat exists, so we update it.
+                    const currentUnread = chatDoc.data().unreadCount?.[partner.id] || 0;
+                    transaction.update(chatDocRef, {
+                        lastMessage: lastMessagePayload,
+                        [`unreadCount.${partner.id}`]: currentUnread + 1
+                    });
                 }
-            }
-            
-            // After the chat document is settled, add the new message to the subcollection.
+            });
+
+            // After the transaction is successful, add the new message to the subcollection.
             await addDoc(messagesCollectionRef, {
                 text: tempMessage,
                 senderId: currentUser.id,
