@@ -54,16 +54,23 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
         try {
             let potentialUsers: User[] = [];
             
-            // Paginate through ALL users until we find some that haven't been swiped.
+            // Paginate through users until we find some that haven't been swiped.
             while (potentialUsers.length === 0 && !allUsersLoadedRef.current) {
                 const usersCollection = collection(db, 'users');
                 const BATCH_SIZE = 10;
                 let q;
 
+                // Base query now excludes the current user at the database level.
+                const baseQueryConstraints = [
+                    where(documentId(), '!=', currentUser.id),
+                    orderBy(documentId()),
+                    limit(BATCH_SIZE)
+                ];
+
                 if (lastFetchedDocRef.current) {
-                    q = query(usersCollection, orderBy(documentId()), startAfter(lastFetchedDocRef.current), limit(BATCH_SIZE));
+                    q = query(usersCollection, ...baseQueryConstraints, startAfter(lastFetchedDocRef.current));
                 } else {
-                    q = query(usersCollection, orderBy(documentId()), limit(BATCH_SIZE));
+                    q = query(usersCollection, ...baseQueryConstraints);
                 }
 
                 const userSnapshot = await getDocs(q);
@@ -90,7 +97,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
         } finally {
             isFetchingRef.current = false;
         }
-    }, []);
+    }, [currentUser.id]);
 
     const loadInitialData = useCallback(async () => {
         if (!db) {
@@ -109,7 +116,6 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
             // Fetch all users I've already swiped, ONCE.
             const swipesSnapshot = await getDocs(query(collection(db, 'swipes'), where("swiperId", "==", currentUser.id)));
             const swipedIds = new Set(swipesSnapshot.docs.map(doc => doc.data().swipedUserId));
-            swipedIds.add(currentUser.id); // Also exclude myself
             swipedUserIdsRef.current = swipedIds;
             
             // Now start fetching user profiles
