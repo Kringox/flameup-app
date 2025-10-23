@@ -5,6 +5,7 @@ import HomeScreen from './screens/HomeScreen';
 import SwipeScreen from './screens/SwipeScreen';
 import ChatScreen from './screens/ChatScreen';
 import ProfileScreen from './screens/ProfileScreen';
+import UserProfileScreen from './screens/UserProfileScreen';
 import AuthScreen from './screens/AuthScreen';
 import ProfileSetupScreen from './screens/ProfileSetupScreen';
 import LoadingScreen from './components/LoadingScreen';
@@ -29,6 +30,7 @@ const App: React.FC = () => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [viewingPostComments, setViewingPostComments] = useState<Post | null>(null);
   const [followList, setFollowList] = useState<{title: 'Followers' | 'Following', userIds: string[]} | null>(null);
+  const [viewingUserId, setViewingUserId] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -115,6 +117,14 @@ const App: React.FC = () => {
     setIsCreateScreenOpen(false);
     setActiveTab(Tab.Home);
   };
+  
+  const handleViewProfile = (userId: string) => {
+    if (currentUser && userId === currentUser.id) {
+        setActiveTab(Tab.Profile);
+        return;
+    }
+    setViewingUserId(userId);
+  };
 
   if (firebaseInitializationError) {
     return <AuthScreen preloadedError={firebaseInitializationError} />;
@@ -140,11 +150,12 @@ const App: React.FC = () => {
       {isNotificationsOpen && <NotificationsScreen user={currentUser} onClose={() => setIsNotificationsOpen(false)} />}
       {viewingPostComments && <CommentScreen post={viewingPostComments} currentUser={currentUser} onClose={() => setViewingPostComments(null)} />}
       {followList && <FollowListScreen title={followList.title} userIds={followList.userIds} currentUser={currentUser} onClose={() => setFollowList(null)} />}
+      {viewingUserId && <UserProfileScreen userId={viewingUserId} currentUser={currentUser} onClose={() => setViewingUserId(null)} onOpenComments={setViewingPostComments} />}
 
       {/* Main App Content */}
       <main className="flex-1 overflow-hidden">
         <div className={`w-full h-full overflow-y-auto ${activeTab === Tab.Home ? '' : 'hidden'}`}>
-          <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} />
+          <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} />
         </div>
         <div className={`w-full h-full overflow-y-auto ${activeTab === Tab.Swipe ? '' : 'hidden'}`}>
           <SwipeScreen currentUser={currentUser} />

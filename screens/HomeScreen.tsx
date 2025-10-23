@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, query, getDocs, orderBy, where, Timestamp, onSnapshot } from 'firebase/firestore';
@@ -39,9 +40,10 @@ interface HomeScreenProps {
     currentUser: User;
     onOpenComments: (post: Post) => void;
     onOpenNotifications: () => void;
+    onViewProfile: (userId: string) => void;
 }
 
-const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, onOpenNotifications }) => {
+const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, onOpenNotifications, onViewProfile }) => {
   const [stories, setStories] = useState<Story[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -186,7 +188,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
 
       <div className="p-2 md:p-4">
         {posts.map((post) => (
-          <PostCard key={post.id} post={post} currentUser={currentUser} onPostDeleted={handlePostDeleted} onOpenComments={onOpenComments} />
+          <PostCard key={post.id} post={post} currentUser={currentUser} onPostDeleted={handlePostDeleted} onOpenComments={onOpenComments} onViewProfile={onViewProfile} />
         ))}
       </div>
     </div>

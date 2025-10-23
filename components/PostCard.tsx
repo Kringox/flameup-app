@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Post, User, NotificationType } from '../types';
 import { db } from '../firebaseConfig';
@@ -32,9 +33,10 @@ interface PostCardProps {
   onPostDeleted: (postId: string) => void;
   onPostUpdated?: (post: Post) => void;
   onOpenComments: (post: Post) => void;
+  onViewProfile?: (userId: string) => void;
 }
 
-const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, onPostUpdated, onOpenComments }) => {
+const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, onPostUpdated, onOpenComments, onViewProfile }) => {
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [showOptions, setShowOptions] = useState(false);
@@ -115,6 +117,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
     setIsEditing(false);
   }
 
+  const handleProfileClick = () => {
+    if (onViewProfile) {
+        onViewProfile(post.user.id);
+    }
+  };
+
   const isOwnPost = post.userId === currentUser.id;
 
   return (
@@ -127,11 +135,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
         />
     )}
     <div className="bg-white border border-gray-200 rounded-lg overflow-hidden mb-4">
-      <div className="flex items-center p-3">
-        <img className="w-8 h-8 rounded-full object-cover" src={post.user.profilePhoto} alt={post.user.name} />
-        <span className="ml-3 font-semibold text-sm">{post.user.name}</span>
+      <div className="flex items-center justify-between p-3">
+        <button onClick={handleProfileClick} disabled={!onViewProfile} className="flex items-center disabled:cursor-default">
+            <img className="w-8 h-8 rounded-full object-cover" src={post.user.profilePhoto} alt={post.user.name} />
+            <span className="ml-3 font-semibold text-sm">{post.user.name}</span>
+        </button>
         {isOwnPost && (
-            <div className="relative ml-auto">
+            <div className="relative">
                  <button onClick={() => setShowOptions(!showOptions)}>
                     <MoreHorizontalIcon className="h-5 w-5 text-gray-500" />
                 </button>

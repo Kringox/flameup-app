@@ -78,6 +78,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, isActive, onUpdateU
     }
   }
 
+  const handleOpenCommentsFromDetail = (post: Post) => {
+    setSelectedPost(null); // First, close the PostDetailView modal
+    onOpenComments(post); // Then, open the CommentScreen
+  };
+
   if (isEditing) {
     return <EditProfileScreen user={user} onSave={handleSaveProfile} onClose={() => setIsEditing(false)} />;
   }
@@ -151,7 +156,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, isActive, onUpdateU
           onClose={() => setSelectedPost(null)}
           onPostDeleted={() => setSelectedPost(null)}
           onPostUpdated={handlePostUpdated}
-          onOpenComments={onOpenComments}
+          onOpenComments={handleOpenCommentsFromDetail}
         />
       )}
     </>
