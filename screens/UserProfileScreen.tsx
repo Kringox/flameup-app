@@ -19,33 +19,33 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, currentUs
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [isFollowing, setIsFollowing] = useState(false);
 
   useEffect(() => {
     if (!db) return;
     setIsLoading(true);
 
-    const fetchUserData = async () => {
-      const userDocRef = doc(db, 'users', userId);
-      const userDocSnap = await getDoc(userDocRef);
+    const userDocRef = doc(db, 'users', userId);
+    const unsubscribeUser = onSnapshot(userDocRef, (userDocSnap) => {
       if (userDocSnap.exists()) {
         const userData = { id: userDocSnap.id, ...userDocSnap.data() } as User;
         setUser(userData);
-        setIsFollowing(userData.followers.includes(currentUser.id));
       } else {
         console.error("User not found");
         onClose();
       }
-    };
-    
-    fetchUserData();
-  }, [userId, currentUser.id, onClose]);
+    }, (error) => {
+        console.error("Error fetching user data:", error);
+        onClose();
+    });
+
+    return () => unsubscribeUser();
+  }, [userId, onClose]);
 
   useEffect(() => {
     if (!db || !user) return;
 
     const postsQuery = query(collection(db, 'posts'), where('userId', '==', user.id), orderBy('timestamp', 'desc'));
-    const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
+    const unsubscribePosts = onSnapshot(postsQuery, (snapshot) => {
         const posts = snapshot.docs.map(doc => {
             const data = doc.data();
             return {
@@ -70,24 +70,19 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, currentUs
       setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => unsubscribePosts();
   }, [user]);
   
   const handleFollowToggle = async () => {
     if (!db || !user) return;
     
-    const newFollowingState = !isFollowing;
-    setIsFollowing(newFollowingState);
-    
-    if (user) {
-        setUser({ ...user, followers: newFollowingState ? [...user.followers, currentUser.id] : user.followers.filter(id => id !== currentUser.id) });
-    }
+    const isCurrentlyFollowing = currentUser.following.includes(user.id);
 
     const currentUserRef = doc(db, 'users', currentUser.id);
     const targetUserRef = doc(db, 'users', user.id);
     const batch = writeBatch(db);
 
-    if (newFollowingState) {
+    if (!isCurrentlyFollowing) {
         batch.update(currentUserRef, { following: arrayUnion(user.id) });
         batch.update(targetUserRef, { followers: arrayUnion(currentUser.id) });
     } else {
@@ -97,7 +92,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, currentUs
     
     try {
         await batch.commit();
-        if(newFollowingState) {
+        if(!isCurrentlyFollowing) {
             const notificationsRef = collection(db, 'users', user.id, 'notifications');
             await addDoc(notificationsRef, {
               type: NotificationType.Follow,
@@ -112,7 +107,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, currentUs
         }
     } catch(error) {
         console.error("Failed to update follow status:", error);
-        setIsFollowing(!newFollowingState);
+        alert("Could not update follow status. Please check your Firestore security rules and network connection.");
     }
   };
 
@@ -135,6 +130,8 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, currentUs
         </div>
     );
   }
+  
+  const isFollowing = currentUser.following.includes(user.id);
 
   return (
     <>

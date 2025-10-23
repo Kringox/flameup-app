@@ -16,7 +16,7 @@ import FollowListScreen from './screens/FollowListScreen';
 import { Tab, User, Post } from './types';
 import { auth, db, firebaseInitializationError } from './firebaseConfig';
 import { onAuthStateChanged, User as FirebaseUser, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { uploadPhotos } from './utils/photoUploader';
 
 const App: React.FC = () => {
@@ -39,25 +39,41 @@ const App: React.FC = () => {
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user);
-      if (user && db) {
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDocSnap = await getDoc(userDocRef);
-        
-        if (userDocSnap.exists()) {
-          setCurrentUser({ id: user.uid, ...userDocSnap.data() } as User);
-        } else {
-          setCurrentUser(null);
-        }
-      } else {
+      if (!user) {
         setCurrentUser(null);
+        setIsLoading(false);
       }
-      setIsLoading(false);
+    });
+    
+    return () => unsubscribeAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!db || !firebaseUser) {
+        // Not logged in, so not loading anymore
+        setIsLoading(false);
+        return;
+    }
+
+    const userDocRef = doc(db, 'users', firebaseUser.uid);
+    const unsubscribeUser = onSnapshot(userDocRef, (userDocSnap) => {
+        if (userDocSnap.exists()) {
+            setCurrentUser({ id: firebaseUser.uid, ...userDocSnap.data() } as User);
+        } else {
+            setCurrentUser(null); // This triggers the profile setup screen
+        }
+        setIsLoading(false);
+    }, (error) => {
+        console.error("Error listening to user document:", error);
+        setCurrentUser(null);
+        setIsLoading(false);
     });
 
-    return () => unsubscribe();
-  }, []);
+    return () => unsubscribeUser();
+  }, [firebaseUser]);
+
 
   const handleProfileSetupComplete = async (newUserProfileData: Omit<User, 'id' | 'email' | 'profilePhotos' | 'followers' | 'following'> & { photos: File[] }) => {
     if (firebaseUser && db) {
