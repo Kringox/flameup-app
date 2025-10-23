@@ -48,7 +48,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             if (chatDoc.exists()) {
                 const currentUnreadCount = chatDoc.data().unreadCount?.[currentUser.id] || 0;
                 if (currentUnreadCount > 0) {
-                    transaction.update(chatDocRef, { [`unreadCount.${currentUser.id}`]: 0 });
+                    const unreadCountKey = `unreadCount.${currentUser.id}`;
+                    transaction.update(chatDocRef, { [unreadCountKey]: 0 });
                 }
             }
         }).catch(err => console.log("Transaction to reset unread count failed. This is okay if the chat is new.", err));
@@ -90,19 +91,16 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         const messagesCollectionRef = collection(chatDocRef, 'messages');
 
         try {
-            // Use a transaction to atomically create/update the chat document.
-            // This is more robust than the previous check-then-write approach.
             await runTransaction(db, async (transaction) => {
                 const chatDoc = await transaction.get(chatDocRef);
 
                 const lastMessagePayload = {
                     text: tempMessage,
                     senderId: currentUser.id,
-                    timestamp: serverTimestamp() // Use server-side timestamp for consistency
+                    timestamp: serverTimestamp()
                 };
 
                 if (!chatDoc.exists()) {
-                    // Chat doesn't exist, so we create it.
                     transaction.set(chatDocRef, {
                         userIds: [currentUser.id, partner.id],
                         users: {
@@ -116,16 +114,15 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                         }
                     });
                 } else {
-                    // Chat exists, so we update it.
                     const currentUnread = chatDoc.data().unreadCount?.[partner.id] || 0;
+                    const unreadCountKey = `unreadCount.${partner.id}`;
                     transaction.update(chatDocRef, {
                         lastMessage: lastMessagePayload,
-                        [`unreadCount.${partner.id}`]: currentUnread + 1
+                        [unreadCountKey]: currentUnread + 1
                     });
                 }
             });
 
-            // After the transaction is successful, add the new message to the subcollection.
             await addDoc(messagesCollectionRef, {
                 text: tempMessage,
                 senderId: currentUser.id,
