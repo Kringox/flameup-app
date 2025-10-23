@@ -61,11 +61,9 @@ const CreateScreen: React.FC<CreateScreenProps> = ({ user, onClose, onSuccess })
         }
 
         await addDoc(collection(db, 'posts'), {
-            user: {
-              id: user.id,
-              name: user.name || 'FlameUp User',
-              profilePhoto: user.profilePhotos?.[0] || PLACEHOLDER_AVATAR,
-            },
+            userId: user.id,
+            userName: user.name || 'FlameUp User',
+            userProfilePhoto: user.profilePhotos?.[0] || PLACEHOLDER_AVATAR,
             mediaUrls: [photoUrl],
             caption: caption,
             likes: 0,
@@ -91,11 +89,9 @@ const CreateScreen: React.FC<CreateScreenProps> = ({ user, onClose, onSuccess })
         }
 
         await addDoc(collection(db, 'stories'), {
-            user: {
-              id: user.id,
-              name: user.name || 'FlameUp User',
-              profilePhoto: user.profilePhotos?.[0] || PLACEHOLDER_AVATAR,
-            },
+            userId: user.id,
+            userName: user.name || 'FlameUp User',
+            userProfilePhoto: user.profilePhotos?.[0] || PLACEHOLDER_AVATAR,
             mediaUrl: photoUrl,
             viewed: false,
             timestamp: serverTimestamp(),

@@ -102,7 +102,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser }) => {
                   const data = doc.data();
                   return {
                       id: doc.id,
-                      ...data,
+                      mediaUrl: data.mediaUrl,
+                      viewed: data.viewed,
+                      timestamp: data.timestamp,
+                      user: {
+                          id: data.userId,
+                          name: data.userName,
+                          profilePhoto: data.userProfilePhoto,
+                      },
                   } as Story;
               });
               setStories(storyList);
@@ -114,7 +121,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser }) => {
                   const data = doc.data();
                   return {
                       id: doc.id,
-                      ...data,
+                      mediaUrls: data.mediaUrls,
+                      caption: data.caption,
+                      likes: data.likes,
+                      comments: data.comments,
+                      timestamp: data.timestamp,
+                      user: {
+                          id: data.userId,
+                          name: data.userName,
+                          profilePhoto: data.userProfilePhoto,
+                      },
                   } as Post;
               });
               setPosts(postList);
