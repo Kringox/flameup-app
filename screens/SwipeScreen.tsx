@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, NotificationType } from '../types';
 import FlameIcon from '../components/icons/FlameIcon';
 import MatchModal from '../components/MatchModal';
 import { db } from '../firebaseConfig';
-import { collection, getDocs, query, where, doc, getDoc, writeBatch, serverTimestamp, addDoc, setDoc, limit, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, writeBatch, serverTimestamp, addDoc, setDoc, limit, orderBy, startAfter, QueryDocumentSnapshot } from 'firebase/firestore';
 
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
 const getChatId = (uid1: string, uid2: string) => [uid1, uid2].sort().join('_');
@@ -39,42 +39,67 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
     const [showMatch, setShowMatch] = useState<User | null>(null);
     const [swipedUserId, setSwipedUserId] = useState<string | null>(null);
     const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | 'up' | null>(null);
-    const [swipedIds, setSwipedIds] = useState<Set<string>>(new Set());
+
+    const lastFetchedDoc = useRef<QueryDocumentSnapshot | null>(null);
+    const isFetching = useRef(false);
+    const allLoaded = useRef(false);
 
     const fetchUsers = useCallback(async () => {
-        setIsLoading(true);
-        if (!db) {
-            console.error("Firestore is not available.");
-            setIsLoading(false);
-            return;
+        if (isFetching.current || allLoaded.current || !db) return;
+
+        isFetching.current = true;
+        if (!lastFetchedDoc.current) {
+            setIsLoading(true);
         }
 
         try {
-            const swipesRef = collection(db, 'swipes');
-            const userSwipesQuery = query(swipesRef, where("swiperId", "==", currentUser.id));
-            const userSwipesSnapshot = await getDocs(userSwipesQuery);
-            const alreadySwipedIds = userSwipesSnapshot.docs.map(doc => doc.data().swipedUserId);
-            
-            const idsToExclude = new Set([currentUser.id, ...alreadySwipedIds, ...swipedIds]);
+            const swipesSnapshot = await getDocs(query(collection(db, 'swipes'), where("swiperId", "==", currentUser.id)));
+            const swipedUserIds = new Set(swipesSnapshot.docs.map(doc => doc.data().swipedUserId));
+            swipedUserIds.add(currentUser.id);
 
-            const usersCollection = collection(db, 'users');
-            // Fetch users that are not in the exclusion list, ordered by most recent.
-            const q = query(usersCollection, orderBy('createdAt', 'desc'), limit(20));
-            const userSnapshot = await getDocs(q);
+            let potentialUsers: User[] = [];
             
-            const userList = userSnapshot.docs
-                .map(doc => doc.data() as User)
-                .filter(user => !idsToExclude.has(user.id));
+            while (potentialUsers.length === 0 && !allLoaded.current) {
+                const usersCollection = collection(db, 'users');
+                const BATCH_SIZE = 10;
+                let q;
 
-            setUsers(userList);
+                if (lastFetchedDoc.current) {
+                    q = query(usersCollection, orderBy('createdAt', 'desc'), startAfter(lastFetchedDoc.current), limit(BATCH_SIZE));
+                } else {
+                    q = query(usersCollection, orderBy('createdAt', 'desc'), limit(BATCH_SIZE));
+                }
+
+                const userSnapshot = await getDocs(q);
+
+                if (userSnapshot.empty) {
+                    allLoaded.current = true;
+                    break;
+                }
+
+                lastFetchedDoc.current = userSnapshot.docs[userSnapshot.docs.length - 1];
+
+                potentialUsers = userSnapshot.docs
+                    .map(doc => doc.data() as User)
+                    .filter(user => !swipedUserIds.has(user.id));
+            }
+
+            if (potentialUsers.length > 0) {
+                setUsers(current => [...current, ...potentialUsers]);
+            }
         } catch (error) {
             console.error("Error fetching users: ", error);
         } finally {
             setIsLoading(false);
+            isFetching.current = false;
         }
-    }, [currentUser.id, swipedIds]);
+    }, [currentUser.id]);
 
     useEffect(() => {
+        lastFetchedDoc.current = null;
+        allLoaded.current = false;
+        isFetching.current = false;
+        setUsers([]);
         fetchUsers();
     }, [fetchUsers]);
 
@@ -97,8 +122,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
         await batch.commit();
 
         setTimeout(async () => {
-            if (direction !== 'left') { // 'right' or 'up' is a like
-                // Check for a match
+            if (direction !== 'left') {
                 const otherUserSwipeRef = query(collection(db, 'swipes'), 
                     where("swiperId", "==", targetUser.id),
                     where("swipedUserId", "==", currentUser.id),
@@ -108,10 +132,8 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
                 const otherUserSwipeSnapshot = await getDocs(otherUserSwipeRef);
                 
                 if (!otherUserSwipeSnapshot.empty) {
-                    // It's a match!
                     setShowMatch(targetUser);
                     
-                    // Create chat document
                     const chatId = getChatId(currentUser.id, targetUser.id);
                     const chatDocRef = doc(db, 'chats', chatId);
                     await setDoc(chatDocRef, {
@@ -124,7 +146,6 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
                         unreadCount: { [currentUser.id]: 0, [targetUser.id]: 0 }
                     }, { merge: true });
 
-                    // Create notification for the other user
                     const notificationsRef = collection(db, 'users', targetUser.id, 'notifications');
                     await addDoc(notificationsRef, {
                         type: NotificationType.Match,
@@ -139,8 +160,13 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
                 }
             }
 
-            setUsers(currentUsers => currentUsers.slice(1));
-            setSwipedIds(prev => new Set(prev).add(targetUser.id));
+            const remainingUsers = users.slice(1);
+            setUsers(remainingUsers);
+            
+            if (remainingUsers.length < 5) {
+                fetchUsers();
+            }
+
             setSwipedUserId(null);
             setSwipeDirection(null);
         }, 400);
@@ -152,8 +178,14 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
             setShowMatch(null);
         }
     }
+    
+    const handleRefresh = () => {
+        lastFetchedDoc.current = null;
+        allLoaded.current = false;
+        setUsers([]);
+        fetchUsers();
+    };
 
-  
     return (
     <div className="flex flex-col h-full w-full bg-gray-100 overflow-hidden">
       {showMatch && <MatchModal matchedUser={showMatch} currentUser={currentUser} onSendMessage={handleSendMessageFromMatch} onClose={() => setShowMatch(null)} />}
@@ -167,7 +199,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
 
       <div className="flex-1 relative flex items-center justify-center p-4">
         {isLoading ? (
-            <div className="text-gray-500">Loading profiles...</div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
         ) : users.length > 0 ? (
             users.slice(0, 2).reverse().map((user, index) => {
                 const isTopCard = index === 1;
@@ -194,7 +226,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
                 <FlameIcon className="w-16 h-16 text-gray-300 mb-4" />
                 <p className="text-xl font-semibold text-gray-700">That's everyone for now!</p>
                 <p className="text-gray-500 mt-2 mb-6">Check back later to see new profiles.</p>
-                <button onClick={fetchUsers} className="py-3 px-6 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold rounded-full shadow-lg transform hover:scale-105 transition-transform">
+                <button onClick={handleRefresh} className="py-3 px-6 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold rounded-full shadow-lg transform hover:scale-105 transition-transform">
                     Refresh
                 </button>
             </div>
