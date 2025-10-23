@@ -3,7 +3,7 @@ import { User, NotificationType } from '../types';
 import FlameIcon from '../components/icons/FlameIcon';
 import MatchModal from '../components/MatchModal';
 import { db } from '../firebaseConfig';
-import { collection, getDocs, query, where, doc, writeBatch, serverTimestamp, addDoc, setDoc, limit, orderBy, startAfter, QueryDocumentSnapshot } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, writeBatch, serverTimestamp, addDoc, setDoc, limit, orderBy, startAfter, QueryDocumentSnapshot, documentId } from 'firebase/firestore';
 
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
 const getChatId = (uid1: string, uid2: string) => [uid1, uid2].sort().join('_');
@@ -65,9 +65,9 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
                 let q;
 
                 if (lastFetchedDoc.current) {
-                    q = query(usersCollection, orderBy('createdAt', 'desc'), startAfter(lastFetchedDoc.current), limit(BATCH_SIZE));
+                    q = query(usersCollection, orderBy(documentId()), startAfter(lastFetchedDoc.current), limit(BATCH_SIZE));
                 } else {
-                    q = query(usersCollection, orderBy('createdAt', 'desc'), limit(BATCH_SIZE));
+                    q = query(usersCollection, orderBy(documentId()), limit(BATCH_SIZE));
                 }
 
                 const userSnapshot = await getDocs(q);
@@ -80,7 +80,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
                 lastFetchedDoc.current = userSnapshot.docs[userSnapshot.docs.length - 1];
 
                 potentialUsers = userSnapshot.docs
-                    .map(doc => doc.data() as User)
+                    .map(doc => ({ id: doc.id, ...doc.data() } as User))
                     .filter(user => !swipedUserIds.has(user.id));
             }
 
