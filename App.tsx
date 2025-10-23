@@ -126,25 +126,21 @@ const App: React.FC = () => {
       return <CreateScreen user={currentUser} onClose={() => setIsCreateScreenOpen(false)} onSuccess={handleCreationSuccess} />;
   }
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case Tab.Home:
-        return <HomeScreen currentUser={currentUser} />;
-      case Tab.Swipe:
-        return <SwipeScreen currentUser={currentUser} />;
-      case Tab.Chat:
-        return <ChatScreen />;
-      case Tab.Profile:
-        return <ProfileScreen user={currentUser} onUpdateUser={handleUpdateUser} onLogout={handleLogout} />;
-      default:
-        return <HomeScreen currentUser={currentUser} />;
-    }
-  };
-
   return (
     <div className="relative h-screen w-screen flex flex-col font-sans bg-gray-50 text-dark-gray overflow-hidden antialiased md:max-w-md md:mx-auto md:shadow-2xl md:my-4 md:rounded-2xl md:h-[calc(100vh-2rem)]">
-      <main className="flex-1 overflow-y-auto">
-        {renderContent()}
+      <main className="flex-1 overflow-hidden">
+        <div className={`w-full h-full overflow-y-auto ${activeTab === Tab.Home ? '' : 'hidden'}`}>
+          <HomeScreen currentUser={currentUser} />
+        </div>
+        <div className={`w-full h-full overflow-y-auto ${activeTab === Tab.Swipe ? '' : 'hidden'}`}>
+          <SwipeScreen currentUser={currentUser} />
+        </div>
+        <div className={`w-full h-full overflow-y-auto ${activeTab === Tab.Chat ? '' : 'hidden'}`}>
+          <ChatScreen />
+        </div>
+        <div className={`w-full h-full overflow-y-auto ${activeTab === Tab.Profile ? '' : 'hidden'}`}>
+          <ProfileScreen user={currentUser} onUpdateUser={handleUpdateUser} onLogout={handleLogout} />
+        </div>
       </main>
       <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} onOpenCreate={() => setIsCreateScreenOpen(true)} />
     </div>
