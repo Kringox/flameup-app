@@ -1,3 +1,5 @@
+import { Timestamp } from "firebase/firestore";
+
 export enum Tab {
   Home = 'Home',
   Swipe = 'Swipe',
@@ -15,6 +17,8 @@ export interface User {
   distance: number;
   interests: string[];
   email: string;
+  followers: string[]; // Array of user IDs
+  following: string[]; // Array of user IDs
 }
 
 export interface Story {
@@ -50,4 +54,37 @@ export interface Match {
     lastMessage: string;
     timestamp: string;
     unreadCount: number;
+}
+
+export interface Comment {
+    id: string;
+    userId: string;
+    userName: string;
+    userProfilePhoto: string;
+    text: string;
+    likedBy: string[];
+    timestamp: Timestamp;
+}
+
+export enum NotificationType {
+    Like = 'like',
+    Comment = 'comment',
+    Follow = 'follow',
+}
+
+export interface Notification {
+    id: string;
+    type: NotificationType;
+    fromUser: {
+        id: string;
+        name: string;
+        profilePhoto: string;
+    };
+    post?: {
+        id: string;
+        mediaUrl: string;
+    };
+    commentText?: string;
+    read: boolean;
+    timestamp: Timestamp;
 }

@@ -37,79 +37,53 @@ const StoryCircle: React.FC<{ story: Story; onClick: () => void, isOwnStory: boo
 
 interface HomeScreenProps {
     currentUser: User;
+    onOpenComments: (post: Post) => void;
+    onOpenNotifications: () => void;
 }
 
-const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser }) => {
+const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, onOpenNotifications }) => {
   const [stories, setStories] = useState<Story[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [viewingStoryIndex, setViewingStoryIndex] = useState<number | null>(null);
-  const [hasNotifications, setHasNotifications] = useState(true);
+  const [hasNotifications, setHasNotifications] = useState(false);
 
   useEffect(() => {
-      if (!db) {
+      if (!db || !currentUser) {
           setIsLoading(false);
           return;
       }
       setIsLoading(true);
 
-      // Fetch stories once
       const twentyFourHoursAgo = Timestamp.fromMillis(Date.now() - 24 * 60 * 60 * 1000);
       const storiesQuery = query(collection(db, 'stories'), where('timestamp', '>=', twentyFourHoursAgo), orderBy('timestamp', 'desc'));
       getDocs(storiesQuery).then(storySnapshot => {
-          const storyList = storySnapshot.docs.map(doc => {
-              const data = doc.data();
-              return {
-                  id: doc.id,
-                  mediaUrl: data.mediaUrl,
-                  viewed: data.viewed,
-                  timestamp: data.timestamp,
-                  user: {
-                      id: data.userId,
-                      name: data.userName,
-                      profilePhoto: data.userProfilePhoto,
-                  },
-              } as Story;
-          });
+          const storyList = storySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Story));
           setStories(storyList);
       }).catch(error => console.error("Error fetching stories:", error));
 
-      // Fetch posts in real-time
       const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'));
       const unsubscribePosts = onSnapshot(postsQuery, (postSnapshot) => {
-          const postList = postSnapshot.docs.map(doc => {
-              const data = doc.data();
-              return {
-                  id: doc.id,
-                  userId: data.userId,
-                  mediaUrls: data.mediaUrls,
-                  caption: data.caption,
-                  likedBy: data.likedBy || [],
-                  commentCount: data.commentCount || 0,
-                  timestamp: data.timestamp,
-                  user: {
-                      id: data.userId,
-                      name: data.userName,
-                      profilePhoto: data.userProfilePhoto,
-                  },
-              } as Post;
-          });
+          const postList = postSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Post));
           setPosts(postList);
           setIsLoading(false);
       }, (error) => {
           console.error("Error fetching posts:", error);
           setIsLoading(false);
       });
+      
+      const notificationsQuery = query(collection(db, 'users', currentUser.id, 'notifications'), where('read', '==', false));
+      const unsubscribeNotifications = onSnapshot(notificationsQuery, (snapshot) => {
+          setHasNotifications(!snapshot.empty);
+      });
 
-      // Cleanup subscription on unmount
       return () => {
           unsubscribePosts();
+          unsubscribeNotifications();
       };
-  }, []);
+  }, [currentUser]);
   
   const handlePostDeleted = (postId: string) => {
-    // Optimistic update: remove the post from local state immediately.
-    // The real-time listener will eventually sync, but this makes the UI feel faster.
     setPosts(currentPosts => currentPosts.filter(p => p.id !== postId));
   };
 
@@ -131,9 +105,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser }) => {
   const otherStories = stories.filter(s => s.user.id !== currentUser.id);
   const hasUnviewedOwnStory = ownStories.some(s => !s.viewed);
 
-  // Create the story list for the UI
   const storyListForUI = [
-    // "Your Story" circle
     {
         id: 'currentUserStory',
         user: { id: currentUser.id, name: 'Your Story', profilePhoto: currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR },
@@ -153,13 +125,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser }) => {
         {viewingStoryIndex !== null && (
             <StoryViewer 
                 stories={viewingStoryIndex === 0 ? ownStories : otherStories}
-                startIndex={0} // Always start from the first story of the selected user
+                startIndex={0}
                 onClose={closeStoryViewer}
                 onStoryViewed={handleStoryViewed}
             />
         )}
         <header className="relative flex justify-center items-center p-4 border-b border-gray-200 bg-white sticky top-0 z-10">
-            <button className="absolute left-4">
+            <button onClick={onOpenNotifications} className="absolute left-4">
                 <BellIcon hasNotification={hasNotifications} />
             </button>
             <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-flame-orange to-flame-red">FlameUp</h1>
@@ -168,7 +140,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser }) => {
             </button>
         </header>
 
-      {/* Stories */}
       <div className="px-4 py-3 border-b border-gray-200 bg-white">
         <div className="flex space-x-4 overflow-x-auto pb-2">
           {storyListForUI.map((story, index) => (
@@ -183,10 +154,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser }) => {
         </div>
       </div>
 
-      {/* Posts */}
       <div className="p-2 md:p-4">
         {posts.map((post) => (
-          <PostCard key={post.id} post={post} currentUser={currentUser} onPostDeleted={handlePostDeleted} />
+          <PostCard key={post.id} post={post} currentUser={currentUser} onPostDeleted={handlePostDeleted} onOpenComments={onOpenComments} />
         ))}
       </div>
     </div>

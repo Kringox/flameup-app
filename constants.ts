@@ -14,7 +14,9 @@ export const DEMO_USERS_FOR_UI: User[] = [
     bio: 'Lover of art, music, and spontaneous road trips. Let\'s find a gallery to get lost in.',
     distance: 2,
     interests: ['Art', 'Music', 'Travel', 'Yoga'],
-    email: 'jessica@example.com'
+    email: 'jessica@example.com',
+    followers: [],
+    following: [],
   },
   {
     id: '2',
@@ -25,7 +27,9 @@ export const DEMO_USERS_FOR_UI: User[] = [
     bio: 'Fitness enthusiast and dog lover. My golden retriever is my best friend. Looking for a workout partner.',
     distance: 5,
     interests: ['Fitness', 'Dogs', 'Cooking', 'Movies'],
-    email: 'mike@example.com'
+    email: 'mike@example.com',
+    followers: [],
+    following: [],
   },
   {
     id: '3',
@@ -36,7 +40,9 @@ export const DEMO_USERS_FOR_UI: User[] = [
     bio: 'Just a girl who loves books, cats, and cozy rainy days. Fluent in sarcasm and movie quotes.',
     distance: 8,
     interests: ['Reading', 'Cats', 'Netflix', 'Baking'],
-    email: 'chloe@example.com'
+    email: 'chloe@example.com',
+    followers: [],
+    following: [],
   },
    {
     id: '4',
@@ -47,7 +53,9 @@ export const DEMO_USERS_FOR_UI: User[] = [
     bio: 'Entrepreneur and foodie. Always on the hunt for the best tacos in town. Tell me your favorite spot!',
     distance: 3,
     interests: ['Startups', 'Food', 'Whiskey', 'Concerts'],
-    email: 'david@example.com'
+    email: 'david@example.com',
+    followers: [],
+    following: [],
   },
 ];
 
@@ -84,16 +92,6 @@ export const MOCK_POSTS: Post[] = [
         commentCount: 34,
         timestamp: '5 hours ago',
     },
-    {
-        id: 'p3',
-        userId: 'currentUser',
-        user: { id: 'currentUser', name: 'You', profilePhoto: 'https://picsum.photos/seed/alex/800/1200' },
-        mediaUrls: ['https://picsum.photos/seed/post_alex/1080/1080'],
-        caption: 'New project deployed! Time for some well-deserved coffee. ☕️ #coding #developer #coffee',
-        likedBy: ['1', '2', '4'],
-        commentCount: 21,
-        timestamp: '1 day ago',
-    }
 ];
 
 export const MOCK_MATCHES: Match[] = [

@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Post, User } from '../types';
+import { Post, User, NotificationType } from '../types';
 import { db } from '../firebaseConfig';
-import { doc, updateDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
-// Icon Imports
 import HeartIcon from './icons/HeartIcon';
 import CommentIcon from './icons/CommentIcon';
 import SendIcon from './icons/SendIcon';
 import MoreHorizontalIcon from './icons/MoreHorizontalIcon';
+import EditPostModal from './EditPostModal';
 
 const formatTimestamp = (timestamp: any): string => {
     if (!timestamp || !timestamp.toDate) {
@@ -30,23 +30,49 @@ interface PostCardProps {
   post: Post;
   currentUser: User;
   onPostDeleted: (postId: string) => void;
+  onPostUpdated?: (post: Post) => void;
+  onOpenComments: (post: Post) => void;
 }
 
-const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted }) => {
+const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, onPostUpdated, onOpenComments }) => {
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [showOptions, setShowOptions] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     setIsLiked(post.likedBy.includes(currentUser.id));
     setLikeCount(post.likedBy.length);
   }, [post.likedBy, currentUser.id]);
+  
+  const createNotification = async (type: NotificationType) => {
+      if (!db || post.userId === currentUser.id) return; // Don't notify yourself
+
+      try {
+          const notificationsRef = collection(db, 'users', post.userId, 'notifications');
+          await addDoc(notificationsRef, {
+              type,
+              fromUser: {
+                  id: currentUser.id,
+                  name: currentUser.name,
+                  profilePhoto: currentUser.profilePhotos?.[0] || '',
+              },
+              post: {
+                  id: post.id,
+                  mediaUrl: post.mediaUrls[0],
+              },
+              read: false,
+              timestamp: serverTimestamp(),
+          });
+      } catch (error) {
+          console.error("Error creating notification:", error);
+      }
+  };
 
   const handleLike = async () => {
     if (!db) return;
     const postRef = doc(db, 'posts', post.id);
     
-    // Optimistic UI update
     const newLikedState = !isLiked;
     const newLikeCount = newLikedState ? likeCount + 1 : likeCount - 1;
     setIsLiked(newLikedState);
@@ -56,9 +82,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted })
       await updateDoc(postRef, {
         likedBy: newLikedState ? arrayUnion(currentUser.id) : arrayRemove(currentUser.id)
       });
+      if (newLikedState) {
+          createNotification(NotificationType.Like);
+      }
     } catch (error) {
       console.error("Error updating like:", error);
-      // Revert UI on failure
       setIsLiked(!newLikedState);
       setLikeCount(likeCount);
       alert("Could not update like. Please try again.");
@@ -79,9 +107,25 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted })
     setShowOptions(false);
   };
   
+  const handleUpdateCaption = (newCaption: string) => {
+    const updatedPost = { ...post, caption: newCaption };
+    if (onPostUpdated) {
+        onPostUpdated(updatedPost);
+    }
+    setIsEditing(false);
+  }
+
   const isOwnPost = post.userId === currentUser.id;
 
   return (
+    <>
+    {isEditing && (
+        <EditPostModal
+            post={post}
+            onClose={() => setIsEditing(false)}
+            onSave={handleUpdateCaption}
+        />
+    )}
     <div className="bg-white border border-gray-200 rounded-lg overflow-hidden mb-4">
       <div className="flex items-center p-3">
         <img className="w-8 h-8 rounded-full object-cover" src={post.user.profilePhoto} alt={post.user.name} />
@@ -96,7 +140,10 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted })
                         <ul className="py-1">
                             <li>
                                 <button
-                                    onClick={() => alert('Edit feature coming soon!')}
+                                    onClick={() => {
+                                        setIsEditing(true);
+                                        setShowOptions(false);
+                                    }}
                                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                                 >
                                     Edit
@@ -124,7 +171,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted })
             <button onClick={handleLike}>
                 <HeartIcon isLiked={isLiked} />
             </button>
-            <button>
+            <button onClick={() => onOpenComments(post)}>
                 <CommentIcon />
             </button>
             <button>
@@ -135,9 +182,15 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted })
         <p className="text-sm mt-1">
           <span className="font-semibold">{post.user.name}</span> {post.caption}
         </p>
+         {post.commentCount > 0 && (
+            <button onClick={() => onOpenComments(post)} className="text-sm text-gray-500 mt-1">
+                View all {post.commentCount} comments
+            </button>
+        )}
         <div className="text-xs text-gray-500 mt-2 uppercase">{formatTimestamp(post.timestamp)}</div>
       </div>
     </div>
+    </>
   );
 };
 

@@ -4,7 +4,6 @@ import EditProfileScreen from './EditProfileScreen';
 import SettingsScreen from './SettingsScreen';
 import { db } from '../firebaseConfig';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
-import LoadingScreen from '../components/LoadingScreen';
 import PostDetailView from '../components/PostDetailView';
 
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
@@ -13,9 +12,10 @@ interface ProfileScreenProps {
   user: User;
   onUpdateUser: (updatedUser: User) => void;
   onLogout: () => void;
+  onOpenFollowList: (list: {title: 'Followers' | 'Following', userIds: string[]}) => void;
 }
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLogout }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLogout, onOpenFollowList }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
@@ -46,7 +46,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLog
             likedBy: data.likedBy || [],
             commentCount: data.commentCount || 0,
             timestamp: data.timestamp,
-            user: { // Use fresh user data from props for consistency
+            user: {
                 id: user.id,
                 name: user.name,
                 profilePhoto: user.profilePhotos?.[0] || PLACEHOLDER_AVATAR,
@@ -60,7 +60,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLog
       setIsLoadingPosts(false);
     });
 
-    // Cleanup subscription on unmount
     return () => unsubscribe();
   }, [user.id, user.name, user.profilePhotos]);
 
@@ -69,6 +68,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLog
     onUpdateUser(updatedUser);
     setIsEditing(false);
   };
+  
+  const handlePostUpdated = (updatedPost: Post) => {
+    setUserPosts(currentPosts => currentPosts.map(p => p.id === updatedPost.id ? updatedPost : p));
+    if (selectedPost && selectedPost.id === updatedPost.id) {
+        setSelectedPost(updatedPost);
+    }
+  }
 
   if (isEditing) {
     return <EditProfileScreen user={user} onSave={handleSaveProfile} onClose={() => setIsEditing(false)} />;
@@ -77,7 +83,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLog
   if (isSettingsOpen) {
     return <SettingsScreen onClose={() => setIsSettingsOpen(false)} onLogout={onLogout} />;
   }
-
 
   return (
     <>
@@ -97,14 +102,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLog
           </div>
 
           <div className="flex justify-around text-center my-6">
-              <div>
-                  <span className="font-bold text-lg">1,234</span>
+              <button onClick={() => onOpenFollowList({title: 'Followers', userIds: user.followers})} className="cursor-pointer">
+                  <span className="font-bold text-lg">{user.followers?.length || 0}</span>
                   <span className="text-gray-500 block text-sm">Followers</span>
-              </div>
-              <div>
-                  <span className="font-bold text-lg">567</span>
+              </button>
+              <button onClick={() => onOpenFollowList({title: 'Following', userIds: user.following})} className="cursor-pointer">
+                  <span className="font-bold text-lg">{user.following?.length || 0}</span>
                   <span className="text-gray-500 block text-sm">Following</span>
-              </div>
+              </button>
           </div>
 
           <div className="flex space-x-2">
@@ -132,6 +137,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLog
                 ))}
               </div>
             )}
+             {userPosts.length === 0 && !isLoadingPosts && (
+                <p className="text-center text-gray-500 py-8 col-span-3">No posts yet. Tap the '+' to share your first photo!</p>
+            )}
         </div>
       </div>
       {selectedPost && (
@@ -139,10 +147,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLog
           post={selectedPost}
           currentUser={user}
           onClose={() => setSelectedPost(null)}
-          onPostDeleted={(postId: string) => {
-            // Realtime listener will update the grid, just need to close the modal.
-            setSelectedPost(null);
-          }}
+          onPostDeleted={() => setSelectedPost(null)}
+          onPostUpdated={handlePostUpdated}
         />
       )}
     </>

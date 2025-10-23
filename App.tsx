@@ -7,8 +7,11 @@ import ProfileScreen from './screens/ProfileScreen';
 import AuthScreen from './screens/AuthScreen';
 import ProfileSetupScreen from './screens/ProfileSetupScreen';
 import LoadingScreen from './components/LoadingScreen';
-import CreateScreen from './screens/CreateScreen'; // Import the new screen
-import { Tab, User } from './types';
+import CreateScreen from './screens/CreateScreen';
+import CommentScreen from './screens/CommentScreen';
+import NotificationsScreen from './screens/NotificationsScreen';
+import FollowListScreen from './screens/FollowListScreen';
+import { Tab, User, Post } from './types';
 import { auth, db, firebaseInitializationError } from './firebaseConfig';
 import { onAuthStateChanged, User as FirebaseUser, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -19,7 +22,13 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>(Tab.Home);
+  
+  // Screen visibility states
   const [isCreateScreenOpen, setIsCreateScreenOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [viewingPostComments, setViewingPostComments] = useState<Post | null>(null);
+  const [followList, setFollowList] = useState<{title: 'Followers' | 'Following', userIds: string[]} | null>(null);
+
 
   useEffect(() => {
     if (!auth) {
@@ -30,29 +39,24 @@ const App: React.FC = () => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
       if (user && db) {
-        // User is signed in, check for their profile in Firestore
         const userDocRef = doc(db, 'users', user.uid);
         const userDocSnap = await getDoc(userDocRef);
         
         if (userDocSnap.exists()) {
-          // Profile exists, set current user
           setCurrentUser({ id: user.uid, ...userDocSnap.data() } as User);
         } else {
-          // User exists in Auth, but no profile in Firestore (needs setup)
           setCurrentUser(null);
         }
       } else {
-        // User is signed out
         setCurrentUser(null);
       }
       setIsLoading(false);
     });
 
-    // Cleanup subscription on unmount
     return () => unsubscribe();
   }, []);
 
-  const handleProfileSetupComplete = async (newUserProfileData: Omit<User, 'id' | 'email' | 'profilePhotos'> & { photos: File[] }) => {
+  const handleProfileSetupComplete = async (newUserProfileData: Omit<User, 'id' | 'email' | 'profilePhotos' | 'followers' | 'following'> & { photos: File[] }) => {
     if (firebaseUser && db) {
       setIsLoading(true);
       try {
@@ -69,14 +73,15 @@ const App: React.FC = () => {
           email: firebaseUser.email || '',
           ...profileData,
           profilePhotos: photoURLs,
+          followers: [],
+          following: [],
         };
         
         await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
         setCurrentUser(newUser);
       } catch (error) {
         console.error("Error setting up profile:", error);
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        alert(`Could not set up profile. Please try again.\n\nError: ${errorMessage}`);
+        alert(`Could not set up profile. Please try again.\n\nError: ${String(error)}`);
       } finally {
         setIsLoading(false);
       }
@@ -103,34 +108,41 @@ const App: React.FC = () => {
 
   const handleCreationSuccess = () => {
     setIsCreateScreenOpen(false);
-    setActiveTab(Tab.Home); // Switch to home tab to see the new content
+    setActiveTab(Tab.Home);
   };
 
   if (firebaseInitializationError) {
     return <AuthScreen preloadedError={firebaseInitializationError} />;
   }
-
   if (isLoading) {
     return <LoadingScreen />;
   }
-  
   if (!firebaseUser) {
     return <AuthScreen />;
   }
-
   if (!currentUser) {
     return <ProfileSetupScreen onComplete={handleProfileSetupComplete} />;
   }
   
+  // Modal/Overlay screens
   if (isCreateScreenOpen) {
       return <CreateScreen user={currentUser} onClose={() => setIsCreateScreenOpen(false)} onSuccess={handleCreationSuccess} />;
+  }
+  if (isNotificationsOpen) {
+    return <NotificationsScreen user={currentUser} onClose={() => setIsNotificationsOpen(false)} />;
+  }
+  if (viewingPostComments) {
+    return <CommentScreen post={viewingPostComments} currentUser={currentUser} onClose={() => setViewingPostComments(null)} />;
+  }
+  if (followList) {
+    return <FollowListScreen title={followList.title} userIds={followList.userIds} currentUser={currentUser} onClose={() => setFollowList(null)} />;
   }
 
   return (
     <div className="relative h-screen w-screen flex flex-col font-sans bg-gray-50 text-dark-gray overflow-hidden antialiased md:max-w-md md:mx-auto md:shadow-2xl md:my-4 md:rounded-2xl md:h-[calc(100vh-2rem)]">
       <main className="flex-1 overflow-hidden">
         <div className={`w-full h-full overflow-y-auto ${activeTab === Tab.Home ? '' : 'hidden'}`}>
-          <HomeScreen currentUser={currentUser} />
+          <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} />
         </div>
         <div className={`w-full h-full overflow-y-auto ${activeTab === Tab.Swipe ? '' : 'hidden'}`}>
           <SwipeScreen currentUser={currentUser} />
@@ -139,7 +151,7 @@ const App: React.FC = () => {
           <ChatScreen />
         </div>
         <div className={`w-full h-full overflow-y-auto ${activeTab === Tab.Profile ? '' : 'hidden'}`}>
-          <ProfileScreen user={currentUser} onUpdateUser={handleUpdateUser} onLogout={handleLogout} />
+          <ProfileScreen user={currentUser} onUpdateUser={handleUpdateUser} onLogout={handleLogout} onOpenFollowList={setFollowList} />
         </div>
       </main>
       <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} onOpenCreate={() => setIsCreateScreenOpen(true)} />

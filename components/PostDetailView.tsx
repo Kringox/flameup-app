@@ -7,10 +7,11 @@ interface PostDetailViewProps {
   currentUser: User;
   onClose: () => void;
   onPostDeleted: (postId: string) => void;
+  onPostUpdated: (post: Post) => void;
+  onOpenComments?: (post: Post) => void; // Optional for future use
 }
 
-const PostDetailView: React.FC<PostDetailViewProps> = ({ post, currentUser, onClose, onPostDeleted }) => {
-  // Close the modal if the backdrop is clicked, but not the content inside
+const PostDetailView: React.FC<PostDetailViewProps> = ({ post, currentUser, onClose, onPostDeleted, onPostUpdated, onOpenComments }) => {
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
       onClose();
@@ -27,9 +28,16 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, currentUser, onCl
             .animate-fade-in { animation: fade-in 0.2s ease-out; }
         `}</style>
 
-        {/* This inner container prevents the PostCard from being clicked to close */}
         <div className="w-full max-w-md my-4" onClick={(e) => e.stopPropagation()}>
-            <PostCard post={post} currentUser={currentUser} onPostDeleted={onPostDeleted} />
+            <PostCard 
+              post={post} 
+              currentUser={currentUser} 
+              onPostDeleted={onPostDeleted} 
+              onPostUpdated={onPostUpdated}
+              // A bit of a hack: The comment screen will appear behind this modal.
+              // For now, disable opening comments from the detail view.
+              onOpenComments={() => alert("Please close this view to see comments.")}
+            />
         </div>
 
         <button onClick={onClose} className="absolute top-4 right-4 text-white z-[51]">
