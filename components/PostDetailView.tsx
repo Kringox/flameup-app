@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Post, User } from '../types';
 import PostCard from './PostCard';
@@ -8,7 +9,7 @@ interface PostDetailViewProps {
   onClose: () => void;
   onPostDeleted: (postId: string) => void;
   onPostUpdated: (post: Post) => void;
-  onOpenComments?: (post: Post) => void; // Optional for future use
+  onOpenComments: (post: Post) => void;
 }
 
 const PostDetailView: React.FC<PostDetailViewProps> = ({ post, currentUser, onClose, onPostDeleted, onPostUpdated, onOpenComments }) => {
@@ -20,7 +21,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, currentUser, onCl
 
   return (
     <div 
-      className="fixed inset-0 bg-black/80 flex justify-center items-center z-50 animate-fade-in p-4"
+      className="absolute inset-0 bg-black/80 flex justify-center items-center z-50 animate-fade-in p-4"
       onClick={handleBackdropClick}
     >
         <style>{`
@@ -34,9 +35,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, currentUser, onCl
               currentUser={currentUser} 
               onPostDeleted={onPostDeleted} 
               onPostUpdated={onPostUpdated}
-              // A bit of a hack: The comment screen will appear behind this modal.
-              // For now, disable opening comments from the detail view.
-              onOpenComments={() => alert("Please close this view to see comments.")}
+              onOpenComments={onOpenComments}
             />
         </div>
 

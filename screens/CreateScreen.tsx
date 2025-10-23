@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { User } from '../types';
 import { uploadPhotos } from '../utils/photoUploader';
@@ -171,7 +172,7 @@ const CreateScreen: React.FC<CreateScreenProps> = ({ user, onClose, onSuccess })
   }
 
   return (
-    <div className="fixed inset-0 bg-white z-[60] flex flex-col">
+    <div className="absolute inset-0 bg-white z-[60] flex flex-col">
         <header className="flex justify-between items-center p-4 border-b border-gray-200 flex-shrink-0">
             <button onClick={handleCancel} className="text-lg text-gray-600 w-20 text-left">
                 {mode === 'select' ? 'Close' : 'Back'}

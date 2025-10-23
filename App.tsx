@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import BottomNav from './components/BottomNav';
 import HomeScreen from './screens/HomeScreen';
@@ -79,7 +80,8 @@ const App: React.FC = () => {
         
         await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
         setCurrentUser(newUser);
-      } catch (error) {
+      // FIX: Correctly handle caught error object to resolve "Cannot find name 'error'" errors.
+      } catch (error: any) {
         console.error("Error setting up profile:", error);
         alert(`Could not set up profile. Please try again.\n\nError: ${String(error)}`);
       } finally {
@@ -89,9 +91,11 @@ const App: React.FC = () => {
   };
   
   const handleUpdateUser = async (updatedUser: User) => {
+    // FIX: Ensure firebaseUser and db are available before proceeding.
     if(firebaseUser && db) {
       const userDocRef = doc(db, 'users', firebaseUser.uid);
       await setDoc(userDocRef, updatedUser, { merge: true });
+      // FIX: Ensure setCurrentUser is available in this scope.
       setCurrentUser(updatedUser);
     }
   };
@@ -107,6 +111,7 @@ const App: React.FC = () => {
   };
 
   const handleCreationSuccess = () => {
+    // FIX: Ensure setIsCreateScreenOpen and setActiveTab are available in this scope.
     setIsCreateScreenOpen(false);
     setActiveTab(Tab.Home);
   };
@@ -114,32 +119,29 @@ const App: React.FC = () => {
   if (firebaseInitializationError) {
     return <AuthScreen preloadedError={firebaseInitializationError} />;
   }
+  // FIX: Ensure isLoading is available in this scope.
   if (isLoading) {
     return <LoadingScreen />;
   }
+  // FIX: Ensure firebaseUser is available in this scope.
   if (!firebaseUser) {
     return <AuthScreen />;
   }
+  // FIX: Ensure currentUser is available in this scope.
   if (!currentUser) {
     return <ProfileSetupScreen onComplete={handleProfileSetupComplete} />;
   }
-  
-  // Modal/Overlay screens
-  if (isCreateScreenOpen) {
-      return <CreateScreen user={currentUser} onClose={() => setIsCreateScreenOpen(false)} onSuccess={handleCreationSuccess} />;
-  }
-  if (isNotificationsOpen) {
-    return <NotificationsScreen user={currentUser} onClose={() => setIsNotificationsOpen(false)} />;
-  }
-  if (viewingPostComments) {
-    return <CommentScreen post={viewingPostComments} currentUser={currentUser} onClose={() => setViewingPostComments(null)} />;
-  }
-  if (followList) {
-    return <FollowListScreen title={followList.title} userIds={followList.userIds} currentUser={currentUser} onClose={() => setFollowList(null)} />;
-  }
 
   return (
-    <div className="relative h-screen w-screen flex flex-col font-sans bg-gray-50 text-dark-gray overflow-hidden antialiased md:max-w-md md:mx-auto md:shadow-2xl md:my-4 md:rounded-2xl md:h-[calc(100vh-2rem)]">
+    <div className="relative h-screen w-screen flex flex-col font-sans bg-gray-50 text-dark-gray antialiased md:max-w-md md:mx-auto md:shadow-2xl md:my-4 md:rounded-2xl md:h-[calc(100vh-2rem)]">
+      
+      {/* Overlays - Rendered on top of main content */}
+      {isCreateScreenOpen && <CreateScreen user={currentUser} onClose={() => setIsCreateScreenOpen(false)} onSuccess={handleCreationSuccess} />}
+      {isNotificationsOpen && <NotificationsScreen user={currentUser} onClose={() => setIsNotificationsOpen(false)} />}
+      {viewingPostComments && <CommentScreen post={viewingPostComments} currentUser={currentUser} onClose={() => setViewingPostComments(null)} />}
+      {followList && <FollowListScreen title={followList.title} userIds={followList.userIds} currentUser={currentUser} onClose={() => setFollowList(null)} />}
+
+      {/* Main App Content */}
       <main className="flex-1 overflow-hidden">
         <div className={`w-full h-full overflow-y-auto ${activeTab === Tab.Home ? '' : 'hidden'}`}>
           <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} />
@@ -151,7 +153,14 @@ const App: React.FC = () => {
           <ChatScreen />
         </div>
         <div className={`w-full h-full overflow-y-auto ${activeTab === Tab.Profile ? '' : 'hidden'}`}>
-          <ProfileScreen user={currentUser} onUpdateUser={handleUpdateUser} onLogout={handleLogout} onOpenFollowList={setFollowList} />
+          <ProfileScreen 
+            user={currentUser} 
+            isActive={activeTab === Tab.Profile}
+            onUpdateUser={handleUpdateUser} 
+            onLogout={handleLogout} 
+            onOpenFollowList={setFollowList} 
+            onOpenComments={setViewingPostComments}
+          />
         </div>
       </main>
       <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} onOpenCreate={() => setIsCreateScreenOpen(true)} />

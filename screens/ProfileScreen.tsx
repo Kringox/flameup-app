@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Post, User } from '../types';
 import EditProfileScreen from './EditProfileScreen';
@@ -10,12 +11,14 @@ const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3
 
 interface ProfileScreenProps {
   user: User;
+  isActive: boolean;
   onUpdateUser: (updatedUser: User) => void;
   onLogout: () => void;
   onOpenFollowList: (list: {title: 'Followers' | 'Following', userIds: string[]}) => void;
+  onOpenComments: (post: Post) => void;
 }
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLogout, onOpenFollowList }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, isActive, onUpdateUser, onLogout, onOpenFollowList, onOpenComments }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
@@ -23,9 +26,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLog
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
 
   useEffect(() => {
-    if (!db || !user?.id) {
-        setIsLoadingPosts(false);
-        return;
+    if (!isActive || !db || !user?.id) {
+        return; // Don't fetch if the tab is not active
     };
 
     setIsLoadingPosts(true);
@@ -60,8 +62,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLog
       setIsLoadingPosts(false);
     });
 
-    return () => unsubscribe();
-  }, [user.id]);
+    return () => unsubscribe(); // Cleanup the listener when the component is no longer active
+  }, [user.id, isActive]);
 
 
   const handleSaveProfile = (updatedUser: User) => {
@@ -149,6 +151,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onUpdateUser, onLog
           onClose={() => setSelectedPost(null)}
           onPostDeleted={() => setSelectedPost(null)}
           onPostUpdated={handlePostUpdated}
+          onOpenComments={onOpenComments}
         />
       )}
     </>

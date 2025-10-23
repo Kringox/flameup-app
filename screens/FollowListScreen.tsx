@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { User, NotificationType } from '../types';
 import { db } from '../firebaseConfig';
@@ -85,7 +86,7 @@ const FollowListScreen: React.FC<FollowListScreenProps> = ({ title, userIds, cur
     };
 
     return (
-        <div className="fixed inset-0 bg-white z-50 flex flex-col">
+        <div className="absolute inset-0 bg-white z-50 flex flex-col">
             <header className="flex items-center p-4 border-b border-gray-200 flex-shrink-0">
                  <button onClick={onClose} className="text-lg text-gray-600 w-8">
                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>

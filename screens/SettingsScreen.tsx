@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 
 interface SettingsScreenProps {
@@ -51,7 +52,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose, onLogout }) =>
     const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   return (
-    <div className="fixed inset-0 bg-gray-100 z-50 flex flex-col">
+    <div className="absolute inset-0 bg-gray-100 z-50 flex flex-col">
       {/* Header */}
       <header className="flex items-center p-4 border-b border-gray-200 bg-white flex-shrink-0 sticky top-0">
         <button onClick={onClose} className="text-lg text-gray-600">

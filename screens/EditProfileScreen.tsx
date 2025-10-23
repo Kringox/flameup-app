@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { User } from '../types';
 import { uploadPhotos } from '../utils/photoUploader';
@@ -91,7 +92,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
 
 
   return (
-    <div className="fixed inset-0 bg-gray-50 z-50 flex flex-col">
+    <div className="absolute inset-0 bg-gray-50 z-50 flex flex-col">
       {/* Header */}
       <header className="flex justify-between items-center p-4 border-b border-gray-200 bg-white flex-shrink-0">
         <button onClick={onClose} className="text-lg text-gray-600">Cancel</button>

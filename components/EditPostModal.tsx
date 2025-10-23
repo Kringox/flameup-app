@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Post } from '../types';
 import { db } from '../firebaseConfig';
@@ -29,7 +30,7 @@ const EditPostModal: React.FC<EditPostModalProps> = ({ post, onClose, onSave }) 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-[100]" onClick={onClose}>
+    <div className="absolute inset-0 bg-black/70 flex justify-center items-center z-[100]" onClick={onClose}>
       <div className="bg-white rounded-lg w-11/12 max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <header className="flex justify-between items-center p-3 border-b">
           <button onClick={onClose} className="text-gray-600">Cancel</button>

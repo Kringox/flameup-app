@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Story } from '../types';
 
@@ -56,7 +57,7 @@ const StoryViewer: React.FC<StoryViewerProps> = ({ stories, startIndex, onClose,
   const currentStory = stories[currentIndex];
 
   return (
-    <div className="fixed inset-0 bg-black z-[100] flex flex-col items-center justify-center">
+    <div className="absolute inset-0 bg-black z-[100] flex flex-col items-center justify-center">
        <style>{`
         @keyframes progress {
           from { width: 0%; }

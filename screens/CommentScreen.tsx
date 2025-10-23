@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Post, User, Comment, NotificationType } from '../types';
 import { db } from '../firebaseConfig';
@@ -18,7 +19,15 @@ const formatTimestamp = (timestamp: any): string => {
     return `${days}d`;
 };
 
-const CommentRow: React.FC<{ comment: Comment; currentUser: User; postAuthorId: string; onDelete: (commentId: string) => void; }> = ({ comment, currentUser, postAuthorId, onDelete }) => {
+interface CommentRowProps {
+    comment: Comment;
+    currentUser: User;
+    postAuthorId: string;
+    onDelete: (commentId: string) => void;
+    postId: string;
+}
+
+const CommentRow: React.FC<CommentRowProps> = ({ comment, currentUser, postAuthorId, onDelete, postId }) => {
     const [isLiked, setIsLiked] = useState(false);
 
     useEffect(() => {
@@ -27,7 +36,7 @@ const CommentRow: React.FC<{ comment: Comment; currentUser: User; postAuthorId: 
 
     const handleLike = async () => {
         if (!db) return;
-        const commentRef = doc(db, `posts/${comment.id.split('_')[0]}/comments`, comment.id);
+        const commentRef = doc(db, 'posts', postId, 'comments', comment.id);
         const newLikedState = !isLiked;
         setIsLiked(newLikedState); // Optimistic update
 
@@ -85,6 +94,9 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
             setComments(commentsList);
             setIsLoading(false);
             setTimeout(() => listRef.current?.scrollTo(0, listRef.current.scrollHeight), 100);
+        }, (error) => {
+            console.error("Error fetching comments:", error);
+            setIsLoading(false);
         });
 
         return () => unsubscribe();
@@ -163,7 +175,7 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
     };
 
     return (
-        <div className="fixed inset-0 bg-white z-50 flex flex-col">
+        <div className="absolute inset-0 bg-white z-50 flex flex-col">
             <header className="flex items-center p-4 border-b border-gray-200 flex-shrink-0">
                 <div className="w-8"></div>
                 <h1 className="text-xl font-bold text-dark-gray text-center flex-1">Comments</h1>
@@ -176,7 +188,7 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
                 {isLoading ? (
                      <div className="flex justify-center items-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div></div>
                 ) : (
-                    comments.map(comment => <CommentRow key={comment.id} comment={comment} currentUser={currentUser} postAuthorId={post.userId} onDelete={handleDeleteComment} />)
+                    comments.map(comment => <CommentRow key={comment.id} comment={comment} currentUser={currentUser} postAuthorId={post.userId} onDelete={handleDeleteComment} postId={post.id} />)
                 )}
             </div>
 
