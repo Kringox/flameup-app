@@ -178,7 +178,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
         <p className="text-center text-xs text-gray-400 mt-6">
           By continuing, you agree to our <a href="#" className="underline">Terms of Service</a> and <a href="#" className="underline">Privacy Policy</a>.
         </p>
-        <p className="text-center text-xs text-gray-400 mt-2">v1.8 - Data Structure Fix</p>
+        <p className="text-center text-xs text-gray-400 mt-2">v2.0 - Match & Gifting Update</p>
       </div>
     </div>
   );

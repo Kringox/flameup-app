@@ -18,6 +18,8 @@ export const DEMO_USERS_FOR_UI: User[] = [
     email: 'jessica@example.com',
     followers: [],
     following: [],
+    // FIX: Added missing 'coins' property to satisfy the User interface.
+    coins: 100,
   },
   {
     id: '2',
@@ -31,6 +33,8 @@ export const DEMO_USERS_FOR_UI: User[] = [
     email: 'mike@example.com',
     followers: [],
     following: [],
+    // FIX: Added missing 'coins' property to satisfy the User interface.
+    coins: 100,
   },
   {
     id: '3',
@@ -44,6 +48,8 @@ export const DEMO_USERS_FOR_UI: User[] = [
     email: 'chloe@example.com',
     followers: [],
     following: [],
+    // FIX: Added missing 'coins' property to satisfy the User interface.
+    coins: 100,
   },
    {
     id: '4',
@@ -57,6 +63,8 @@ export const DEMO_USERS_FOR_UI: User[] = [
     email: 'david@example.com',
     followers: [],
     following: [],
+    // FIX: Added missing 'coins' property to satisfy the User interface.
+    coins: 100,
   },
 ];
 

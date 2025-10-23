@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import BottomNav from './components/BottomNav';
 import HomeScreen from './screens/HomeScreen';
@@ -14,7 +13,8 @@ import CommentScreen from './screens/CommentScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 import FollowListScreen from './screens/FollowListScreen';
 import InAppNotification from './components/InAppNotification';
-import { Tab, User, Post, Chat } from './types';
+import MatchModal from './components/MatchModal';
+import { Tab, User, Post, Chat, Notification as NotificationType, NotificationType as NotifEnum } from './types';
 import { auth, db, firebaseInitializationError } from './firebaseConfig';
 import { onAuthStateChanged, User as FirebaseUser, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
@@ -37,6 +37,7 @@ const App: React.FC = () => {
   // Notification states
   const [allChats, setAllChats] = useState<Chat[]>([]);
   const [notification, setNotification] = useState<{ senderName: string; messageText: string; profilePhoto: string; partnerId: string; } | null>(null);
+  const [matchNotification, setMatchNotification] = useState<NotificationType | null>(null);
   const prevChatsRef = useRef<Chat[]>([]);
 
 
@@ -66,7 +67,8 @@ const App: React.FC = () => {
     const userDocRef = doc(db, 'users', firebaseUser.uid);
     const unsubscribeUser = onSnapshot(userDocRef, (userDocSnap) => {
         if (userDocSnap.exists()) {
-            setCurrentUser({ id: firebaseUser.uid, ...userDocSnap.data() } as User);
+            const userData = { id: firebaseUser.uid, ...userDocSnap.data() } as User;
+            setCurrentUser(userData);
         } else {
             setCurrentUser(null); 
         }
@@ -112,7 +114,7 @@ const App: React.FC = () => {
   }, [firebaseUser, activeChatPartnerId]);
 
 
-  const handleProfileSetupComplete = async (newUserProfileData: Omit<User, 'id' | 'email' | 'profilePhotos' | 'followers' | 'following'> & { photos: File[] }) => {
+  const handleProfileSetupComplete = async (newUserProfileData: Omit<User, 'id' | 'email' | 'profilePhotos' | 'followers' | 'following' | 'coins'> & { photos: File[] }) => {
     if (firebaseUser && db) {
       setIsLoading(true);
       try {
@@ -131,6 +133,7 @@ const App: React.FC = () => {
           profilePhotos: photoURLs,
           followers: [],
           following: [],
+          coins: 100, // Starting coins
         };
         
         await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
@@ -177,11 +180,19 @@ const App: React.FC = () => {
 
   const handleStartChat = (partnerId: string) => {
     setViewingUserId(null); 
+    setMatchNotification(null); // Close match modal if open
     setActiveChatPartnerId(partnerId);
     setActiveTab(Tab.Chat);
   };
   
   const hasUnreadMessages = currentUser ? allChats.some(chat => (chat.unreadCount?.[currentUser.id] || 0) > 0) : false;
+
+  const handleShowMatch = (notification: NotificationType) => {
+      if(notification.type === NotifEnum.Match){
+          setMatchNotification(notification);
+      }
+      setIsNotificationsOpen(false);
+  }
 
 
   if (firebaseInitializationError) {
@@ -210,10 +221,20 @@ const App: React.FC = () => {
               onClose={() => setNotification(null)}
           />
       )}
+      
+      {matchNotification && (
+          <MatchModal
+            matchedUser={matchNotification.fromUser}
+            currentUser={currentUser}
+            onSendMessage={() => handleStartChat(matchNotification.fromUser.id)}
+            onClose={() => setMatchNotification(null)}
+          />
+      )}
+
 
       {/* Overlays - Rendered on top of main content */}
       {isCreateScreenOpen && <CreateScreen user={currentUser} onClose={() => setIsCreateScreenOpen(false)} onSuccess={handleCreationSuccess} />}
-      {isNotificationsOpen && <NotificationsScreen user={currentUser} onClose={() => setIsNotificationsOpen(false)} />}
+      {isNotificationsOpen && <NotificationsScreen user={currentUser} onClose={() => setIsNotificationsOpen(false)} onShowMatch={handleShowMatch}/>}
       {viewingPostComments && <CommentScreen post={viewingPostComments} currentUser={currentUser} onClose={() => setViewingPostComments(null)} />}
       {followList && <FollowListScreen title={followList.title} userIds={followList.userIds} currentUser={currentUser} onClose={() => setFollowList(null)} />}
       {viewingUserId && <UserProfileScreen userId={viewingUserId} currentUser={currentUser} onClose={() => setViewingUserId(null)} onOpenComments={setViewingPostComments} onStartChat={handleStartChat} />}
@@ -224,7 +245,7 @@ const App: React.FC = () => {
           <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} />
         </div>
         <div className={`w-full h-full overflow-y-auto ${activeTab === Tab.Swipe ? '' : 'hidden'}`}>
-          <SwipeScreen currentUser={currentUser} />
+          <SwipeScreen currentUser={currentUser} onStartChat={handleStartChat}/>
         </div>
         <div className={`w-full h-full ${activeTab === Tab.Chat ? '' : 'hidden'}`}>
           <ChatScreen 
@@ -232,6 +253,7 @@ const App: React.FC = () => {
             activeChatPartnerId={activeChatPartnerId}
             onStartChat={setActiveChatPartnerId}
             onCloseChat={() => setActiveChatPartnerId(null)}
+            onUpdateUser={handleUpdateUser}
           />
         </div>
         <div className={`w-full h-full overflow-y-auto ${activeTab === Tab.Profile ? '' : 'hidden'}`}>

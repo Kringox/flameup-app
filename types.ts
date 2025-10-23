@@ -19,6 +19,7 @@ export interface User {
   email: string;
   followers: string[]; // Array of user IDs
   following: string[]; // Array of user IDs
+  coins: number; // For sending gifts
 }
 
 export interface Story {
@@ -65,6 +66,11 @@ export interface Message {
     senderId: string;
     text: string;
     timestamp: Timestamp;
+    gift?: { // For sending virtual gifts
+      name: 'Rose' | 'Teddy' | 'Heart' | 'Ring';
+      icon: string;
+      cost: number;
+    }
 }
 
 export interface Chat {
@@ -103,6 +109,7 @@ export enum NotificationType {
     Like = 'like',
     Comment = 'comment',
     Follow = 'follow',
+    Match = 'match',
 }
 
 export interface Notification {

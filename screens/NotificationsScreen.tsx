@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { User, Notification, NotificationType } from '../types';
 import { db } from '../firebaseConfig';
@@ -19,7 +18,7 @@ const formatTimestamp = (timestamp: any): string => {
     return `${days}d`;
 };
 
-const NotificationRow: React.FC<{ notification: Notification }> = ({ notification }) => {
+const NotificationRow: React.FC<{ notification: Notification; onClick: () => void }> = ({ notification, onClick }) => {
     const renderText = () => {
         switch (notification.type) {
             case NotificationType.Like:
@@ -28,13 +27,15 @@ const NotificationRow: React.FC<{ notification: Notification }> = ({ notificatio
                 return <>commented: <span className="font-normal italic">"{notification.commentText}"</span></>;
             case NotificationType.Follow:
                 return <>started following you.</>;
+            case NotificationType.Match:
+                return <>You have a new match!</>
             default:
                 return null;
         }
     };
 
     return (
-        <div className="flex items-center p-3 space-x-3 hover:bg-gray-50">
+        <button onClick={onClick} className="w-full flex items-center p-3 space-x-3 hover:bg-gray-50 text-left">
             <img src={notification.fromUser.profilePhoto} alt={notification.fromUser.name} className="w-12 h-12 rounded-full object-cover" />
             <p className="flex-1 text-sm">
                 <span className="font-semibold">{notification.fromUser.name}</span>{' '}
@@ -44,17 +45,23 @@ const NotificationRow: React.FC<{ notification: Notification }> = ({ notificatio
             {notification.post && (
                 <img src={notification.post.mediaUrl} alt="Post thumbnail" className="w-12 h-12 object-cover rounded-md" />
             )}
+             {notification.type === NotificationType.Match && (
+                <div className="w-12 h-12 flex items-center justify-center">
+                    <span className="text-3xl">🔥</span>
+                </div>
+            )}
             {!notification.read && <div className="w-2 h-2 bg-flame-orange rounded-full flex-shrink-0"></div>}
-        </div>
+        </button>
     );
 };
 
 interface NotificationsScreenProps {
     user: User;
     onClose: () => void;
+    onShowMatch: (notification: Notification) => void;
 }
 
-const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ user, onClose }) => {
+const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ user, onClose, onShowMatch }) => {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -89,6 +96,13 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ user, onClose
         return () => unsubscribe();
     }, [user.id]);
     
+    const handleNotificationClick = (notification: Notification) => {
+        if (notification.type === NotificationType.Match) {
+            onShowMatch(notification);
+        }
+        // Can add handlers for other types later, e.g., open post on comment/like
+    };
+
     return (
         <div className="absolute inset-0 bg-white z-50 flex flex-col">
             <header className="flex items-center p-4 border-b border-gray-200 flex-shrink-0">
@@ -105,7 +119,7 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ user, onClose
                 ) : notifications.length === 0 ? (
                     <p className="text-center text-gray-500 mt-8">No notifications yet.</p>
                 ) : (
-                    notifications.map(n => <NotificationRow key={n.id} notification={n} />)
+                    notifications.map(n => <NotificationRow key={n.id} notification={n} onClick={() => handleNotificationClick(n)} />)
                 )}
             </div>
         </div>

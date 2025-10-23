@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { User } from '../types';
+import React, { useState, useEffect, useCallback } from 'react';
+import { User, NotificationType } from '../types';
 import FlameIcon from '../components/icons/FlameIcon';
+import MatchModal from '../components/MatchModal';
 import { db } from '../firebaseConfig';
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import { DEMO_USERS_FOR_UI } from '../constants';
+import { collection, getDocs, query, where, doc, getDoc, writeBatch, serverTimestamp, addDoc, setDoc, limit } from 'firebase/firestore';
 
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
+const getChatId = (uid1: string, uid2: string) => [uid1, uid2].sort().join('_');
 
 const ProfileCard: React.FC<{ user: User }> = ({ user }) => {
   return (
@@ -27,122 +28,142 @@ const ProfileCard: React.FC<{ user: User }> = ({ user }) => {
   );
 };
 
-const MatchModal: React.FC<{ user: User; currentUser: User; onClose: () => void }> = ({ user, currentUser, onClose }) => {
-  return (
-    <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-50 animate-fade-in">
-      <style>{`
-        @keyframes fade-in {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        .animate-fade-in { animation: fade-in 0.3s ease-out; }
-      `}</style>
-      <div className="bg-white rounded-2xl p-8 flex flex-col items-center text-center w-11/12 max-w-sm">
-        <h2 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-flame-orange to-flame-red">It's a Match! 🔥</h2>
-        <p className="text-gray-600 mt-2">You and {user.name} have liked each other.</p>
-        <div className="flex items-center space-x-4 my-6">
-          <img src={currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR} alt={currentUser.name} className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-lg" />
-          <img src={user.profilePhotos?.[0] || PLACEHOLDER_AVATAR} alt={user.name} className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-lg" />
-        </div>
-        <button className="w-full py-3 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold rounded-full mb-3 shadow-lg transform hover:scale-105 transition-transform">
-          Send a Message
-        </button>
-        <button onClick={onClose} className="w-full py-3 text-gray-600 font-semibold rounded-full">
-          Keep Swiping
-        </button>
-      </div>
-    </div>
-  );
-};
-
 interface SwipeScreenProps {
     currentUser: User;
+    onStartChat: (partnerId: string) => void;
 }
 
-const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser }) => {
+const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) => {
     const [users, setUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [coins, setCoins] = useState(125);
     const [showMatch, setShowMatch] = useState<User | null>(null);
     const [swipedUserId, setSwipedUserId] = useState<string | null>(null);
     const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | 'up' | null>(null);
+    const [swipedIds, setSwipedIds] = useState<Set<string>>(new Set());
 
-    useEffect(() => {
-        const fetchUsers = async () => {
-            setIsLoading(true);
-            if (!db) {
-                console.error("Firestore is not available. Falling back to demo data.");
-                setUsers(DEMO_USERS_FOR_UI.filter(u => u.id !== currentUser.id));
-                setIsLoading(false);
-                return;
-            }
-
-            try {
-                const usersCollection = collection(db, 'users');
-                // TODO: Add logic here to exclude users the current user has already swiped on.
-                const q = query(usersCollection, where("id", "!=", currentUser.id));
-                const userSnapshot = await getDocs(q);
-                const userList = userSnapshot.docs.map(doc => doc.data() as User);
-                setUsers(userList.length > 0 ? userList : DEMO_USERS_FOR_UI); // Fallback to demo users if firestore is empty
-            } catch (error) {
-                console.error("Error fetching users, falling back to demo data: ", error);
-                setUsers(DEMO_USERS_FOR_UI); // Use demo data as a fallback on error
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchUsers();
-    }, [currentUser.id]);
-
-    useEffect(() => {
-        navigator.geolocation.getCurrentPosition(
-            () => { /* Successfully got location */ },
-            () => { console.warn('Geolocation permission denied.') }
-        );
-    }, []);
-
-    const handleSwipe = (direction: 'left' | 'right' | 'up') => {
-        if (users.length === 0 || swipedUserId) return;
-
-        const cost = direction === 'up' ? 2 : 1;
-        if (coins >= cost) {
-            setCoins(c => c - cost);
-            const targetUser = users[0];
-            setSwipeDirection(direction);
-            setSwipedUserId(targetUser.id);
-
-            setTimeout(() => {
-                const sharedInterests = currentUser.interests.filter(i => targetUser.interests.includes(i));
-                const interestScore = sharedInterests.length / (currentUser.interests.length || 1);
-                const matchProbability = 0.15 + interestScore * 0.6; 
-                
-                const isMatch = Math.random() < matchProbability;
-
-                if (isMatch && direction !== 'left') {
-                    setShowMatch(targetUser);
-                }
-                setUsers(currentUsers => currentUsers.slice(1));
-                setSwipedUserId(null);
-                setSwipeDirection(null);
-            }, 400);
-        } else {
-            alert("No more coins!");
+    const fetchUsers = useCallback(async () => {
+        setIsLoading(true);
+        if (!db) {
+            console.error("Firestore is not available.");
+            setIsLoading(false);
+            return;
         }
+
+        try {
+            const swipesRef = collection(db, 'swipes');
+            const userSwipesQuery = query(swipesRef, where("swiperId", "==", currentUser.id));
+            const userSwipesSnapshot = await getDocs(userSwipesQuery);
+            const alreadySwipedIds = userSwipesSnapshot.docs.map(doc => doc.data().swipedUserId);
+            
+            const idsToExclude = new Set([currentUser.id, ...alreadySwipedIds, ...swipedIds]);
+
+            const usersCollection = collection(db, 'users');
+            // Fetch users that are not in the exclusion list. Firestore's `not-in` query is limited to 10 items,
+            // so we fetch a batch and filter client-side. This is not ideal for massive scale but works for this app.
+            // A more scalable solution would involve Cloud Functions to manage swipe decks.
+            const q = query(usersCollection, limit(20));
+            const userSnapshot = await getDocs(q);
+            
+            const userList = userSnapshot.docs
+                .map(doc => doc.data() as User)
+                .filter(user => !idsToExclude.has(user.id));
+
+            setUsers(userList);
+        } catch (error) {
+            console.error("Error fetching users: ", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [currentUser.id, swipedIds]);
+
+    useEffect(() => {
+        fetchUsers();
+    }, [fetchUsers]);
+
+    const handleSwipe = async (direction: 'left' | 'right' | 'up') => {
+        if (users.length === 0 || swipedUserId || !db) return;
+
+        const targetUser = users[0];
+        setSwipeDirection(direction);
+        setSwipedUserId(targetUser.id);
+        
+        const batch = writeBatch(db);
+        const swipeDocRef = doc(collection(db, 'swipes'));
+        batch.set(swipeDocRef, {
+            swiperId: currentUser.id,
+            swipedUserId: targetUser.id,
+            action: direction === 'left' ? 'dislike' : 'like',
+            timestamp: serverTimestamp()
+        });
+        
+        await batch.commit();
+
+        setTimeout(async () => {
+            if (direction !== 'left') { // 'right' or 'up' is a like
+                // Check for a match
+                const otherUserSwipeRef = query(collection(db, 'swipes'), 
+                    where("swiperId", "==", targetUser.id),
+                    where("swipedUserId", "==", currentUser.id),
+                    where("action", "==", "like")
+                );
+                
+                const otherUserSwipeSnapshot = await getDocs(otherUserSwipeRef);
+                
+                if (!otherUserSwipeSnapshot.empty) {
+                    // It's a match!
+                    setShowMatch(targetUser);
+                    
+                    // Create chat document
+                    const chatId = getChatId(currentUser.id, targetUser.id);
+                    const chatDocRef = doc(db, 'chats', chatId);
+                    await setDoc(chatDocRef, {
+                        userIds: [currentUser.id, targetUser.id],
+                        users: {
+                            [currentUser.id]: { name: currentUser.name, profilePhoto: currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR },
+                            [targetUser.id]: { name: targetUser.name, profilePhoto: targetUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR }
+                        },
+                        lastMessage: null,
+                        unreadCount: { [currentUser.id]: 0, [targetUser.id]: 0 }
+                    }, { merge: true });
+
+                    // Create notification for the other user
+                    const notificationsRef = collection(db, 'users', targetUser.id, 'notifications');
+                    await addDoc(notificationsRef, {
+                        type: NotificationType.Match,
+                        fromUser: {
+                            id: currentUser.id,
+                            name: currentUser.name,
+                            profilePhoto: currentUser.profilePhotos?.[0] || '',
+                        },
+                        read: false,
+                        timestamp: serverTimestamp(),
+                    });
+                }
+            }
+
+            setUsers(currentUsers => currentUsers.slice(1));
+            setSwipedIds(prev => new Set(prev).add(targetUser.id));
+            setSwipedUserId(null);
+            setSwipeDirection(null);
+        }, 400);
     };
 
-    const closeMatchModal = () => {
-        setShowMatch(null);
-    };
+    const handleSendMessageFromMatch = () => {
+        if(showMatch) {
+            onStartChat(showMatch.id);
+            setShowMatch(null);
+        }
+    }
+
   
     return (
     <div className="flex flex-col h-full w-full bg-gray-100 overflow-hidden">
-      {showMatch && <MatchModal user={showMatch} currentUser={currentUser} onClose={closeMatchModal} />}
+      {showMatch && <MatchModal matchedUser={showMatch} currentUser={currentUser} onSendMessage={handleSendMessageFromMatch} onClose={() => setShowMatch(null)} />}
       <header className="flex justify-between items-center p-4 bg-white border-b flex-shrink-0">
         <FlameIcon className="w-8 h-8" isGradient={true} />
         <div className="flex items-center space-x-2 bg-yellow-100 text-yellow-700 font-bold px-3 py-1 rounded-full">
             <span>🪙</span>
-            <span>{coins} Coins</span>
+            <span>{currentUser.coins} Coins</span>
         </div>
       </header>
 
@@ -174,9 +195,9 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser }) => {
             <div className="w-full h-full flex flex-col justify-center items-center text-center p-8 bg-white rounded-2xl shadow-lg">
                 <FlameIcon className="w-16 h-16 text-gray-300 mb-4" />
                 <p className="text-xl font-semibold text-gray-700">That's everyone for now!</p>
-                <p className="text-gray-500 mt-2 mb-6">Check back later or adjust your filters to see new profiles.</p>
-                <button className="py-3 px-6 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold rounded-full shadow-lg transform hover:scale-105 transition-transform">
-                    Adjust Filters
+                <p className="text-gray-500 mt-2 mb-6">Check back later to see new profiles.</p>
+                <button onClick={fetchUsers} className="py-3 px-6 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold rounded-full shadow-lg transform hover:scale-105 transition-transform">
+                    Refresh
                 </button>
             </div>
         )}
