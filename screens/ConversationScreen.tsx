@@ -108,9 +108,13 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
         try {
             await batch.commit();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error sending message:", error);
-            alert("Could not send message. Please try again.");
+            let detailedError = "Could not send message. Please try again.";
+            if (error.code === 'permission-denied') {
+                detailedError = "Could not send message: Permission denied. Please check your Firestore security rules to ensure you can update chat documents, not just create them.";
+            }
+            alert(detailedError);
             setNewMessage(tempMessage);
         }
     };
