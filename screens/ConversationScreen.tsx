@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Message } from '../types';
 import { db } from '../firebaseConfig';
-import { collection, doc, getDoc, query, orderBy, onSnapshot, serverTimestamp, writeBatch, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, query, onSnapshot, serverTimestamp, setDoc, addDoc } from 'firebase/firestore';
 
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
 
@@ -41,13 +41,11 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     useEffect(() => {
         if (!db) return;
         const messagesRef = collection(db, 'chats', chatId, 'messages');
-        // REMOVED: orderBy('timestamp', 'asc'). We will sort on the client.
         const q = query(messagesRef);
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
             
-            // Sort messages on the client-side for robustness
             msgs.sort((a, b) => {
                 const timeA = a.timestamp?.toMillis() || 0;
                 const timeB = b.timestamp?.toMillis() || 0;
@@ -75,44 +73,43 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         setNewMessage('');
 
         const chatDocRef = doc(db, 'chats', chatId);
-        const newMessageRef = doc(collection(chatDocRef, 'messages'));
-        const batch = writeBatch(db);
-
-        // 1. Add new message to subcollection
-        batch.set(newMessageRef, {
-            text: tempMessage,
-            senderId: currentUser.id,
-            timestamp: serverTimestamp(),
-        });
-
-        // 2. Update the lastMessage on the parent chat document
-        // This also creates the chat document if it's the first message
-        batch.set(chatDocRef, {
-            userIds: [currentUser.id, partner.id],
-            users: {
-                [currentUser.id]: {
-                    name: currentUser.name,
-                    profilePhoto: currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR
-                },
-                [partner.id]: {
-                    name: partner.name,
-                    profilePhoto: partner.profilePhotos?.[0] || PLACEHOLDER_AVATAR
-                }
-            },
-            lastMessage: {
-                text: tempMessage,
-                senderId: currentUser.id,
-                timestamp: serverTimestamp()
-            }
-        }, { merge: true }); // Use merge:true to create or update
+        const messagesCollectionRef = collection(chatDocRef, 'messages');
 
         try {
-            await batch.commit();
+            // Step 1: Create or update the chat document.
+            // This ensures the document exists before we try to add a message to its subcollection,
+            // which works around a Firestore security rule limitation with batch writes.
+            await setDoc(chatDocRef, {
+                userIds: [currentUser.id, partner.id],
+                users: {
+                    [currentUser.id]: {
+                        name: currentUser.name,
+                        profilePhoto: currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR
+                    },
+                    [partner.id]: {
+                        name: partner.name,
+                        profilePhoto: partner.profilePhotos?.[0] || PLACEHOLDER_AVATAR
+                    }
+                },
+                lastMessage: {
+                    text: tempMessage,
+                    senderId: currentUser.id,
+                    timestamp: serverTimestamp()
+                }
+            }, { merge: true });
+
+            // Step 2: Add the new message to the 'messages' subcollection.
+            await addDoc(messagesCollectionRef, {
+                text: tempMessage,
+                senderId: currentUser.id,
+                timestamp: serverTimestamp(),
+            });
+
         } catch (error: any) {
             console.error("Error sending message:", error);
             let detailedError = "Could not send message. Please try again.";
             if (error.code === 'permission-denied') {
-                detailedError = "Could not send message: Permission denied. Please check your Firestore security rules to ensure you can update chat documents, not just create them.";
+                detailedError = "PERMISSION DENIED: Your Firestore Security Rules are blocking this message.\n\nThe first message creates a chat, but every message after that must UPDATE it.\n\nFIX: Go to Firebase -> Firestore -> Rules and make sure your rule for `match /chats/{chatId}` includes this line:\n\nallow update: if request.auth.uid in resource.data.userIds;";
             }
             alert(detailedError);
             setNewMessage(tempMessage);
