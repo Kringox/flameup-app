@@ -60,11 +60,9 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
                 const BATCH_SIZE = 10;
                 let q;
 
-                // REARCHITECTED QUERY:
-                // 1. Exclude the current user directly in the query for efficiency.
-                // 2. Order by documentId, which is required for the '!=' filter and provides a stable cursor.
+                // SIMPLIFIED QUERY: Fetch all users and filter on the client.
+                // This is more robust than a complex server-side query.
                 const baseQueryConstraints = [
-                    where(documentId(), '!=', currentUser.id),
                     orderBy(documentId()),
                     limit(BATCH_SIZE)
                 ];
@@ -84,10 +82,10 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) =
 
                 lastFetchedDocRef.current = userSnapshot.docs[userSnapshot.docs.length - 1];
 
-                // Filter this batch ONLY against the cached swiped list.
+                // Filter on the client: Exclude self AND already-swiped users.
                 potentialUsers = userSnapshot.docs
                     .map(doc => ({ id: doc.id, ...doc.data() } as User))
-                    .filter(user => !swipedUserIdsRef.current.has(user.id));
+                    .filter(user => user.id !== currentUser.id && !swipedUserIdsRef.current.has(user.id));
             }
 
             // Add the found users to our swipe stack
