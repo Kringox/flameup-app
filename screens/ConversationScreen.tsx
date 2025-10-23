@@ -41,11 +41,23 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     useEffect(() => {
         if (!db) return;
         const messagesRef = collection(db, 'chats', chatId, 'messages');
-        const q = query(messagesRef, orderBy('timestamp', 'asc'));
+        // REMOVED: orderBy('timestamp', 'asc'). We will sort on the client.
+        const q = query(messagesRef);
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+            
+            // Sort messages on the client-side for robustness
+            msgs.sort((a, b) => {
+                const timeA = a.timestamp?.toMillis() || 0;
+                const timeB = b.timestamp?.toMillis() || 0;
+                return timeA - timeB;
+            });
+
             setMessages(msgs);
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching messages: ", error);
             setIsLoading(false);
         });
 
