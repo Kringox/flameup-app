@@ -13,6 +13,35 @@ import PlusIcon from '../components/icons/PlusIcon';
 
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
 
+const getThemeClasses = (theme: string | undefined) => {
+    switch (theme) {
+        case 'dusk':
+            return {
+                bg: 'bg-theme-dusk-bg',
+                text: 'text-theme-dusk-text',
+                panel: 'bg-theme-dusk-panel',
+                heading: 'text-white',
+                button: 'bg-theme-dusk-panel text-white',
+            };
+        case 'rose':
+            return {
+                bg: 'bg-theme-rose-bg',
+                text: 'text-theme-rose-text',
+                panel: 'bg-theme-rose-panel',
+                heading: 'text-rose-900',
+                button: 'bg-theme-rose-panel text-rose-900',
+            };
+        default:
+            return {
+                bg: 'bg-gray-50',
+                text: 'text-gray-600',
+                panel: 'bg-white',
+                heading: 'text-gray-800',
+                button: 'bg-gray-200 text-gray-800',
+            };
+    }
+};
+
 interface ProfileScreenProps {
   user: User;
   isActive: boolean;
@@ -20,6 +49,8 @@ interface ProfileScreenProps {
   onLogout: () => void;
   onOpenFollowList: (list: {title: 'Followers' | 'Following', userIds: string[]}) => void;
   onOpenComments: (post: Post) => void;
+  onOpenManageSubscription: () => void;
+  onOpenProfileVisitors: () => void;
 }
 
 
@@ -37,7 +68,7 @@ const HighlightCircle: React.FC<{ highlight: StoryHighlight }> = ({ highlight })
 );
 
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, isActive, onUpdateUser, onLogout, onOpenFollowList, onOpenComments }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, isActive, onUpdateUser, onLogout, onOpenFollowList, onOpenComments, onOpenManageSubscription, onOpenProfileVisitors }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
@@ -121,20 +152,22 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, isActive, onUpdateU
   }
   
   if (isSettingsOpen) {
-    return <SettingsScreen onClose={() => setIsSettingsOpen(false)} onLogout={onLogout} />;
+    return <SettingsScreen onClose={() => setIsSettingsOpen(false)} onLogout={onLogout} onOpenManageSubscription={onOpenManageSubscription} />;
   }
+  
+  const theme = getThemeClasses(user.profileTheme);
 
   return (
     <>
       {isImageViewerOpen && user.profilePhotos.length > 0 && (
         <ImageViewer images={user.profilePhotos} onClose={() => setIsImageViewerOpen(false)} />
       )}
-      <div className="w-full pb-16">
-        <header className="p-4 border-b border-gray-200 bg-white sticky top-0 z-10 flex justify-between items-center">
+      <div className={`w-full h-full ${theme.bg} ${theme.text}`}>
+        <header className={`p-4 border-b border-gray-200 ${theme.panel} sticky top-0 z-10 flex justify-between items-center`}>
             <div className="w-8"></div> {/* Spacer */}
             <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-flame-orange to-flame-red">FlameUp</h1>
             <button onClick={() => setIsSettingsOpen(true)}>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${theme.text}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066 2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
             </button>
         </header>
 
@@ -145,26 +178,26 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, isActive, onUpdateU
               </button>
               <div className="flex justify-around text-center flex-1">
                   <button onClick={() => onOpenFollowList({title: 'Followers', userIds: user.followers})} className="cursor-pointer">
-                      <span className="font-bold text-lg">{user.followers?.length || 0}</span>
-                      <span className="text-gray-500 block text-sm">Followers</span>
+                      <span className={`font-bold text-lg ${theme.heading}`}>{user.followers?.length || 0}</span>
+                      <span className="block text-sm">Followers</span>
                   </button>
                   <button onClick={() => onOpenFollowList({title: 'Following', userIds: user.following})} className="cursor-pointer">
-                      <span className="font-bold text-lg">{user.following?.length || 0}</span>
-                      <span className="text-gray-500 block text-sm">Following</span>
+                      <span className={`font-bold text-lg ${theme.heading}`}>{user.following?.length || 0}</span>
+                      <span className="block text-sm">Following</span>
                   </button>
               </div>
           </div>
           <div className="mt-4">
               <div className="flex items-center space-x-1">
-                <h2 className="text-xl font-bold">{user.name}, {user.age}</h2>
+                <h2 className={`text-xl font-bold ${theme.heading}`}>{user.name}, {user.age}</h2>
                 {user.isPremium && <VerifiedIcon />}
              </div>
           </div>
           
           <div className="flex space-x-2 mt-4">
-              <button onClick={() => setIsEditing(true)} className="flex-1 bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg">Edit Profile</button>
+              <button onClick={() => setIsEditing(true)} className={`flex-1 font-semibold py-2 px-4 rounded-lg ${theme.button}`}>Edit Profile</button>
               {user.isPremium && (
-                  <button className="flex-1 flex items-center justify-center bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg">
+                  <button onClick={onOpenProfileVisitors} className={`flex-1 flex items-center justify-center font-semibold py-2 px-4 rounded-lg ${theme.button}`}>
                       <EyeIcon className="w-5 h-5 mr-2" /> Profile Visitors
                   </button>
               )}
@@ -173,14 +206,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, isActive, onUpdateU
 
         {/* About Me Section */}
         <div className="px-4 mt-2">
-            <h3 className="font-bold text-md text-gray-800">About Me</h3>
-            <p className="text-gray-600 mt-1 text-sm">{user.bio}</p>
+            <h3 className={`font-bold text-md ${theme.heading}`}>About Me</h3>
+            <p className="mt-1 text-sm">{user.bio}</p>
         </div>
         
          {/* Interests Section */}
         {user.interests && user.interests.length > 0 && (
             <div className="px-4 mt-4">
-                <h3 className="font-bold text-md text-gray-800 mb-2">Interests</h3>
+                <h3 className={`font-bold text-md ${theme.heading} mb-2`}>Interests</h3>
                 <div className="flex flex-wrap gap-2">
                     {user.interests.map(interest => (
                         <div key={interest} className="bg-flame-orange/20 text-flame-red font-semibold rounded-full px-3 py-1 text-sm">
@@ -193,7 +226,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, isActive, onUpdateU
 
         {/* Story Highlights Section */}
         <div className="mt-6">
-            <h3 className="font-bold text-md text-gray-800 px-4 mb-2">Story Highlights</h3>
+            <h3 className={`font-bold text-md ${theme.heading} px-4 mb-2`}>Story Highlights</h3>
             <div className="px-4 flex space-x-4 overflow-x-auto pb-2">
                 {mockHighlights.map(h => <HighlightCircle key={h.id} highlight={h} />)}
                 <div className="flex flex-col items-center space-y-1 text-center flex-shrink-0">
@@ -206,7 +239,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, isActive, onUpdateU
         </div>
           
         <div className="border-t border-gray-200 mt-6">
-            <h3 className="font-bold text-lg p-4">My Posts</h3>
+            <h3 className={`font-bold text-lg p-4 ${theme.heading}`}>My Posts</h3>
             {isLoadingPosts ? (
               <div className="flex justify-center items-center p-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
@@ -225,7 +258,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, isActive, onUpdateU
               </div>
             )}
              {userPosts.length === 0 && !isLoadingPosts && (
-                <p className="text-center text-gray-500 py-8 col-span-3">No posts yet. Tap the '+' to share your first photo!</p>
+                <p className="text-center py-8 col-span-3">No posts yet. Tap the '+' to share your first photo!</p>
             )}
         </div>
       </div>

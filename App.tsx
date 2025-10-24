@@ -12,6 +12,8 @@ import CreateScreen from './screens/CreateScreen';
 import CommentScreen from './screens/CommentScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 import FollowListScreen from './screens/FollowListScreen';
+import ManageSubscriptionScreen from './screens/ManageSubscriptionScreen';
+import ProfileVisitorsScreen from './screens/ProfileVisitorsScreen';
 import InAppNotification from './components/InAppNotification';
 import MatchModal from './components/MatchModal';
 import { Tab, User, Post, Chat, Notification as NotificationType, NotificationType as NotifEnum } from './types';
@@ -33,6 +35,8 @@ const App: React.FC = () => {
   const [followList, setFollowList] = useState<{title: 'Followers' | 'Following', userIds: string[]} | null>(null);
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
   const [activeChatPartnerId, setActiveChatPartnerId] = useState<string | null>(null);
+  const [isManageSubscriptionOpen, setIsManageSubscriptionOpen] = useState(false);
+  const [isProfileVisitorsOpen, setIsProfileVisitorsOpen] = useState(false);
 
   // Notification states
   const [allChats, setAllChats] = useState<Chat[]>([]);
@@ -138,6 +142,7 @@ const App: React.FC = () => {
           isPremium: false,
           incognitoMode: false,
           storyHighlights: [],
+          profileTheme: 'default',
         };
         
         await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
@@ -243,6 +248,8 @@ const App: React.FC = () => {
       {viewingPostComments && <CommentScreen post={viewingPostComments} currentUser={currentUser} onClose={() => setViewingPostComments(null)} onViewProfile={handleViewProfile} />}
       {followList && <FollowListScreen title={followList.title} userIds={followList.userIds} currentUser={currentUser} onClose={() => setFollowList(null)} onViewProfile={handleViewProfile} />}
       {viewingUserId && <UserProfileScreen userId={viewingUserId} currentUser={currentUser} onClose={() => setViewingUserId(null)} onOpenComments={setViewingPostComments} onStartChat={handleStartChat} onViewProfile={handleViewProfile} />}
+      {isManageSubscriptionOpen && <ManageSubscriptionScreen user={currentUser} onClose={() => setIsManageSubscriptionOpen(false)} onUpdateUser={handleUpdateUser} />}
+      {isProfileVisitorsOpen && <ProfileVisitorsScreen currentUser={currentUser} onClose={() => setIsProfileVisitorsOpen(false)} onViewProfile={handleViewProfile} />}
 
       {/* Main App Content */}
       <main className="flex-1 overflow-hidden">
@@ -270,6 +277,8 @@ const App: React.FC = () => {
             onLogout={handleLogout} 
             onOpenFollowList={setFollowList} 
             onOpenComments={setViewingPostComments}
+            onOpenManageSubscription={() => setIsManageSubscriptionOpen(true)}
+            onOpenProfileVisitors={() => setIsProfileVisitorsOpen(true)}
           />
         </div>
       </main>

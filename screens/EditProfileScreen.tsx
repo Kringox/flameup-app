@@ -1,13 +1,19 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { User } from '../types';
 import { uploadPhotos } from '../utils/photoUploader';
+import SparklesIcon from '../components/icons/SparklesIcon';
 
 interface EditProfileScreenProps {
   user: User;
   onSave: (updatedUser: User) => void;
   onClose: () => void;
 }
+
+const THEMES = [
+    { id: 'default', name: 'Default', bg: 'bg-white', text: 'text-dark-gray', border: 'border-flame-orange' },
+    { id: 'dusk', name: 'Dusk', bg: 'bg-theme-dusk-bg', text: 'text-theme-dusk-text', border: 'border-gray-500' },
+    { id: 'rose', name: 'Rosé', bg: 'bg-theme-rose-bg', text: 'text-theme-rose-text', border: 'border-pink-300' },
+]
 
 const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onClose }) => {
   const [name, setName] = useState(user.name);
@@ -16,6 +22,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
   const [photos, setPhotos] = useState<(string | File)[]>([...user.profilePhotos]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([...user.profilePhotos]);
   const [isLoading, setIsLoading] = useState(false);
+  const [profileTheme, setProfileTheme] = useState(user.profileTheme || 'default');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   useEffect(() => {
@@ -47,6 +54,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
         bio,
         interests,
         profilePhotos: [...existingUrls, ...uploadedUrls],
+        profileTheme,
       });
     } catch (error) {
       console.error("Error saving profile:", error);
@@ -183,6 +191,28 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
              }} className="bg-gray-100 rounded-full px-3 py-1 text-sm flex-1 min-w-[100px]" />
           </div>
         </div>
+
+        {/* Profile Themes (Premium) */}
+        {user.isPremium && (
+            <div className="mt-6">
+                <div className="flex items-center space-x-2 mb-2">
+                    <SparklesIcon className="w-5 h-5 text-premium-gold" />
+                    <h2 className="text-md font-semibold text-gray-500">Customize Profile (Premium)</h2>
+                </div>
+                <div className="p-3 bg-white rounded-lg border border-gray-200">
+                    <h3 className="text-sm font-semibold mb-2">Profile Theme</h3>
+                    <div className="flex space-x-2">
+                        {THEMES.map(theme => (
+                            <button key={theme.id} onClick={() => setProfileTheme(theme.id)} className={`flex-1 p-2 rounded-lg border-2 ${profileTheme === theme.id ? theme.border : 'border-transparent'}`}>
+                                <div className={`w-full h-12 rounded-md ${theme.bg} flex items-center justify-center`}>
+                                    <span className={`font-semibold text-sm ${theme.text}`}>{theme.name}</span>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        )}
       </div>
     </div>
   );

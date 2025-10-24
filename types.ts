@@ -31,6 +31,7 @@ export interface User {
   isPremium?: boolean;
   incognitoMode?: boolean;
   storyHighlights?: StoryHighlight[];
+  profileTheme?: string; // e.g., 'default', 'dusk', 'rose'
 }
 
 export interface Story {

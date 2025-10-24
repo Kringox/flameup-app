@@ -11,6 +11,35 @@ import PlusIcon from '../components/icons/PlusIcon';
 
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
 
+const getThemeClasses = (theme: string | undefined) => {
+    switch (theme) {
+        case 'dusk':
+            return {
+                bg: 'bg-theme-dusk-bg',
+                text: 'text-theme-dusk-text',
+                panel: 'bg-theme-dusk-panel',
+                heading: 'text-white',
+                button: 'bg-theme-dusk-panel text-white',
+            };
+        case 'rose':
+            return {
+                bg: 'bg-theme-rose-bg',
+                text: 'text-theme-rose-text',
+                panel: 'bg-theme-rose-panel',
+                heading: 'text-rose-900',
+                button: 'bg-theme-rose-panel text-rose-900',
+            };
+        default:
+            return {
+                bg: 'bg-white',
+                text: 'text-gray-600',
+                panel: 'bg-white',
+                heading: 'text-gray-800',
+                button: 'bg-gray-200 text-gray-800',
+            };
+    }
+};
+
 interface UserProfileScreenProps {
   userId: string;
   currentUser: User;
@@ -179,6 +208,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, currentUs
   }
   
   const isFollowing = currentUser.following.includes(user.id);
+  const theme = getThemeClasses(user.profileTheme);
 
   return (
     <>
@@ -187,7 +217,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, currentUs
     )}
     <div className="absolute inset-0 bg-white z-[70] flex flex-col animate-slide-in">
         <style>{`.animate-slide-in { animation: slideInFromRight 0.3s ease-out; } @keyframes slideInFromRight { from { transform: translateX(100%); } to { transform: translateX(0); } }`}</style>
-        <header className="flex items-center p-4 border-b border-gray-200 bg-white sticky top-0">
+        <header className={`flex items-center p-4 border-b border-gray-200 ${theme.panel} sticky top-0`}>
              <button onClick={onClose} className="text-lg text-gray-600 w-8">
                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             </button>
@@ -195,7 +225,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, currentUs
             <div className="w-8"></div>
         </header>
         
-        <div className="flex-1 overflow-y-auto pb-16">
+        <div className={`flex-1 overflow-y-auto pb-16 ${theme.bg} ${theme.text}`}>
             <div className="p-4">
                  <div className="flex items-center space-x-4">
                     <button onClick={() => setIsImageViewerOpen(true)} className="flex-shrink-0">
@@ -203,22 +233,22 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, currentUs
                     </button>
                     <div className="flex justify-around text-center flex-1">
                         <div>
-                            <span className="font-bold text-lg">{userPosts.length}</span>
-                            <span className="text-gray-500 block text-sm">Posts</span>
+                            <span className={`font-bold text-lg ${theme.heading}`}>{userPosts.length}</span>
+                            <span className="block text-sm">Posts</span>
                         </div>
                         <div>
-                            <span className="font-bold text-lg">{user.followers?.length || 0}</span>
-                            <span className="text-gray-500 block text-sm">Followers</span>
+                            <span className={`font-bold text-lg ${theme.heading}`}>{user.followers?.length || 0}</span>
+                            <span className="block text-sm">Followers</span>
                         </div>
                         <div>
-                            <span className="font-bold text-lg">{user.following?.length || 0}</span>
-                            <span className="text-gray-500 block text-sm">Following</span>
+                            <span className={`font-bold text-lg ${theme.heading}`}>{user.following?.length || 0}</span>
+                            <span className="block text-sm">Following</span>
                         </div>
                     </div>
                 </div>
                  <div className="mt-4">
                     <div className="flex items-center space-x-1">
-                        <h2 className="text-xl font-bold">{user.name}, {user.age}</h2>
+                        <h2 className={`text-xl font-bold ${theme.heading}`}>{user.name}, {user.age}</h2>
                         {user.isPremium && <VerifiedIcon />}
                     </div>
                 </div>
@@ -227,24 +257,24 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, currentUs
                     <button 
                         onClick={handleFollowToggle} 
                         disabled={isTogglingFollow}
-                        className={`flex-1 font-semibold py-2 px-4 rounded-lg transition-colors ${isFollowing ? 'bg-gray-200 text-gray-800' : 'bg-flame-orange text-white'} ${isTogglingFollow ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`flex-1 font-semibold py-2 px-4 rounded-lg transition-colors ${isFollowing ? theme.button : 'bg-flame-orange text-white'} ${isTogglingFollow ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         {isFollowing ? 'Following' : 'Follow'}
                     </button>
-                    <button onClick={() => onStartChat(user.id)} className="flex-1 bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg">Message</button>
+                    <button onClick={() => onStartChat(user.id)} className={`flex-1 font-semibold py-2 px-4 rounded-lg ${theme.button}`}>Message</button>
                 </div>
             </div>
 
             {/* About Me Section */}
             <div className="px-4 mt-2">
-                <h3 className="font-bold text-md text-gray-800">About Me</h3>
-                <p className="text-gray-600 mt-1 text-sm">{user.bio}</p>
+                <h3 className={`font-bold text-md ${theme.heading}`}>About Me</h3>
+                <p className="mt-1 text-sm">{user.bio}</p>
             </div>
             
             {/* Interests Section */}
             {user.interests && user.interests.length > 0 && (
                 <div className="px-4 mt-4">
-                    <h3 className="font-bold text-md text-gray-800 mb-2">Interests</h3>
+                    <h3 className={`font-bold text-md ${theme.heading} mb-2`}>Interests</h3>
                     <div className="flex flex-wrap gap-2">
                         {user.interests.map(interest => (
                             <div key={interest} className="bg-flame-orange/20 text-flame-red font-semibold rounded-full px-3 py-1 text-sm">
@@ -257,14 +287,14 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, currentUs
             
             {/* Story Highlights Section */}
             <div className="mt-6">
-                <h3 className="font-bold text-md text-gray-800 px-4 mb-2">Story Highlights</h3>
+                <h3 className={`font-bold text-md ${theme.heading} px-4 mb-2`}>Story Highlights</h3>
                 <div className="px-4 flex space-x-4 overflow-x-auto pb-2">
                     {mockHighlights.map(h => <HighlightCircle key={h.id} highlight={h} />)}
                 </div>
             </div>
 
             <div className="border-t border-gray-200 mt-6">
-                <h3 className="font-bold text-lg p-4">{user.name}'s Posts</h3>
+                <h3 className={`font-bold text-lg p-4 ${theme.heading}`}>{user.name}'s Posts</h3>
                 {isLoading ? (
                     <div className="flex justify-center items-center p-8">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
@@ -279,7 +309,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ userId, currentUs
                 </div>
                 )}
                  {userPosts.length === 0 && !isLoading && (
-                    <p className="text-center text-gray-500 py-8 col-span-3">This user hasn't posted anything yet.</p>
+                    <p className="text-center py-8 col-span-3">This user hasn't posted anything yet.</p>
                 )}
             </div>
         </div>

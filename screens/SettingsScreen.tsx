@@ -6,6 +6,7 @@ import { reauthenticateWithCredential, EmailAuthProvider, deleteUser } from 'fir
 interface SettingsScreenProps {
   onClose: () => void;
   onLogout: () => void;
+  onOpenManageSubscription: () => void;
 }
 
 const SettingsSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
@@ -48,7 +49,7 @@ const ChevronRightIcon: React.FC = () => (
 );
 
 
-const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose, onLogout }) => {
+const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose, onLogout, onOpenManageSubscription }) => {
     const [notificationsEnabled, setNotificationsEnabled] = useState(true);
     const [incognitoEnabled, setIncognitoEnabled] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -138,7 +139,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose, onLogout }) =>
           </SettingsSection>
 
           <SettingsSection title="FlameUp+">
-              <SettingsItem isButton>
+              <SettingsItem isButton onClick={onOpenManageSubscription}>
                   <div className="flex items-center">
                       <span className="text-lg">Manage FlameUp+</span>
                       <span className="ml-2 text-xs font-bold bg-premium-gold text-white px-2 py-0.5 rounded-full">PREMIUM</span>
