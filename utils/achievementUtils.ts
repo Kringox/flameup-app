@@ -1,6 +1,6 @@
 import * as React from 'react';
-import { User, Post } from './types.ts';
-import TrophyIcon from './components/icons/TrophyIcon.tsx';
+import { User, Post } from '../types.ts';
+import TrophyIcon from '../components/icons/TrophyIcon.tsx';
 
 export interface Achievement {
   id: string;
