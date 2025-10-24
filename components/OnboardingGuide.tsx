@@ -12,11 +12,13 @@ const steps = [
   {
     icon: <FlameIcon className="w-16 h-16 text-flame-orange" />,
     title: 'Discover People',
-    text: 'Swipe right to like someone, or swipe left to pass. It\\'s a match if they like you back!',
+    // FIX: Corrected invalid escape sequence for apostrophe. Replaced single quotes with double quotes.
+    text: "Swipe right to like someone, or swipe left to pass. It's a match if they like you back!",
   },
   {
     icon: <HomeIcon className="w-16 h-16 text-gray-700" />,
-    title: 'See What\\'s New',
+    // FIX: Corrected invalid escape sequence for apostrophe. Replaced single quotes with double quotes.
+    title: "See What's New",
     text: 'Check out the Home feed for posts and stories from people you follow.',
   },
   {
