@@ -6,6 +6,9 @@ import { User, Message, Chat } from '../types.ts';
 // FIX: Added file extension to icon imports
 import MoreVerticalIcon from '../components/icons/MoreVerticalIcon.tsx';
 import GiftIcon from '../components/icons/GiftIcon.tsx';
+import GiftModal from '../components/GiftModal.tsx';
+import ChatOptionsModal from '../components/ChatOptionsModal.tsx';
+import ReportModal from '../components/ReportModal.tsx';
 
 interface ConversationScreenProps {
   currentUser: User;
@@ -20,6 +23,9 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
   const [newMessage, setNewMessage] = useState('');
   const [partner, setPartner] = useState<User | null>(null);
   const [chatId, setChatId] = useState<string | null>(null);
+  const [isGiftModalOpen, setIsGiftModalOpen] = useState(false);
+  const [isOptionsModalOpen, setIsOptionsModalOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -50,12 +56,10 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         }
     });
 
-    // NEW: Query the subcollection for messages
     const messagesRef = collection(db, 'chats', generatedChatId, 'messages');
     const q = query(messagesRef, orderBy('timestamp', 'asc'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      // Add the chatId back to satisfy the Message type, as it's no longer stored in the document itself.
       const messageList = snapshot.docs.map(doc => ({ id: doc.id, chatId: generatedChatId, ...doc.data() } as Message));
       setMessages(messageList);
     }, (error) => {
@@ -69,29 +73,22 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSendMessage = async () => {
-    if (!db || !chatId || !partner || newMessage.trim() === '') return;
+  const sendMessage = async (messageText: string) => {
+    if (!db || !chatId || !partner) return;
     
-    const tempMessage = newMessage;
-    setNewMessage('');
-
     const chatRef = doc(db, 'chats', chatId);
-    // NEW: Reference the subcollection for the new message
     const newMessageRef = doc(collection(db, 'chats', chatId, 'messages'));
     const batch = writeBatch(db);
 
-    // 1. Set the new message document in the subcollection
     batch.set(newMessageRef, {
       senderId: currentUser.id,
-      text: tempMessage,
+      text: messageText,
       timestamp: serverTimestamp(),
-      // No longer need to store chatId in the message document
     });
 
-    // 2. Update the chat document summary
     const chatDoc = await getDoc(chatRef);
     const lastMessageData = {
-        text: tempMessage,
+        text: messageText,
         senderId: currentUser.id,
         timestamp: serverTimestamp(),
     };
@@ -116,11 +113,81 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     await batch.commit();
   };
 
+  const handleSendMessage = async () => {
+    if (newMessage.trim() === '') return;
+    const tempMessage = newMessage;
+    setNewMessage('');
+    await sendMessage(tempMessage);
+  };
+  
+  const handleSendGift = async (gift: { name: string; icon: string; cost: number }) => {
+    if (!db || !currentUser || !partner || !chatId) return;
+    if (currentUser.coins < gift.cost) {
+        alert("You don't have enough coins!");
+        return;
+    }
+
+    const newCoinTotal = currentUser.coins - gift.cost;
+    const giftMessage = `Sent you a ${gift.name} ${gift.icon}`;
+
+    onUpdateUser({ ...currentUser, coins: newCoinTotal });
+    setIsGiftModalOpen(false);
+
+    try {
+        const userRef = doc(db, 'users', currentUser.id);
+        await updateDoc(userRef, { coins: newCoinTotal });
+        await sendMessage(giftMessage);
+    } catch (error) {
+        console.error("Failed to send gift:", error);
+        onUpdateUser(currentUser); // Revert optimistic update on failure
+        alert("Failed to send gift. Please try again.");
+    }
+  };
+  
+  const handleReportSubmit = (reason: string, details: string) => {
+    console.log("Reporting user:", partner?.id, { reason, details });
+    alert("Report submitted. Thank you for helping keep our community safe.");
+    setIsReportModalOpen(false);
+  };
+
+
   if (!partner) {
     return <div className="absolute inset-0 bg-white z-40 flex justify-center items-center">Loading...</div>;
   }
 
   return (
+    <>
+    {isGiftModalOpen && (
+        <GiftModal
+            currentUser={currentUser}
+            onClose={() => setIsGiftModalOpen(false)}
+            onSendGift={handleSendGift}
+        />
+    )}
+    {isOptionsModalOpen && (
+        <ChatOptionsModal
+            onClose={() => setIsOptionsModalOpen(false)}
+            onViewProfile={() => {
+                onViewProfile(partner.id);
+                setIsOptionsModalOpen(false);
+            }}
+            onReport={() => {
+                setIsReportModalOpen(true);
+                setIsOptionsModalOpen(false);
+            }}
+            onBlock={() => {
+                alert("This feature is coming soon!");
+                setIsOptionsModalOpen(false);
+            }}
+        />
+    )}
+     {isReportModalOpen && (
+        <ReportModal 
+            reportedUser={partner}
+            onClose={() => setIsReportModalOpen(false)}
+            onSubmit={handleReportSubmit}
+        />
+     )}
     <div className="absolute inset-0 bg-white z-40 flex flex-col">
       <header className="flex items-center p-3 border-b border-gray-200 sticky top-0 bg-white">
         <button onClick={onClose}>
@@ -131,7 +198,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             <span className="font-bold ml-3">{partner.name}</span>
         </button>
         <div className="flex-grow" />
-        <button><MoreVerticalIcon /></button>
+        <button onClick={() => setIsOptionsModalOpen(true)}><MoreVerticalIcon /></button>
       </header>
       
       <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
@@ -147,7 +214,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
       <footer className="p-2 border-t border-gray-200 bg-white">
         <div className="flex items-center space-x-2">
-          <button className="p-2 text-gray-500 hover:text-flame-orange">
+          <button onClick={() => setIsGiftModalOpen(true)} className="p-2 text-gray-500 hover:text-flame-orange">
             <GiftIcon />
           </button>
           <input
@@ -164,6 +231,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         </div>
       </footer>
     </div>
+    </>
   );
 };
 

@@ -68,17 +68,25 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
         if (!db || !user || !currentUser) return;
         
         const currentUserRef = doc(db, 'users', currentUserId);
-        const targetUserRef = doc(db, 'users', viewingUserId);
 
         const newFollowingState = !isFollowing;
-        setIsFollowing(newFollowingState); // Optimistic update
+        setIsFollowing(newFollowingState); // Optimistic UI update for button
+
+        // Optimistic UI update for follower count
+        setUser(prevUser => {
+            if (!prevUser) return null;
+            const currentFollowers = prevUser.followers || [];
+            const newFollowers = newFollowingState
+                ? [...currentFollowers, currentUserId]
+                : currentFollowers.filter(id => id !== currentUserId);
+            return { ...prevUser, followers: newFollowers };
+        });
 
         try {
+            // Update only the current user's 'following' list.
+            // This adheres to the security rule: a user can only write to their own document.
             await updateDoc(currentUserRef, {
                 following: newFollowingState ? arrayUnion(viewingUserId) : arrayRemove(viewingUserId)
-            });
-            await updateDoc(targetUserRef, {
-                followers: newFollowingState ? arrayUnion(currentUserId) : arrayRemove(currentUserId)
             });
             
             if (newFollowingState) {
@@ -95,7 +103,16 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
 
         } catch (error) {
             console.error("Error updating follow status:", error);
-            setIsFollowing(!newFollowingState); // Revert on error
+            // Revert UI on error
+            setIsFollowing(!newFollowingState); 
+            setUser(prevUser => {
+                 if (!prevUser) return null;
+                const currentFollowers = prevUser.followers || [];
+                const revertedFollowers = newFollowingState
+                    ? currentFollowers.filter(id => id !== currentUserId)
+                    : [...currentFollowers, currentUserId];
+                return { ...prevUser, followers: revertedFollowers };
+            });
         }
     };
     
