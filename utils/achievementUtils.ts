@@ -1,7 +1,8 @@
 // FIX: Import React to provide React namespace for React.ReactElement
 import * as React from 'react';
 // FIX: Added file extension to types import
-import { User, Post } from './types.ts';
+// FIX: Corrected import path for types from ./ to ../
+import { User, Post } from '../types.ts';
 // FIX: Added file extension to icon import
 import TrophyIcon from '../components/icons/TrophyIcon.tsx';
 
