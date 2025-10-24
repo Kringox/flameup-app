@@ -51,13 +51,12 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     });
 
     const messagesRef = collection(db, 'messages');
-    // Query without orderBy to avoid needing a composite index, sort on client instead.
-    const q = query(messagesRef, where('chatId', '==', generatedChatId));
+    // Re-add orderBy. This requires a composite index on (chatId ASC, timestamp ASC) in Firestore.
+    // Firestore will provide a link in the console to create this index if it's missing.
+    const q = query(messagesRef, where('chatId', '==', generatedChatId), orderBy('timestamp', 'asc'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const messageList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
-      // Sort messages by timestamp on the client
-      messageList.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
       setMessages(messageList);
     }, (error) => {
       console.error("Failed to fetch messages:", error);
