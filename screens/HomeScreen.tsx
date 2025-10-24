@@ -85,6 +85,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
       const unsubscribePosts = onSnapshot(postsQuery, (postSnapshot) => {
           const postList = postSnapshot.docs.map(doc => {
             const data = doc.data();
+            const postUser = data.user || {
+                id: data.userId,
+                name: data.userName,
+                profilePhoto: data.userProfilePhoto,
+                isPremium: data.isPremium || false,
+            };
             return {
                 id: doc.id,
                 userId: data.userId,
@@ -93,11 +99,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
                 likedBy: data.likedBy || [],
                 commentCount: data.commentCount || 0,
                 timestamp: data.timestamp,
-                user: {
-                    id: data.userId,
-                    name: data.userName,
-                    profilePhoto: data.userProfilePhoto,
-                },
+                user: postUser,
             } as Post;
           });
           setPosts(postList);

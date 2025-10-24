@@ -34,8 +34,12 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ user, onClose }) =>
 
             await addDoc(collection(db, 'posts'), {
                 userId: user.id,
-                userName: user.name,
-                userProfilePhoto: user.profilePhotos[0],
+                user: {
+                    id: user.id,
+                    name: user.name,
+                    profilePhoto: user.profilePhotos[0],
+                    isPremium: user.isPremium || false,
+                },
                 mediaUrls: [uploadedUrl],
                 caption: caption,
                 likedBy: [],

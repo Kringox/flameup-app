@@ -36,7 +36,20 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
         if (!db) return;
         const q = query(collection(db, 'posts'), where('userId', '==', currentUser.id), orderBy('timestamp', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const userPosts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
+            const userPosts = snapshot.docs.map(doc => {
+                const data = doc.data();
+                const postUser = data.user || {
+                    id: data.userId,
+                    name: data.userName,
+                    profilePhoto: data.userProfilePhoto,
+                    isPremium: data.isPremium || false,
+                };
+                return {
+                    id: doc.id,
+                    ...data,
+                    user: postUser,
+                } as Post;
+            });
             setPosts(userPosts);
         });
         return () => unsubscribe();
