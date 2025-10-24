@@ -1,5 +1,4 @@
 import React from 'react';
-import FlameIcon from './icons/FlameIcon';
 
 const LoadingScreen: React.FC = () => {
   return (
@@ -20,7 +19,7 @@ const LoadingScreen: React.FC = () => {
         }
       `}</style>
       <div className="animate-pulse-icon">
-        <FlameIcon isGradient={true} className="w-20 h-20" />
+        <img src="/assets/logo-icon.png" alt="FlameUp Logo" className="w-24 h-24" />
       </div>
       <p className="text-gray-500 mt-4 text-lg">Loading FlameUp...</p>
     </div>

@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import FlameIcon from '../components/icons/FlameIcon';
 import { auth } from '../firebaseConfig';
 import { 
   createUserWithEmailAndPassword, 
@@ -85,10 +84,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
     <div className="h-screen w-screen flex flex-col justify-center items-center bg-gray-100 p-4">
       <div className="w-full max-w-sm mx-auto">
         <div className="flex flex-col items-center mb-8">
-          <FlameIcon isGradient={true} className="w-16 h-16" />
-          <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-flame-orange to-flame-red mt-2">
-            FlameUp
-          </h1>
+          <img src="/assets/logo-complete.png" alt="FlameUp Logo" className="w-48 h-auto" />
           <p className="text-gray-500 mt-1">Find your spark.</p>
         </div>
 

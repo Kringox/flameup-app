@@ -170,7 +170,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
             <button onClick={onOpenNotifications} className="absolute left-4">
                 <BellIcon hasNotification={hasNotifications} />
             </button>
-            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-flame-orange to-flame-red">FlameUp</h1>
+            <img src="/assets/logo-text.png" alt="FlameUp" className="h-8" />
         </header>
 
       <div className="px-4 py-3 border-b border-gray-200 bg-white">
