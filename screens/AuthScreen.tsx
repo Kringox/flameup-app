@@ -39,7 +39,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
         setError('Email/Password sign-in is not enabled. Please enable it in your Firebase project console.');
         break;
       case 'auth/api-key-not-valid':
-        setError('Configuration error: The Firebase API key is invalid. Please ensure the VITE_API_KEY environment variable is set correctly.');
+        setError('Configuration error: The Firebase API key is invalid. Please ensure the API_KEY environment variable is set correctly.');
         break;
       default:
         setError(`An unexpected error occurred: ${err.code}. Please try again.`);
