@@ -50,13 +50,13 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         }
     });
 
-    const messagesRef = collection(db, 'messages');
-    // Re-add orderBy. This requires a composite index on (chatId ASC, timestamp ASC) in Firestore.
-    // Firestore will provide a link in the console to create this index if it's missing.
-    const q = query(messagesRef, where('chatId', '==', generatedChatId), orderBy('timestamp', 'asc'));
+    // NEW: Query the subcollection for messages
+    const messagesRef = collection(db, 'chats', generatedChatId, 'messages');
+    const q = query(messagesRef, orderBy('timestamp', 'asc'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const messageList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+      // Add the chatId back to satisfy the Message type, as it's no longer stored in the document itself.
+      const messageList = snapshot.docs.map(doc => ({ id: doc.id, chatId: generatedChatId, ...doc.data() } as Message));
       setMessages(messageList);
     }, (error) => {
       console.error("Failed to fetch messages:", error);
@@ -76,18 +76,19 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     setNewMessage('');
 
     const chatRef = doc(db, 'chats', chatId);
-    const newMessageRef = doc(collection(db, 'messages'));
+    // NEW: Reference the subcollection for the new message
+    const newMessageRef = doc(collection(db, 'chats', chatId, 'messages'));
     const batch = writeBatch(db);
 
-    // 1. Set the new message document
+    // 1. Set the new message document in the subcollection
     batch.set(newMessageRef, {
-      chatId,
       senderId: currentUser.id,
       text: tempMessage,
       timestamp: serverTimestamp(),
+      // No longer need to store chatId in the message document
     });
 
-    // 2. Update the chat document
+    // 2. Update the chat document summary
     const chatDoc = await getDoc(chatRef);
     const lastMessageData = {
         text: tempMessage,
