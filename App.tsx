@@ -149,7 +149,7 @@ const App: React.FC = () => {
     const { currentUser } = authState;
 
     return (
-      <div className="w-screen h-screen max-w-md mx-auto flex flex-col bg-gray-50 md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)]">
+      <div className="relative w-screen h-screen max-w-md mx-auto flex flex-col bg-gray-50 md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)]">
         <main className="flex-1 overflow-y-auto">
           {activeTab === Tab.Home && <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} />}
           {activeTab === Tab.Swipe && <SwipeScreen />}

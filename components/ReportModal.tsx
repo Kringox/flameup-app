@@ -29,7 +29,7 @@ const ReportModal: React.FC<ReportModalProps> = ({ reportedUser, onClose, onSubm
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-[100]" onClick={onClose}>
+    <div className="absolute inset-0 bg-black/70 flex justify-center items-center z-[100]" onClick={onClose}>
       <div className="bg-white rounded-lg w-11/12 max-w-md p-6" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-xl font-bold">Report {reportedUser.name}</h2>
         <p className="text-gray-600 mt-2">Why are you reporting this user?</p>

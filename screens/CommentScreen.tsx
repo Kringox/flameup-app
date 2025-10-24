@@ -95,17 +95,10 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
         if (!db) return;
         
         const commentsRef = collection(db, 'comments');
-        const q = query(commentsRef, where('postId', '==', post.id));
+        const q = query(commentsRef, where('postId', '==', post.id), orderBy('timestamp', 'asc'));
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const commentsList = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Comment));
-            
-            commentsList.sort((a, b) => {
-                const timeA = a.timestamp?.toMillis() || 0;
-                const timeB = b.timestamp?.toMillis() || 0;
-                return timeA - timeB;
-            });
-
             setComments(commentsList);
             setIsLoading(false);
             setTimeout(() => listRef.current?.scrollTo(0, listRef.current.scrollHeight), 100);

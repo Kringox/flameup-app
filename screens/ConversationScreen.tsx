@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, setDoc, increment } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, setDoc, increment, writeBatch } from 'firebase/firestore';
 // FIX: Added file extension to types import
 import { User, Message, Chat } from '../types.ts';
 // FIX: Added file extension to icon imports
@@ -61,41 +61,44 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const tempMessage = newMessage;
     setNewMessage('');
 
-    const messagesRef = collection(db, 'messages');
-    await addDoc(messagesRef, {
+    const chatRef = doc(db, 'chats', chatId);
+    const newMessageRef = doc(collection(db, 'messages'));
+    const batch = writeBatch(db);
+
+    // 1. Set the new message document
+    batch.set(newMessageRef, {
       chatId,
       senderId: currentUser.id,
       text: tempMessage,
       timestamp: serverTimestamp(),
     });
 
-    const chatRef = doc(db, 'chats', chatId);
+    // 2. Update the chat document
     const chatDoc = await getDoc(chatRef);
+    const lastMessageData = {
+        text: tempMessage,
+        senderId: currentUser.id,
+        timestamp: serverTimestamp(),
+    };
 
     if (!chatDoc.exists()) {
-        await setDoc(chatRef, {
+        batch.set(chatRef, {
             userIds: [currentUser.id, partner.id],
             users: {
                 [currentUser.id]: { name: currentUser.name, profilePhoto: currentUser.profilePhotos[0] },
                 [partner.id]: { name: partner.name, profilePhoto: partner.profilePhotos[0] },
             },
-            lastMessage: {
-                text: tempMessage,
-                senderId: currentUser.id,
-                timestamp: serverTimestamp(),
-            },
+            lastMessage: lastMessageData,
             unreadCount: { [currentUser.id]: 0, [partner.id]: 1 }
         });
     } else {
-        await updateDoc(chatRef, {
-            lastMessage: {
-                text: tempMessage,
-                senderId: currentUser.id,
-                timestamp: serverTimestamp(),
-            },
+        batch.update(chatRef, {
+            lastMessage: lastMessageData,
             [`unreadCount.${partnerId}`]: increment(1),
         });
     }
+    
+    await batch.commit();
   };
 
   if (!partner) {

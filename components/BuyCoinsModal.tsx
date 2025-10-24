@@ -28,7 +28,7 @@ const BuyCoinsModal: React.FC<BuyCoinsModalProps> = ({ onClose, currentUser, onU
     };
 
     return (
-        <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-[100]" onClick={onClose}>
+        <div className="absolute inset-0 bg-black/70 flex justify-center items-center z-[100]" onClick={onClose}>
             <div className="bg-white rounded-lg w-11/12 max-w-md p-6" onClick={e => e.stopPropagation()}>
                 <h2 className="text-xl font-bold text-center">Buy Coins</h2>
                 <div className="space-y-3 mt-4">

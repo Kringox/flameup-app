@@ -31,7 +31,7 @@ const DailyBonusModal: React.FC<DailyBonusModalProps> = ({ onClose, currentUser,
     };
 
     return (
-        <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-[100]" onClick={onClose}>
+        <div className="absolute inset-0 bg-black/70 flex justify-center items-center z-[100]" onClick={onClose}>
             <div className="bg-white rounded-lg w-11/12 max-w-md p-6 text-center" onClick={e => e.stopPropagation()}>
                 {!claimed ? (
                     <>

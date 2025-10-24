@@ -21,7 +21,7 @@ const ReviewModal: React.FC<ReviewModalProps> = ({ onClose, onSubmit }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-[100]" onClick={onClose}>
+    <div className="absolute inset-0 bg-black/70 flex justify-center items-center z-[100]" onClick={onClose}>
       <div className="bg-white rounded-lg w-11/12 max-w-md p-6 text-center" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-xl font-bold">Enjoying FlameUp?</h2>
         <p className="text-gray-600 mt-2">

@@ -11,7 +11,7 @@ interface MatchModalProps {
 
 const MatchModal: React.FC<MatchModalProps> = ({ currentUser, matchedUser, onSendMessage, onClose }) => {
   return (
-    <div className="fixed inset-0 bg-black/80 z-[100] flex justify-center items-center p-4 animate-fade-in">
+    <div className="absolute inset-0 bg-black/80 z-[100] flex justify-center items-center p-4 animate-fade-in">
        <style>{`
             @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
             .animate-fade-in { animation: fade-in 0.3s ease-out; }

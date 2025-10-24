@@ -43,7 +43,7 @@ const OnboardingGuide: React.FC<OnboardingGuideProps> = ({ onFinish }) => {
   const currentStep = steps[stepIndex];
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-[100] flex justify-center items-center p-4">
+    <div className="absolute inset-0 bg-black/80 z-[100] flex justify-center items-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-sm p-8 text-center flex flex-col items-center">
         {currentStep.icon}
         <h2 className="text-2xl font-bold mt-6">{currentStep.title}</h2>

@@ -17,7 +17,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ onClose, onApply, currentFilt
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center" onClick={onClose}>
+    <div className="absolute inset-0 bg-black/60 z-50 flex justify-center items-center" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-sm m-4 p-6" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-2xl font-bold text-center">Filters</h2>
         
