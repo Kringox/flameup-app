@@ -1,17 +1,18 @@
-
 import React, { useState, useEffect } from 'react';
-import { User, NotificationType } from '../types';
+import { User } from '../types';
 import { db } from '../firebaseConfig';
-import { collection, doc, getDocs, query, where, writeBatch, serverTimestamp, addDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, query, where, writeBatch } from 'firebase/firestore';
 
-const UserRow: React.FC<{ user: User, currentUser: User, onUnfollow: (targetUserId: string) => void, isFollowing: boolean }> = ({ user, currentUser, onUnfollow, isFollowing }) => {
+const UserRow: React.FC<{ user: User, currentUser: User, onUnfollow: (targetUserId: string) => void, isFollowing: boolean, onViewProfile: (userId: string) => void }> = ({ user, currentUser, onUnfollow, isFollowing, onViewProfile }) => {
     return (
         <div className="flex items-center p-3">
-            <img src={user.profilePhotos?.[0]} alt={user.name} className="w-12 h-12 rounded-full object-cover" />
-            <div className="flex-1 ml-3">
-                <p className="font-semibold">{user.name}</p>
-                <p className="text-sm text-gray-500">{user.bio.substring(0, 30)}...</p>
-            </div>
+            <button onClick={() => onViewProfile(user.id)} className="flex items-center flex-1 text-left">
+                <img src={user.profilePhotos?.[0]} alt={user.name} className="w-12 h-12 rounded-full object-cover" />
+                <div className="flex-1 ml-3">
+                    <p className="font-semibold">{user.name}</p>
+                    <p className="text-sm text-gray-500 truncate">{user.bio}</p>
+                </div>
+            </button>
             {user.id !== currentUser.id && (
                 isFollowing ? (
                     <button onClick={() => onUnfollow(user.id)} className="bg-gray-200 text-gray-800 font-semibold py-1 px-4 rounded-lg text-sm">Following</button>
@@ -28,9 +29,10 @@ interface FollowListScreenProps {
     userIds: string[];
     currentUser: User;
     onClose: () => void;
+    onViewProfile: (userId: string) => void;
 }
 
-const FollowListScreen: React.FC<FollowListScreenProps> = ({ title, userIds, currentUser, onClose }) => {
+const FollowListScreen: React.FC<FollowListScreenProps> = ({ title, userIds, currentUser, onClose, onViewProfile }) => {
     const [users, setUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -42,10 +44,19 @@ const FollowListScreen: React.FC<FollowListScreenProps> = ({ title, userIds, cur
             };
             setIsLoading(true);
             try {
-                const usersRef = collection(db, 'users');
-                const q = query(usersRef, where('id', 'in', userIds));
-                const querySnapshot = await getDocs(q);
-                const userList = querySnapshot.docs.map(doc => doc.data() as User);
+                // Firestore 'in' queries are limited to 10 elements. For a scalable app, this would need pagination or a different data model.
+                // For this project, we'll fetch in chunks of 10.
+                const userPromises = [];
+                for (let i = 0; i < userIds.length; i += 10) {
+                    const chunk = userIds.slice(i, i + 10);
+                    const usersRef = collection(db, 'users');
+                    const q = query(usersRef, where('__name__', 'in', chunk));
+                    userPromises.push(getDocs(q));
+                }
+                
+                const querySnapshots = await Promise.all(userPromises);
+                const userList = querySnapshots.flatMap(snapshot => snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User)));
+
                 setUsers(userList);
             } catch (error) {
                 console.error("Error fetching users:", error);
@@ -108,6 +119,7 @@ const FollowListScreen: React.FC<FollowListScreenProps> = ({ title, userIds, cur
                             currentUser={currentUser} 
                             onUnfollow={handleUnfollow}
                             isFollowing={currentUser.following.includes(user.id)}
+                            onViewProfile={onViewProfile}
                         />
                     ))
                 )}

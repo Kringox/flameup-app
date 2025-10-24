@@ -104,11 +104,12 @@ interface ChatScreenProps {
     onStartChat: (partnerId: string) => void;
     onCloseChat: () => void;
     onUpdateUser: (user: User) => void;
+    onViewProfile: (userId: string) => void;
 }
 
-const ChatScreen: React.FC<ChatScreenProps> = ({ currentUser, activeChatPartnerId, onStartChat, onCloseChat, onUpdateUser }) => {
+const ChatScreen: React.FC<ChatScreenProps> = ({ currentUser, activeChatPartnerId, onStartChat, onCloseChat, onUpdateUser, onViewProfile }) => {
   if (activeChatPartnerId) {
-    return <ConversationScreen currentUser={currentUser} partnerId={activeChatPartnerId} onClose={onCloseChat} onUpdateUser={onUpdateUser} />
+    return <ConversationScreen currentUser={currentUser} partnerId={activeChatPartnerId} onClose={onCloseChat} onUpdateUser={onUpdateUser} onViewProfile={onViewProfile} />
   }
 
   return (

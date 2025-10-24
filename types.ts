@@ -7,8 +7,15 @@ export enum Tab {
   Profile = 'Profile',
 }
 
+export interface StoryHighlight {
+  id: string;
+  title: string;
+  coverPhotoUrl: string;
+  storyIds: string[];
+}
+
 export interface User {
-  id: string; // Corresponds to Firebase Auth UID
+  id:string; // Corresponds to Firebase Auth UID
   name: string;
   age: number;
   gender: string;
@@ -21,6 +28,9 @@ export interface User {
   following: string[]; // Array of user IDs
   coins: number; // For sending gifts
   createdAt: any; // For sorting by new users
+  isPremium?: boolean;
+  incognitoMode?: boolean;
+  storyHighlights?: StoryHighlight[];
 }
 
 export interface Story {
@@ -42,6 +52,7 @@ export interface Post {
     id:string;
     name: string;
     profilePhoto: string;
+    isPremium?: boolean;
   };
   mediaUrls: string[];
   caption: string;
@@ -82,6 +93,7 @@ export interface Chat {
         [key: string]: {
             name: string;
             profilePhoto: string;
+            isPremium?: boolean;
         }
     };
     lastMessage: {
@@ -98,9 +110,11 @@ export interface Chat {
 
 export interface Comment {
     id: string;
+    postId: string; // Added to query comments for a post
     userId: string;
     userName: string;
     userProfilePhoto: string;
+    isPremium?: boolean;
     text: string;
     likedBy: string[];
     timestamp: Timestamp;

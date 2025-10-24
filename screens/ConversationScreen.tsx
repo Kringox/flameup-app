@@ -4,6 +4,7 @@ import { db } from '../firebaseConfig';
 import { collection, doc, getDoc, query, onSnapshot, serverTimestamp, setDoc, addDoc, runTransaction, Timestamp, deleteDoc, updateDoc } from 'firebase/firestore';
 import GiftIcon from '../components/icons/GiftIcon';
 import MoreVerticalIcon from '../components/icons/MoreVerticalIcon';
+import VerifiedIcon from '../components/icons/VerifiedIcon';
 
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
 
@@ -24,9 +25,10 @@ interface ConversationScreenProps {
     partnerId: string;
     onClose: () => void;
     onUpdateUser: (user: User) => void;
+    onViewProfile: (userId: string) => void;
 }
 
-const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, partnerId, onClose, onUpdateUser }) => {
+const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, partnerId, onClose, onUpdateUser, onViewProfile }) => {
     const [partner, setPartner] = useState<User | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
     const [newMessage, setNewMessage] = useState('');
@@ -124,8 +126,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 await setDoc(chatDocRef, {
                     userIds: [currentUser.id, partner.id],
                     users: {
-                        [currentUser.id]: { name: currentUser.name, profilePhoto: currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR },
-                        [partner.id]: { name: partner.name, profilePhoto: partner.profilePhotos?.[0] || PLACEHOLDER_AVATAR }
+                        [currentUser.id]: { name: currentUser.name, profilePhoto: currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR, isPremium: currentUser.isPremium },
+                        [partner.id]: { name: partner.name, profilePhoto: partner.profilePhotos?.[0] || PLACEHOLDER_AVATAR, isPremium: partner.isPremium }
                     },
                     lastMessage: lastMessagePayload,
                     unreadCount: { [partner.id]: 1, [currentUser.id]: 0 }
@@ -228,10 +230,18 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 <button onClick={onClose} className="p-1">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 </button>
-                <img src={partner.profilePhotos?.[0] || PLACEHOLDER_AVATAR} alt={partner.name} className="w-10 h-10 rounded-full object-cover ml-2"/>
-                <div className="ml-3 flex-1">
-                    <span className="font-semibold text-lg">{partner.name}</span>
-                </div>
+                <button 
+                    onClick={() => { onViewProfile(partner.id); onClose(); }} 
+                    className="flex items-center flex-1 ml-2"
+                >
+                    <img src={partner.profilePhotos?.[0] || PLACEHOLDER_AVATAR} alt={partner.name} className="w-10 h-10 rounded-full object-cover"/>
+                    <div className="ml-3 text-left">
+                        <div className="flex items-center space-x-1">
+                            <span className="font-semibold text-lg">{partner.name}</span>
+                            {partner.isPremium && <VerifiedIcon />}
+                        </div>
+                    </div>
+                </button>
                 <div className="relative">
                     <button onClick={() => setShowMenu(!showMenu)} className="p-1 text-gray-600">
                         <MoreVerticalIcon />

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Post, User, Comment, NotificationType } from '../types';
 import { db } from '../firebaseConfig';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment, where } from 'firebase/firestore';
+import VerifiedIcon from '../components/icons/VerifiedIcon';
 
 const formatTimestamp = (timestamp: any): string => {
     if (!timestamp?.toDate) return 'Just now';
@@ -23,9 +24,10 @@ interface CommentRowProps {
     currentUser: User;
     postAuthorId: string;
     onDelete: (commentId: string) => void;
+    onViewProfile: (userId: string) => void;
 }
 
-const CommentRow: React.FC<CommentRowProps> = ({ comment, currentUser, postAuthorId, onDelete }) => {
+const CommentRow: React.FC<CommentRowProps> = ({ comment, currentUser, postAuthorId, onDelete, onViewProfile }) => {
     const [isLiked, setIsLiked] = useState(false);
 
     useEffect(() => {
@@ -52,11 +54,15 @@ const CommentRow: React.FC<CommentRowProps> = ({ comment, currentUser, postAutho
     const canDelete = currentUser.id === comment.userId || currentUser.id === postAuthorId;
     return (
         <div className="flex items-start p-3 space-x-3">
-            <img src={comment.userProfilePhoto} alt={comment.userName} className="w-8 h-8 rounded-full object-cover" />
+            <button onClick={() => onViewProfile(comment.userId)}>
+                <img src={comment.userProfilePhoto} alt={comment.userName} className="w-8 h-8 rounded-full object-cover" />
+            </button>
             <div className="flex-1">
-                <p>
-                    <span className="font-semibold text-sm">{comment.userName}</span>{' '}
-                    <span className="text-sm">{comment.text}</span>
+                <p className="text-sm">
+                    <button onClick={() => onViewProfile(comment.userId)} className="font-semibold text-sm mr-1">{comment.userName}</button>
+                    {comment.isPremium && <VerifiedIcon className="inline-block align-middle" />}
+                    {' '}
+                    <span>{comment.text}</span>
                 </p>
                 <div className="flex items-center space-x-3 text-xs text-gray-500 mt-1">
                     <span>{formatTimestamp(comment.timestamp)}</span>
@@ -75,9 +81,10 @@ interface CommentScreenProps {
     post: Post;
     currentUser: User;
     onClose: () => void;
+    onViewProfile: (userId: string) => void;
 }
 
-const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClose }) => {
+const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClose, onViewProfile }) => {
     const [comments, setComments] = useState<Comment[]>([]);
     const [newComment, setNewComment] = useState('');
     const [isLoading, setIsLoading] = useState(true);
@@ -87,13 +94,11 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
         if (!db) return;
         
         const commentsRef = collection(db, 'comments');
-        // Query without server-side ordering to avoid needing a composite index
         const q = query(commentsRef, where('postId', '==', post.id));
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const commentsList = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Comment));
             
-            // Sort comments on the client-side
             commentsList.sort((a, b) => {
                 const timeA = a.timestamp?.toMillis() || 0;
                 const timeB = b.timestamp?.toMillis() || 0;
@@ -117,28 +122,25 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
         const tempComment = newComment;
         setNewComment('');
 
-        // Add to the top-level 'comments' collection
         const commentsRef = collection(db, 'comments');
         const postRef = doc(db, 'posts', post.id);
 
         try {
-            // Step 1: Add the comment document with a reference to the post.
             await addDoc(commentsRef, {
-                postId: post.id, // Link comment to the post
+                postId: post.id,
                 userId: currentUser.id,
                 userName: currentUser.name,
                 userProfilePhoto: currentUser.profilePhotos?.[0] || '',
+                isPremium: currentUser.isPremium || false,
                 text: tempComment,
                 likedBy: [],
                 timestamp: serverTimestamp()
             });
             
-            // Step 2 (Optional): Increment post's comment count.
             updateDoc(postRef, { commentCount: increment(1) }).catch(error => {
                 console.warn("Could not update comment count.", error);
             });
 
-            // Step 3 (Optional): Create a notification for the post author.
             if (post.userId !== currentUser.id) {
                 const notificationsRef = collection(db, 'users', post.userId, 'notifications');
                 addDoc(notificationsRef, {
@@ -164,15 +166,12 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
     const handleDeleteComment = async (commentId: string) => {
         if (!db) return;
 
-        // Delete from the top-level 'comments' collection
         const commentRef = doc(db, 'comments', commentId);
         const postRef = doc(db, 'posts', post.id);
 
         try {
-            // Step 1: Delete the comment.
             await deleteDoc(commentRef);
             
-            // Step 2 (Optional): Decrement the post's comment count.
             updateDoc(postRef, { commentCount: increment(-1) }).catch(error => {
                 console.warn("Could not update comment count on delete.", error);
             });
@@ -198,7 +197,7 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
                 ) : comments.length === 0 ? (
                     <p className="text-center text-gray-500 mt-8">No comments yet. Be the first!</p>
                 ) : (
-                    comments.map(comment => <CommentRow key={comment.id} comment={comment} currentUser={currentUser} postAuthorId={post.userId} onDelete={handleDeleteComment} />)
+                    comments.map(comment => <CommentRow key={comment.id} comment={comment} currentUser={currentUser} postAuthorId={post.userId} onDelete={handleDeleteComment} onViewProfile={onViewProfile} />)
                 )}
             </div>
 

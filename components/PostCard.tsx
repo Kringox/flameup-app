@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Post, User, NotificationType } from '../types';
 import { db } from '../firebaseConfig';
@@ -9,6 +8,7 @@ import CommentIcon from './icons/CommentIcon';
 import SendIcon from './icons/SendIcon';
 import MoreHorizontalIcon from './icons/MoreHorizontalIcon';
 import EditPostModal from './EditPostModal';
+import VerifiedIcon from './icons/VerifiedIcon';
 
 const formatTimestamp = (timestamp: any): string => {
     if (!timestamp || !timestamp.toDate) {
@@ -138,7 +138,10 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
       <div className="flex items-center justify-between p-3">
         <button onClick={handleProfileClick} disabled={!onViewProfile} className="flex items-center disabled:cursor-default">
             <img className="w-8 h-8 rounded-full object-cover" src={post.user.profilePhoto} alt={post.user.name} />
-            <span className="ml-3 font-semibold text-sm">{post.user.name}</span>
+            <div className="ml-3 font-semibold text-sm flex items-center space-x-1">
+                <span>{post.user.name}</span>
+                {post.user.isPremium && <VerifiedIcon />}
+            </div>
         </button>
         {isOwnPost && (
             <div className="relative">

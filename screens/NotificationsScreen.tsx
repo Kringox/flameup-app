@@ -59,9 +59,10 @@ interface NotificationsScreenProps {
     user: User;
     onClose: () => void;
     onShowMatch: (notification: Notification) => void;
+    onViewProfile: (userId: string) => void;
 }
 
-const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ user, onClose, onShowMatch }) => {
+const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ user, onClose, onShowMatch, onViewProfile }) => {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -99,8 +100,10 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ user, onClose
     const handleNotificationClick = (notification: Notification) => {
         if (notification.type === NotificationType.Match) {
             onShowMatch(notification);
+        } else {
+            onViewProfile(notification.fromUser.id);
+            onClose();
         }
-        // Can add handlers for other types later, e.g., open post on comment/like
     };
 
     return (

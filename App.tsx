@@ -135,6 +135,9 @@ const App: React.FC = () => {
           following: [],
           coins: 100, // Starting coins
           createdAt: serverTimestamp(),
+          isPremium: false,
+          incognitoMode: false,
+          storyHighlights: [],
         };
         
         await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
@@ -236,10 +239,10 @@ const App: React.FC = () => {
 
       {/* Overlays - Rendered on top of main content */}
       {isCreateScreenOpen && <CreateScreen user={currentUser} onClose={() => setIsCreateScreenOpen(false)} onSuccess={handleCreationSuccess} />}
-      {isNotificationsOpen && <NotificationsScreen user={currentUser} onClose={() => setIsNotificationsOpen(false)} onShowMatch={handleShowMatch}/>}
-      {viewingPostComments && <CommentScreen post={viewingPostComments} currentUser={currentUser} onClose={() => setViewingPostComments(null)} />}
-      {followList && <FollowListScreen title={followList.title} userIds={followList.userIds} currentUser={currentUser} onClose={() => setFollowList(null)} />}
-      {viewingUserId && <UserProfileScreen userId={viewingUserId} currentUser={currentUser} onClose={() => setViewingUserId(null)} onOpenComments={setViewingPostComments} onStartChat={handleStartChat} />}
+      {isNotificationsOpen && <NotificationsScreen user={currentUser} onClose={() => setIsNotificationsOpen(false)} onShowMatch={handleShowMatch} onViewProfile={handleViewProfile} />}
+      {viewingPostComments && <CommentScreen post={viewingPostComments} currentUser={currentUser} onClose={() => setViewingPostComments(null)} onViewProfile={handleViewProfile} />}
+      {followList && <FollowListScreen title={followList.title} userIds={followList.userIds} currentUser={currentUser} onClose={() => setFollowList(null)} onViewProfile={handleViewProfile} />}
+      {viewingUserId && <UserProfileScreen userId={viewingUserId} currentUser={currentUser} onClose={() => setViewingUserId(null)} onOpenComments={setViewingPostComments} onStartChat={handleStartChat} onViewProfile={handleViewProfile} />}
 
       {/* Main App Content */}
       <main className="flex-1 overflow-hidden">
@@ -256,6 +259,7 @@ const App: React.FC = () => {
             onStartChat={setActiveChatPartnerId}
             onCloseChat={() => setActiveChatPartnerId(null)}
             onUpdateUser={handleUpdateUser}
+            onViewProfile={handleViewProfile}
           />
         </div>
         <div className={`w-full h-full overflow-y-auto ${activeTab === Tab.Profile ? '' : 'hidden'}`}>
