@@ -109,6 +109,7 @@ const App: React.FC = () => {
   };
   
   const handleStartChat = (partnerId: string) => {
+      setViewingUserId(null); // Close profile overlay when starting a chat
       setActiveTab(Tab.Chat);
       setActiveChatPartnerId(partnerId);
   }

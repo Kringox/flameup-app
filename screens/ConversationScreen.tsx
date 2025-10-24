@@ -40,12 +40,27 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const generatedChatId = sortedIds.join('_');
     setChatId(generatedChatId);
 
+    // Mark messages as read for the current user
+    const chatRef = doc(db, 'chats', generatedChatId);
+    getDoc(chatRef).then(docSnap => {
+        if (docSnap.exists() && (docSnap.data().unreadCount?.[currentUser.id] || 0) > 0) {
+            updateDoc(chatRef, {
+                [`unreadCount.${currentUser.id}`]: 0
+            });
+        }
+    });
+
     const messagesRef = collection(db, 'messages');
-    const q = query(messagesRef, where('chatId', '==', generatedChatId), orderBy('timestamp', 'asc'));
+    // Query without orderBy to avoid needing a composite index, sort on client instead.
+    const q = query(messagesRef, where('chatId', '==', generatedChatId));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const messageList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+      // Sort messages by timestamp on the client
+      messageList.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
       setMessages(messageList);
+    }, (error) => {
+      console.error("Failed to fetch messages:", error);
     });
 
     return () => unsubscribe();
