@@ -3,41 +3,38 @@ import { initializeApp, FirebaseApp } from "firebase/app";
 import { getAuth, Auth } from "firebase/auth";
 import { getFirestore, Firestore } from "firebase/firestore";
 
-// User's Firebase configuration using the standard environment variable for security.
-const firebaseConfig = {
-  // The API key is sourced from the process.env object, which is populated
-  // by the execution environment. This is the required method for accessing secrets.
-  apiKey: process.env.API_KEY,
-  authDomain: "flameup-9943c.firebaseapp.com",
-  projectId: "flameup-9943c",
-  storageBucket: "flameup-9943c.appspot.com",
-  messagingSenderId: "761875503649",
-  appId: "1:761875503649:web:1fd92a97ef5d3b02a62160",
-  measurementId: "G-L9F6XNW862"
-};
-
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
 let firebaseInitializationError: string | null = null;
 
-if (!firebaseConfig.apiKey) {
-    firebaseInitializationError = 'Configuration error: The Firebase API key is missing. Please ensure the API_KEY environment variable is set correctly.';
-} else {
-    try {
-        app = initializeApp(firebaseConfig);
-        auth = getAuth(app);
-        db = getFirestore(app);
-    } catch (error) {
-        console.error("Firebase initialization failed:", error);
-        if (error instanceof Error && error.message.includes('auth/api-key-not-valid')) {
-            firebaseInitializationError = 'Configuration error: The Firebase API key is invalid. Please ensure the API_KEY environment variable is set correctly.';
-        } else if (error instanceof Error) {
-             firebaseInitializationError = `Firebase initialization failed: ${error.message}. Check your project configuration.`;
-        } else {
-             firebaseInitializationError = 'An unknown error occurred during Firebase initialization.';
-        }
-    }
+try {
+  // This is the required method for Vite-based environments like Vercel.
+  const apiKey = (import.meta as any).env.VITE_API_KEY;
+
+  if (!apiKey) {
+    // This error will appear if the VITE_API_KEY is not set in the Vercel environment.
+    firebaseInitializationError = 'Configuration error: The Firebase API key is missing. Please ensure the VITE_API_KEY environment variable is set correctly.';
+  } else {
+    const firebaseConfig = {
+      apiKey: apiKey,
+      authDomain: "flameup-9943c.firebaseapp.com",
+      projectId: "flameup-9943c",
+      storageBucket: "flameup-9943c.appspot.com",
+      messagingSenderId: "761875503649",
+      appId: "1:761875503649:web:1fd92a97ef5d3b02a62160",
+      measurementId: "G-L9F6XNW862"
+    };
+
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+  }
+} catch (e) {
+  // This catch block handles the error when 'import.meta.env' is not available,
+  // which is expected in this non-Vite preview environment.
+  firebaseInitializationError = 'Configuration error: This preview environment cannot access Vite variables (VITE_API_KEY). Your app should work correctly when deployed to Vercel.';
+  console.error("Could not initialize Firebase, likely due to environment limitations:", e);
 }
 
 
