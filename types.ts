@@ -1,4 +1,4 @@
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from 'firebase/firestore';
 
 export enum Tab {
   Home = 'Home',
@@ -7,111 +7,91 @@ export enum Tab {
   Profile = 'Profile',
 }
 
-export interface StoryHighlight {
-  id: string;
-  title: string;
-  coverPhotoUrl: string;
-  storyIds: string[];
+export enum NotificationType {
+    Like = 'like',
+    Comment = 'comment',
+    Follow = 'follow',
+    Match = 'match',
 }
 
 export interface User {
-  id:string; // Corresponds to Firebase Auth UID
+  id: string;
+  email: string;
   name: string;
   age: number;
-  gender: string;
+  gender: 'Man' | 'Woman' | 'Other';
   profilePhotos: string[];
   bio: string;
-  distance: number;
   interests: string[];
-  email: string;
-  followers: string[]; // Array of user IDs
-  following: string[]; // Array of user IDs
-  coins: number; // For sending gifts
-  createdAt: any; // For sorting by new users
+  followers: string[]; // array of user IDs
+  following: string[]; // array of user IDs
+  coins: number;
+  xp: number;
+  level: number;
+  createdAt: Timestamp;
   isPremium?: boolean;
-  incognitoMode?: boolean;
-  storyHighlights?: StoryHighlight[];
-  profileTheme?: string; // e.g., 'default', 'dusk', 'rose'
-}
-
-export interface Story {
-  id: string;
-  user: {
-    id: string;
-    name: string;
-    profilePhoto: string;
-  };
-  mediaUrl: string;
-  viewed: boolean;
-  timestamp: any; // For 24-hour expiration
+  profileTheme?: 'default' | 'dusk' | 'rose';
+  lastDailyBonus?: Timestamp;
 }
 
 export interface Post {
-  id: string;
-  userId: string; // Added for easier querying
-  user: {
-    id:string;
-    name: string;
-    profilePhoto: string;
-    isPremium?: boolean;
-  };
-  mediaUrls: string[];
-  caption: string;
-  likedBy: string[]; // Changed from 'likes: number' to track who liked the post
-  commentCount: number; // Changed from 'comments: number'
-  timestamp: any; // For ordering the feed
+    id: string;
+    userId: string;
+    mediaUrls: string[];
+    caption: string;
+    likedBy: string[]; // array of user IDs
+    commentCount: number;
+    timestamp: Timestamp;
+    user: { // denormalized user data
+        id: string;
+        name: string;
+        profilePhoto: string;
+        isPremium?: boolean;
+    };
 }
 
-export interface Match {
+export interface Story {
     id: string;
+    mediaUrl: string;
+    viewed: string[] | boolean; // Can be array of user IDs who viewed or a simple boolean for own story viewed status
+    timestamp: Timestamp | null;
     user: {
         id: string;
         name: string;
         profilePhoto: string;
     };
-    lastMessage: string;
-    timestamp: Timestamp;
-    unreadCount: number;
 }
 
 export interface Message {
     id: string;
+    chatId: string;
     senderId: string;
     text: string;
     timestamp: Timestamp;
-    gift?: { // For sending virtual gifts
-      name: 'Rose' | 'Teddy' | 'Heart' | 'Ring';
-      icon: string;
-      cost: number;
-    }
 }
 
 export interface Chat {
-    id: string; // Combined, sorted user IDs: e.g., 'uid1_uid2'
+    id: string;
     userIds: string[];
-    // Denormalized user data for easy access in chat list
     users: {
         [key: string]: {
             name: string;
             profilePhoto: string;
-            isPremium?: boolean;
         }
     };
-    lastMessage: {
+    lastMessage?: {
         text: string;
         senderId: string;
         timestamp: Timestamp;
-    } | null;
-    // Tracks unread messages for each user in the chat
-    unreadCount: {
+    };
+    unreadCount?: {
         [key: string]: number;
     };
 }
 
-
 export interface Comment {
     id: string;
-    postId: string; // Added to query comments for a post
+    postId: string;
     userId: string;
     userName: string;
     userProfilePhoto: string;
@@ -119,13 +99,6 @@ export interface Comment {
     text: string;
     likedBy: string[];
     timestamp: Timestamp;
-}
-
-export enum NotificationType {
-    Like = 'like',
-    Comment = 'comment',
-    Follow = 'follow',
-    Match = 'match',
 }
 
 export interface Notification {

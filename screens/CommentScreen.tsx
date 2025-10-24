@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Post, User, Comment, NotificationType } from '../types';
+// FIX: Added file extension to types import
+import { Post, User, Comment, NotificationType } from '../types.ts';
 import { db } from '../firebaseConfig';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment, where } from 'firebase/firestore';
-import VerifiedIcon from '../components/icons/VerifiedIcon';
+import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
 
 const formatTimestamp = (timestamp: any): string => {
     if (!timestamp?.toDate) return 'Just now';

@@ -1,7 +1,8 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
+// FIX: Added file extension to App import
+import App from './App.tsx';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

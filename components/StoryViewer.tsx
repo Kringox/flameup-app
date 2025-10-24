@@ -1,111 +1,101 @@
-
-import React, { useState, useEffect, useCallback } from 'react';
-import { Story } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+// FIX: Added file extension to types import
+import { Story } from '../types.ts';
 
 interface StoryViewerProps {
-  stories: Story[];
-  startIndex: number;
-  onClose: () => void;
-  onStoryViewed: (storyId: string) => void;
+    stories: Story[];
+    startIndex?: number;
+    onClose: () => void;
+    onStoryViewed: (storyId: string) => void;
 }
 
-const STORY_DURATION = 5000; // 5 seconds
+const StoryViewer: React.FC<StoryViewerProps> = ({ stories, startIndex = 0, onClose, onStoryViewed }) => {
+    const [currentIndex, setCurrentIndex] = useState(startIndex);
+    const [progress, setProgress] = useState(0);
+    const timerRef = useRef<number | null>(null);
+    const storyDuration = 5000; // 5 seconds per story
 
-const StoryViewer: React.FC<StoryViewerProps> = ({ stories, startIndex, onClose, onStoryViewed }) => {
-  const [currentIndex, setCurrentIndex] = useState(startIndex);
-  const [animationKey, setAnimationKey] = useState(0);
+    useEffect(() => {
+        if (stories.length > 0 && stories[currentIndex]?.id) {
+            onStoryViewed(stories[currentIndex].id);
+        }
+    }, [currentIndex, stories, onStoryViewed]);
 
-  const goToNext = useCallback(() => {
-    if (currentIndex < stories.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-    } else {
-      onClose();
-    }
-  }, [currentIndex, stories.length, onClose]);
-
-  const goToPrevious = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
-    }
-  };
-
-  useEffect(() => {
-    onStoryViewed(stories[currentIndex].id);
-    setAnimationKey(prev => prev + 1); // Reset animation
-
-    const timer = setTimeout(() => {
-      goToNext();
-    }, STORY_DURATION);
-
-    return () => clearTimeout(timer);
-  }, [currentIndex, goToNext, onStoryViewed, stories]);
-
-  const handleTap = (e: React.MouseEvent<HTMLDivElement>) => {
-    const { clientX, currentTarget } = e;
-    const { left, width } = currentTarget.getBoundingClientRect();
-    const tapPosition = clientX - left;
+    const goToNextStory = () => {
+        if (currentIndex < stories.length - 1) {
+            setCurrentIndex(prev => prev + 1);
+        } else {
+            onClose();
+        }
+    };
     
-    if (tapPosition < width / 3) {
-      goToPrevious();
-    } else {
-      goToNext();
+    const goToPrevStory = () => {
+        if (currentIndex > 0) {
+            setCurrentIndex(prev => prev - 1);
+        }
+    };
+    
+    useEffect(() => {
+        setProgress(0);
+        if (timerRef.current) {
+            clearInterval(timerRef.current);
+        }
+        timerRef.current = window.setInterval(() => {
+            setProgress(p => {
+                if (p >= 100) {
+                    goToNextStory();
+                    return 100;
+                }
+                return p + (100 / (storyDuration / 100));
+            });
+        }, 100);
+
+        return () => {
+            if (timerRef.current) clearInterval(timerRef.current);
+        };
+    }, [currentIndex, stories.length]);
+
+    if (!stories || stories.length === 0) {
+        onClose();
+        return null;
     }
-  };
 
-  if (!stories[currentIndex]) return null;
-  
-  const currentStory = stories[currentIndex];
+    const currentStory = stories[currentIndex];
+    const storyUser = currentStory.user;
 
-  return (
-    <div className="absolute inset-0 bg-black z-[100] flex flex-col items-center justify-center">
-       <style>{`
-        @keyframes progress {
-          from { width: 0%; }
-          to { width: 100%; }
-        }
-        .progress-bar-inner {
-          animation: progress ${STORY_DURATION / 1000}s linear;
-        }
-      `}</style>
-      
-      {/* Progress Bars */}
-      <div className="absolute top-2 left-2 right-2 flex space-x-1">
-        {stories.map((_, index) => (
-          <div key={index} className="flex-1 h-1 bg-white/30 rounded-full">
-            <div 
-              className={`h-full rounded-full ${index < currentIndex ? 'bg-white' : ''} ${index === currentIndex ? 'bg-white progress-bar-inner' : ''}`}
-              style={{ animationPlayState: 'running' }}
-              key={index === currentIndex ? animationKey : undefined}
-            />
-          </div>
-        ))}
-      </div>
-
-      {/* Header */}
-      <div className="absolute top-5 left-4 flex items-center z-10">
-        <img src={currentStory.user.profilePhoto} alt={currentStory.user.name} className="w-8 h-8 rounded-full object-cover" />
-        <span className="text-white font-semibold ml-2">{currentStory.user.name}</span>
-      </div>
-
-      {/* Close Button */}
-      <button onClick={onClose} className="absolute top-4 right-4 text-white z-10">
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-
-      {/* Story Content */}
-      <div className="w-full h-full flex items-center justify-center">
-        <img src={currentStory.mediaUrl} alt={`Story by ${currentStory.user.name}`} className="max-h-full max-w-full object-contain" />
-      </div>
-
-      {/* Navigation Taps */}
-      <div 
-        className="absolute inset-0 w-full h-full"
-        onClick={handleTap}
-      />
-    </div>
-  );
+    return (
+        <div className="absolute inset-0 bg-black z-[100] flex flex-col justify-center">
+            <div className="absolute top-0 left-0 right-0 p-3 z-10">
+                <div className="flex items-center space-x-1">
+                    {stories.map((_, index) => (
+                        <div key={index} className="flex-1 h-1 bg-white/30 rounded-full">
+                            <div
+                                className="h-full bg-white rounded-full transition-all duration-100 linear"
+                                style={{ width: `${index < currentIndex ? 100 : (index === currentIndex ? progress : 0)}%` }}
+                            />
+                        </div>
+                    ))}
+                </div>
+                <div className="flex items-center justify-between mt-3">
+                    <div className="flex items-center">
+                        <img src={storyUser.profilePhoto} alt={storyUser.name} className="w-8 h-8 rounded-full" />
+                        <span className="text-white font-semibold ml-2">{storyUser.name}</span>
+                    </div>
+                    <button onClick={onClose} className="text-white">
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div className="relative w-full h-full">
+                <img src={currentStory.mediaUrl} alt="Story content" className="w-full h-full object-contain" />
+                <div className="absolute inset-0 flex">
+                    <div className="w-1/3 h-full" onClick={goToPrevStory}></div>
+                    <div className="w-2/3 h-full" onClick={goToNextStory}></div>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 export default StoryViewer;

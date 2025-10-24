@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { User, Notification, NotificationType } from '../types';
+// FIX: Added file extension to types import
+import { User, Notification, NotificationType } from '../types.ts';
 import { db } from '../firebaseConfig';
 import { collection, query, orderBy, onSnapshot, doc, writeBatch } from 'firebase/firestore';
 
@@ -95,7 +96,7 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ user, onClose
         });
 
         return () => unsubscribe();
-    }, [user.id]);
+    }, [user.id, db]);
     
     const handleNotificationClick = (notification: Notification) => {
         if (notification.type === NotificationType.Match) {

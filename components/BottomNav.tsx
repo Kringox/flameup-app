@@ -1,10 +1,11 @@
 import React from 'react';
-import { Tab } from '../types';
-import HomeIcon from './icons/HomeIcon';
-import FlameIcon from './icons/FlameIcon';
-import ChatIcon from './icons/ChatIcon';
-import UserIcon from './icons/UserIcon';
-import PlusIcon from './icons/PlusIcon';
+// FIX: Added file extension to types import
+import { Tab } from '../types.ts';
+import HomeIcon from './icons/HomeIcon.tsx';
+import FlameIcon from './icons/FlameIcon.tsx';
+import ChatIcon from './icons/ChatIcon.tsx';
+import UserIcon from './icons/UserIcon.tsx';
+import PlusIcon from './icons/PlusIcon.tsx';
 
 interface BottomNavProps {
   activeTab: Tab;

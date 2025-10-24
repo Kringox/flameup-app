@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { User } from '../types';
+// FIX: Added file extension to types import
+import { User } from '../types.ts';
 import { db } from '../firebaseConfig';
 import { collection, doc, getDocs, query, where } from 'firebase/firestore';
-import { DEMO_USERS_FOR_UI } from '../constants'; // Using demo users for now
+// FIX: Added file extension to constants import
+import { DEMO_USERS_FOR_UI } from '../constants.ts'; // Using demo users for now
 
 const UserRow: React.FC<{ user: User; onViewProfile: (userId: string) => void }> = ({ user, onViewProfile }) => {
     return (

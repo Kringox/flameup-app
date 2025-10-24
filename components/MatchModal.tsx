@@ -1,42 +1,59 @@
 import React from 'react';
-import { User } from '../types';
-
-const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
+// FIX: Added file extension to types import
+import { User } from '../types.ts';
 
 interface MatchModalProps {
-    matchedUser: {
-        id: string;
-        name: string;
-        profilePhoto: string;
-    };
-    currentUser: User;
-    onSendMessage: () => void;
-    onClose: () => void;
+  currentUser: User;
+  matchedUser: User;
+  onSendMessage: () => void;
+  onClose: () => void;
 }
 
-const MatchModal: React.FC<MatchModalProps> = ({ matchedUser, currentUser, onSendMessage, onClose }) => {
+const MatchModal: React.FC<MatchModalProps> = ({ currentUser, matchedUser, onSendMessage, onClose }) => {
   return (
-    <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-50 animate-fade-in">
-      <style>{`
-        @keyframes fade-in {
-            from { opacity: 0; transform: scale(0.9); }
-            to { opacity: 1; transform: scale(1); }
-        }
-        .animate-fade-in { animation: fade-in 0.3s ease-out; }
-      `}</style>
-      <div className="bg-white rounded-2xl p-8 flex flex-col items-center text-center w-11/12 max-w-sm">
-        <h2 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-flame-orange to-flame-red">It's a Match! 🔥</h2>
-        <p className="text-gray-600 mt-2">You and {matchedUser.name} have liked each other.</p>
-        <div className="flex items-center space-x-4 my-6">
-          <img src={currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR} alt={currentUser.name} className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-lg" />
-          <img src={matchedUser.profilePhoto || PLACEHOLDER_AVATAR} alt={matchedUser.name} className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-lg" />
+    <div className="fixed inset-0 bg-black/80 z-[100] flex justify-center items-center p-4 animate-fade-in">
+       <style>{`
+            @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+            .animate-fade-in { animation: fade-in 0.3s ease-out; }
+            @keyframes scale-up { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+            .animate-scale-up { animation: scale-up 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        `}</style>
+      <div className="relative w-full max-w-md text-center">
+        <h1 className="text-5xl font-bold text-white mb-8 bg-clip-text text-transparent bg-gradient-to-r from-flame-orange to-flame-red animate-scale-up" style={{ animationDelay: '0.1s' }}>
+          It's a Match!
+        </h1>
+        <p className="text-white text-lg mb-8 animate-scale-up" style={{ animationDelay: '0.2s' }}>
+            You and {matchedUser.name} have liked each other.
+        </p>
+        <div className="flex justify-center items-center space-x-[-2rem] mb-12">
+            <img 
+                src={currentUser.profilePhotos[0]} 
+                alt={currentUser.name} 
+                className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-lg animate-scale-up" 
+                style={{ animationDelay: '0.3s' }}
+            />
+            <img 
+                src={matchedUser.profilePhotos[0]} 
+                alt={matchedUser.name} 
+                className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-lg animate-scale-up" 
+                style={{ animationDelay: '0.4s' }}
+            />
         </div>
-        <button onClick={onSendMessage} className="w-full py-3 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold rounded-full mb-3 shadow-lg transform hover:scale-105 transition-transform">
-          Send a Message
-        </button>
-        <button onClick={onClose} className="w-full py-3 text-gray-600 font-semibold rounded-full">
-          Keep Swiping
-        </button>
+
+        <div className="flex flex-col space-y-4">
+            <button 
+                onClick={onSendMessage}
+                className="w-full py-3 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold rounded-full shadow-lg transform hover:scale-105 transition-transform"
+            >
+                Send a Message
+            </button>
+            <button 
+                onClick={onClose}
+                className="w-full py-3 bg-white/20 text-white font-semibold rounded-full hover:bg-white/30 transition-colors"
+            >
+                Keep Swiping
+            </button>
+        </div>
       </div>
     </div>
   );

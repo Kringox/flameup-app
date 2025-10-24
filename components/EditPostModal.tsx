@@ -1,6 +1,6 @@
-
 import React, { useState } from 'react';
-import { Post } from '../types';
+// FIX: Added file extension to types import
+import { Post } from '../types.ts';
 import { db } from '../firebaseConfig';
 import { doc, updateDoc } from 'firebase/firestore';
 

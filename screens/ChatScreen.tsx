@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
-import { Chat, User } from '../types';
-import ConversationScreen from './ConversationScreen';
+// FIX: Added file extension to types import
+import { Chat, User } from '../types.ts';
+// FIX: Added file extension to ConversationScreen import
+import ConversationScreen from './ConversationScreen.tsx';
 
 const formatTimestamp = (timestamp: Timestamp | undefined): string => {
     if (!timestamp) return '';

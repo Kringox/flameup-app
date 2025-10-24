@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { User } from '../types';
+// FIX: Added file extension to types import
+import { User } from '../types.ts';
 import { db } from '../firebaseConfig';
 import { collection, doc, getDocs, query, where, writeBatch } from 'firebase/firestore';
 
@@ -44,11 +45,11 @@ const FollowListScreen: React.FC<FollowListScreenProps> = ({ title, userIds, cur
             };
             setIsLoading(true);
             try {
-                // Firestore 'in' queries are limited to 10 elements. For a scalable app, this would need pagination or a different data model.
-                // For this project, we'll fetch in chunks of 10.
+                // Firestore 'in' queries are limited to 30 elements. For a scalable app, this would need pagination or a different data model.
+                // For this project, we'll fetch in chunks.
                 const userPromises = [];
-                for (let i = 0; i < userIds.length; i += 10) {
-                    const chunk = userIds.slice(i, i + 10);
+                for (let i = 0; i < userIds.length; i += 30) {
+                    const chunk = userIds.slice(i, i + 30);
                     const usersRef = collection(db, 'users');
                     const q = query(usersRef, where('__name__', 'in', chunk));
                     userPromises.push(getDocs(q));

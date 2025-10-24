@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User } from '../types';
-import { uploadPhotos } from '../utils/photoUploader';
-import SparklesIcon from '../components/icons/SparklesIcon';
+// FIX: Added file extension to types import
+import { User } from '../types.ts';
+import { uploadPhotos } from '../utils/photoUploader.ts';
+import SparklesIcon from '../components/icons/SparklesIcon.tsx';
 
 interface EditProfileScreenProps {
   user: User;
@@ -70,8 +71,10 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
 
   const handlePhotoClick = (index: number) => {
     // Trigger file input for the clicked slot
-    fileInputRef.current?.setAttribute('data-index', String(index));
-    fileInputRef.current?.click();
+    if (fileInputRef.current) {
+        fileInputRef.current.setAttribute('data-index', String(index));
+        fileInputRef.current.click();
+    }
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {

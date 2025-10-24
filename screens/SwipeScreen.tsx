@@ -1,237 +1,89 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { User, NotificationType } from '../types';
-import FlameIcon from '../components/icons/FlameIcon';
-import MatchModal from '../components/MatchModal';
-import { db } from '../firebaseConfig';
-import { collection, getDocs, query, where, doc, writeBatch, serverTimestamp, addDoc, setDoc } from 'firebase/firestore';
+import React, { useState } from 'react';
+// FIX: Added file extension to types and constants imports
+import { User } from '../types.ts';
+import { DEMO_USERS_FOR_UI } from '../constants.ts';
+// FIX: Added file extension to icon imports
+import XIcon from '../components/icons/XIcon.tsx';
+import HeartIcon from '../components/icons/HeartIcon.tsx';
+import StarIcon from '../components/icons/StarIcon.tsx';
+import RocketIcon from '../components/icons/RocketIcon.tsx';
+import FilterIcon from '../components/icons/FilterIcon.tsx';
+import FilterModal from '../components/FilterModal.tsx';
 
-const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
-const getChatId = (uid1: string, uid2: string) => [uid1, uid2].sort().join('_');
-
-const ProfileCard: React.FC<{ user: User }> = ({ user }) => {
-  return (
+// A simple Profile Card component for the swipe screen
+const ProfileCard: React.FC<{ user: User }> = ({ user }) => (
     <div className="absolute top-0 left-0 w-full h-full rounded-2xl overflow-hidden shadow-2xl bg-gray-300">
-      <img src={user.profilePhotos?.[0] || PLACEHOLDER_AVATAR} alt={user.name} className="w-full h-full object-cover" />
-      <div className="absolute bottom-0 left-0 w-full h-2/5 bg-gradient-to-t from-black/80 to-transparent p-4 flex flex-col justify-end">
-        <div className="flex justify-between items-end">
-          <div>
-            <h2 className="text-white text-3xl font-bold drop-shadow-lg">{user.name}, {user.age}</h2>
-            <p className="text-white text-md drop-shadow-md">{user.distance} km away</p>
-          </div>
-          <button className="w-10 h-10 rounded-full border-2 border-white/50 flex items-center justify-center backdrop-blur-sm bg-white/10 hover:bg-white/20 transition-colors flex-shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          </button>
+        <img src={user.profilePhotos[0]} alt={user.name} className="w-full h-full object-cover" />
+        <div className="absolute bottom-0 left-0 w-full h-1/3 bg-gradient-to-t from-black/80 to-transparent p-4 flex flex-col justify-end">
+            <h2 className="text-white text-3xl font-bold">{user.name}, {user.age}</h2>
+            <p className="text-white text-lg">{user.bio}</p>
         </div>
-        <p className="text-gray-200 text-sm mt-2 line-clamp-2 drop-shadow-md">{user.bio}</p>
-      </div>
     </div>
-  );
-};
-
-interface SwipeScreenProps {
-    currentUser: User;
-    onStartChat: (partnerId: string) => void;
-}
-
-const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onStartChat }) => {
-    const [users, setUsers] = useState<User[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [showMatch, setShowMatch] = useState<User | null>(null);
-    const [swipedUserId, setSwipedUserId] = useState<string | null>(null);
-    const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | 'up' | null>(null);
-
-    const loadSwipeableUsers = useCallback(async () => {
-        if (!db) {
-            setIsLoading(false);
-            return;
-        }
-        setIsLoading(true);
-
-        try {
-            // 1. Fetch all users
-            const usersQuery = query(collection(db, 'users'));
-            const usersPromise = getDocs(usersQuery);
-
-            // 2. Fetch all of the current user's swipes
-            const swipesQuery = query(collection(db, 'swipes'), where("swiperId", "==", currentUser.id));
-            const swipesPromise = getDocs(swipesQuery);
-
-            // 3. Wait for both database calls to complete
-            const [usersSnapshot, swipesSnapshot] = await Promise.all([usersPromise, swipesPromise]);
-
-            // 4. Create a Set of IDs for users that have already been swiped
-            const swipedIds = new Set(swipesSnapshot.docs.map(doc => doc.data().swipedUserId));
-
-            // 5. Map and filter all users in-memory
-            const allUsers = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
-            const filteredUsers = allUsers.filter(user => {
-                const isCurrentUser = user.id === currentUser.id;
-                const isAlreadySwiped = swipedIds.has(user.id);
-                return !isCurrentUser && !isAlreadySwiped;
-            });
-
-            setUsers(filteredUsers);
-        } catch (error) {
-            console.error("Error loading swipeable users:", error);
-            alert(`Failed to load profiles. Please check your Firestore security rules. Reading from the "users" and "swipes" collections might be denied. Error: ${error}`);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [currentUser.id]);
-
-    useEffect(() => {
-        loadSwipeableUsers();
-    }, [loadSwipeableUsers]);
+);
 
 
-    const handleSwipe = async (direction: 'left' | 'right' | 'up') => {
-        if (users.length === 0 || swipedUserId || !db) return;
+const SwipeScreen: React.FC = () => {
+    const [users, setUsers] = useState(DEMO_USERS_FOR_UI);
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+    const [filters, setFilters] = useState({ ageRange: [18, 40] as [number, number], distance: 50 });
 
-        const targetUser = users[0];
-        setSwipeDirection(direction);
-        setSwipedUserId(targetUser.id);
-        
-        const batch = writeBatch(db);
-        const swipeDocRef = doc(collection(db, 'swipes'));
-        batch.set(swipeDocRef, {
-            swiperId: currentUser.id,
-            swipedUserId: targetUser.id,
-            action: direction === 'left' ? 'dislike' : 'like',
-            timestamp: serverTimestamp()
-        });
-        
-        await batch.commit();
-
-        setTimeout(async () => {
-            try {
-                if (direction !== 'left') {
-                    const otherUserSwipeRef = query(collection(db, 'swipes'), 
-                        where("swiperId", "==", targetUser.id),
-                        where("swipedUserId", "==", currentUser.id),
-                        where("action", "==", "like")
-                    );
-                    
-                    const otherUserSwipeSnapshot = await getDocs(otherUserSwipeRef);
-                    
-                    if (!otherUserSwipeSnapshot.empty) {
-                        setShowMatch(targetUser);
-                        
-                        const chatId = getChatId(currentUser.id, targetUser.id);
-                        const chatDocRef = doc(db, 'chats', chatId);
-                        await setDoc(chatDocRef, {
-                            userIds: [currentUser.id, targetUser.id],
-                            users: {
-                                [currentUser.id]: { name: currentUser.name, profilePhoto: currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR },
-                                [targetUser.id]: { name: targetUser.name, profilePhoto: targetUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR }
-                            },
-                            lastMessage: null,
-                            unreadCount: { [currentUser.id]: 0, [targetUser.id]: 0 }
-                        }, { merge: true });
-
-                        const notificationsRef = collection(db, 'users', targetUser.id, 'notifications');
-                        await addDoc(notificationsRef, {
-                            type: NotificationType.Match,
-                            fromUser: {
-                                id: currentUser.id,
-                                name: currentUser.name,
-                                profilePhoto: currentUser.profilePhotos?.[0] || '',
-                            },
-                            read: false,
-                            timestamp: serverTimestamp(),
-                        });
-                    }
-                }
-            } catch (error) {
-                console.error("Error processing swipe action:", error);
-            } finally {
-                const remainingUsers = users.slice(1);
-                setUsers(remainingUsers);
-                
-                setSwipedUserId(null);
-                setSwipeDirection(null);
-            }
-        }, 400);
+    const handleSwipe = () => {
+        // In a real app, this would trigger an animation
+        setCurrentIndex(prev => (prev + 1) % users.length);
     };
-
-    const handleSendMessageFromMatch = () => {
-        if(showMatch) {
-            onStartChat(showMatch.id);
-            setShowMatch(null);
-        }
-    }
     
-    const handleRefresh = () => {
-        loadSwipeableUsers();
+    const handleApplyFilters = (newFilters: { ageRange: [number, number]; distance: number; }) => {
+        setFilters(newFilters);
+        // Here you would refetch users based on new filters
     };
+
+    const currentUser = users[currentIndex];
 
     return (
-    <div className="flex flex-col h-full w-full bg-gray-100 overflow-hidden">
-      {showMatch && <MatchModal matchedUser={showMatch} currentUser={currentUser} onSendMessage={handleSendMessageFromMatch} onClose={() => setShowMatch(null)} />}
-      <header className="flex justify-between items-center p-4 bg-white border-b flex-shrink-0">
-        <FlameIcon className="w-8 h-8" isGradient={true} />
-        <div className="flex items-center space-x-2 bg-yellow-100 text-yellow-700 font-bold px-3 py-1 rounded-full">
-            <span>🪙</span>
-            <span>{currentUser.coins} Coins</span>
-        </div>
-      </header>
+        <div className="w-full h-full flex flex-col items-center bg-gray-100 p-4">
+            {isFilterModalOpen && (
+                <FilterModal
+                    onClose={() => setIsFilterModalOpen(false)}
+                    onApply={handleApplyFilters}
+                    currentFilters={filters}
+                />
+            )}
+            <header className="w-full flex justify-between items-center mb-4">
+                <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-flame-orange to-flame-red">Discover</h1>
+                <button onClick={() => setIsFilterModalOpen(true)}>
+                    <FilterIcon className="w-6 h-6 text-gray-600" />
+                </button>
+            </header>
 
-      <div className="flex-1 relative flex items-center justify-center p-4">
-        {isLoading ? (
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-        ) : users.length > 0 ? (
-            users.slice(0, 2).reverse().map((user, index) => {
-                const isTopCard = index === 1;
-                const isSwiping = isTopCard && swipedUserId === user.id;
-
-                let swipeClass = '';
-                if (isSwiping) {
-                    if (swipeDirection === 'left') swipeClass = 'transform -translate-x-full -rotate-15';
-                    if (swipeDirection === 'right') swipeClass = 'transform translate-x-full rotate-15';
-                    if (swipeDirection === 'up') swipeClass = 'transform -translate-y-full';
-                }
-
-                return (
-                    <div 
-                        key={user.id} 
-                        className={`absolute w-full h-full transition-all duration-300 ease-in-out ${swipeClass} ${isTopCard ? 'transform scale-100' : 'transform scale-95 -translate-y-2'}`}
-                    >
-                        <ProfileCard user={user} />
+            {/* Swipeable Card Area */}
+            <div className="relative flex-1 w-full max-w-sm mb-4">
+                {currentUser ? (
+                    <ProfileCard user={currentUser} />
+                ) : (
+                    <div className="flex justify-center items-center h-full">
+                        <p>No more profiles to show.</p>
                     </div>
-                );
-            })
-        ) : (
-            <div className="w-full h-full flex flex-col justify-center items-center text-center p-8 bg-white rounded-2xl shadow-lg">
-                <FlameIcon className="w-16 h-16 text-gray-300 mb-4" />
-                <p className="text-xl font-semibold text-gray-700">That's everyone for now!</p>
-                <p className="text-gray-500 mt-2 mb-6">Check back later to see new profiles.</p>
-                <button onClick={handleRefresh} className="py-3 px-6 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold rounded-full shadow-lg transform hover:scale-105 transition-transform">
-                    Refresh
+                )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-around items-center w-full max-w-sm">
+                <button onClick={handleSwipe} className="w-16 h-16 rounded-full bg-white shadow-lg flex justify-center items-center text-yellow-500">
+                    <XIcon className="w-8 h-8 text-gray-500" />
+                </button>
+                 <button className="w-12 h-12 rounded-full bg-white shadow-lg flex justify-center items-center text-purple-500">
+                    <RocketIcon className="w-6 h-6" />
+                </button>
+                <button onClick={handleSwipe} className="w-20 h-20 rounded-full bg-white shadow-lg flex justify-center items-center text-red-500">
+                    <HeartIcon isLiked={false} className="w-10 h-10" />
+                </button>
+                 <button className="w-12 h-12 rounded-full bg-white shadow-lg flex justify-center items-center text-blue-500">
+                    <StarIcon className="w-6 h-6" />
                 </button>
             </div>
-        )}
-      </div>
-
-      {users.length > 0 && (
-          <div className="flex justify-around items-center w-full max-w-md mx-auto px-4 pb-6 pt-2">
-              <button className="bg-white rounded-full p-3 shadow-lg transform hover:scale-110 transition-transform text-yellow-500">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.5 9.5A8.5 8.5 0 0112 4.055a8.5 8.5 0 019.5 9.5M20 20v-5h-5" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21.5 14.5a8.5 8.5 0 01-9.5 5.445A8.5 8.5 0 012.5 14.5" /></svg>
-              </button>
-              <button onClick={() => handleSwipe('left')} className="bg-white rounded-full p-5 shadow-xl transform hover:scale-110 transition-transform text-error-red">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-              <button onClick={() => handleSwipe('up')} className="bg-white rounded-full p-3 shadow-lg transform hover:scale-110 transition-transform text-blue-500">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-              </button>
-              <button onClick={() => handleSwipe('right')} className="bg-white rounded-full p-5 shadow-xl transform hover:scale-110 transition-transform text-success-green">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
-              </button>
-              <button className="bg-white rounded-full p-3 shadow-lg transform hover:scale-110 transition-transform text-purple-500">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" /></svg>
-              </button>
-          </div>
-      )}
-    </div>
-  );
+        </div>
+    );
 };
 
 export default SwipeScreen;

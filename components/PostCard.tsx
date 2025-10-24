@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Post, User, NotificationType } from '../types';
+// FIX: Added file extension to types import
+import { Post, User, NotificationType } from '../types.ts';
 import { db } from '../firebaseConfig';
 import { doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
-import HeartIcon from './icons/HeartIcon';
-import CommentIcon from './icons/CommentIcon';
-import SendIcon from './icons/SendIcon';
-import MoreHorizontalIcon from './icons/MoreHorizontalIcon';
-import EditPostModal from './EditPostModal';
-import VerifiedIcon from './icons/VerifiedIcon';
+import HeartIcon from './icons/HeartIcon.tsx';
+import CommentIcon from './icons/CommentIcon.tsx';
+import SendIcon from './icons/SendIcon.tsx';
+import MoreHorizontalIcon from './icons/MoreHorizontalIcon.tsx';
+import EditPostModal from './EditPostModal.tsx';
+import VerifiedIcon from './icons/VerifiedIcon.tsx';
 
 const formatTimestamp = (timestamp: any): string => {
     if (!timestamp || !timestamp.toDate) {

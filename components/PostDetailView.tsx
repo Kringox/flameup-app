@@ -1,7 +1,7 @@
-
 import React from 'react';
-import { Post, User } from '../types';
-import PostCard from './PostCard';
+// FIX: Added file extension to types import
+import { Post, User } from '../types.ts';
+import PostCard from './PostCard.tsx';
 
 interface PostDetailViewProps {
   post: Post;
