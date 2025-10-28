@@ -5,7 +5,7 @@ import { User } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 // FIX: Added file extension to icon import
-import CoinIcon from './icons/CoinIcon.tsx';
+import FlameIcon from './icons/FlameIcon.tsx';
 
 interface DailyBonusModalProps {
     onClose: () => void;
@@ -32,20 +32,20 @@ const DailyBonusModal: React.FC<DailyBonusModalProps> = ({ onClose, currentUser,
 
     return (
         <div className="absolute inset-0 bg-black/70 flex justify-center items-center z-[100]" onClick={onClose}>
-            <div className="bg-white rounded-lg w-11/12 max-w-md p-6 text-center" onClick={e => e.stopPropagation()}>
+            <div className="bg-white dark:bg-zinc-800 rounded-lg w-11/12 max-w-md p-6 text-center" onClick={e => e.stopPropagation()}>
                 {!claimed ? (
                     <>
-                        <h2 className="text-2xl font-bold">Daily Bonus!</h2>
-                        <p className="mt-2">Claim your daily bonus of 50 coins!</p>
-                        <CoinIcon className="w-16 h-16 mx-auto my-4 text-yellow-500" />
+                        <h2 className="text-2xl font-bold dark:text-gray-200">Daily Bonus!</h2>
+                        <p className="mt-2 text-gray-600 dark:text-gray-400">Claim your daily bonus of 50 coins!</p>
+                        <FlameIcon isGradient className="w-16 h-16 mx-auto my-4" />
                         <button onClick={handleClaim} className="w-full py-3 bg-green-500 text-white font-bold rounded-lg">
                             Claim 50 Coins
                         </button>
                     </>
                 ) : (
                     <>
-                        <h2 className="text-2xl font-bold">Bonus Claimed!</h2>
-                        <p className="mt-2">You received 50 coins. Come back tomorrow for more!</p>
+                        <h2 className="text-2xl font-bold dark:text-gray-200">Bonus Claimed!</h2>
+                        <p className="mt-2 text-gray-600 dark:text-gray-400">You received 50 coins. Come back tomorrow for more!</p>
                         <button onClick={onClose} className="w-full mt-4 py-3 bg-flame-orange text-white font-bold rounded-lg">
                             Awesome!
                         </button>

@@ -1,5 +1,5 @@
 import React from 'react';
-import CoinIcon from '../components/icons/CoinIcon';
+import FlameIcon from '../components/icons/FlameIcon.tsx';
 
 interface TransactionHistoryScreenProps {
   onClose: () => void;
@@ -15,25 +15,25 @@ const mockTransactions = [
 
 const TransactionHistoryScreen: React.FC<TransactionHistoryScreenProps> = ({ onClose }) => {
   return (
-    <div className="absolute inset-0 bg-gray-100 z-[80] flex flex-col">
-      <header className="flex items-center p-4 border-b bg-white">
-        <button onClick={onClose} className="w-8">
+    <div className="absolute inset-0 bg-gray-100 dark:bg-black z-[80] flex flex-col">
+      <header className="flex items-center p-4 border-b dark:border-gray-800 bg-white dark:bg-zinc-900">
+        <button onClick={onClose} className="w-8 text-dark-gray dark:text-gray-200">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
         </button>
-        <h1 className="text-xl font-bold text-center flex-1">Transaction History</h1>
+        <h1 className="text-xl font-bold text-center flex-1 text-dark-gray dark:text-gray-200">Transaction History</h1>
         <div className="w-8"></div>
       </header>
       <main className="flex-1 p-2 overflow-y-auto">
         {mockTransactions.length > 0 ? (
           mockTransactions.map(tx => (
-            <div key={tx.id} className="flex items-center p-3 bg-white rounded-lg mb-2 shadow-sm">
+            <div key={tx.id} className="flex items-center p-3 bg-white dark:bg-zinc-800 rounded-lg mb-2 shadow-sm">
               <div className="flex-1">
-                <p className="font-semibold">{tx.description}</p>
-                <p className="text-xs text-gray-500">{new Date(tx.date).toLocaleDateString()}</p>
+                <p className="font-semibold dark:text-gray-200">{tx.description}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(tx.date).toLocaleDateString()}</p>
               </div>
-              <div className={`flex items-center font-bold ${tx.amount > 0 ? 'text-green-500' : 'text-gray-700'}`}>
+              <div className={`flex items-center font-bold ${tx.amount > 0 ? 'text-green-500' : 'text-gray-700 dark:text-gray-300'}`}>
                 <span>{tx.amount > 0 ? '+' : ''}{tx.amount}</span>
-                <CoinIcon className="w-4 h-4 ml-1" />
+                <FlameIcon className="w-4 h-4 ml-1" />
               </div>
             </div>
           ))

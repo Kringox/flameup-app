@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 // FIX: Added file extension to types import
 import { Post, User, NotificationType } from '../types.ts';
-import { db } from '../firebaseConfig';
+import { db } from '../firebaseConfig.ts';
 import { doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
 import HeartIcon from './icons/HeartIcon.tsx';
@@ -10,6 +10,7 @@ import SendIcon from './icons/SendIcon.tsx';
 import MoreHorizontalIcon from './icons/MoreHorizontalIcon.tsx';
 import EditPostModal from './EditPostModal.tsx';
 import VerifiedIcon from './icons/VerifiedIcon.tsx';
+import { hapticFeedback } from '../utils/haptics.ts';
 
 const formatTimestamp = (timestamp: any): string => {
     if (!timestamp || !timestamp.toDate) {
@@ -74,6 +75,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
 
   const handleLike = async () => {
     if (!db) return;
+    hapticFeedback('light');
     const postRef = doc(db, 'posts', post.id);
     
     const newLikedState = !isLiked;
@@ -135,11 +137,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
             onSave={handleUpdateCaption}
         />
     )}
-    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden mb-4">
+    <div className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden mb-4">
       <div className="flex items-center justify-between p-3">
         <button onClick={handleProfileClick} disabled={!onViewProfile} className="flex items-center disabled:cursor-default">
             <img className="w-8 h-8 rounded-full object-cover" src={post.user.profilePhoto} alt={post.user.name} />
-            <div className="ml-3 font-semibold text-sm flex items-center space-x-1">
+            <div className="ml-3 font-semibold text-sm flex items-center space-x-1 text-dark-gray dark:text-gray-200">
                 <span>{post.user.name}</span>
                 {post.user.isPremium && <VerifiedIcon />}
             </div>
@@ -150,7 +152,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
                     <MoreHorizontalIcon className="h-5 w-5 text-gray-500" />
                 </button>
                 {showOptions && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-20">
+                    <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-zinc-700 rounded-md shadow-lg z-20">
                         <ul className="py-1">
                             <li>
                                 <button
@@ -158,7 +160,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
                                         setIsEditing(true);
                                         setShowOptions(false);
                                     }}
-                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-600"
                                 >
                                     Edit
                                 </button>
@@ -166,7 +168,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
                             <li>
                                 <button
                                     onClick={handleDelete}
-                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-zinc-600"
                                 >
                                     Delete
                                 </button>
@@ -183,25 +185,25 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
       <div className="p-3">
         <div className="flex space-x-4 mb-2">
             <button onClick={handleLike}>
-                <HeartIcon isLiked={isLiked} />
+                <HeartIcon isLiked={isLiked} className="text-dark-gray dark:text-gray-200" />
             </button>
             <button onClick={() => onOpenComments(post)}>
-                <CommentIcon />
+                <CommentIcon className="text-dark-gray dark:text-gray-200"/>
             </button>
             <button>
-                <SendIcon />
+                <SendIcon className="text-dark-gray dark:text-gray-200"/>
             </button>
         </div>
-        <div className="font-semibold text-sm">{likeCount} likes</div>
-        <p className="text-sm mt-1">
+        <div className="font-semibold text-sm text-dark-gray dark:text-gray-200">{likeCount} likes</div>
+        <p className="text-sm mt-1 text-dark-gray dark:text-gray-200">
           <span className="font-semibold">{post.user.name}</span> {post.caption}
         </p>
          {post.commentCount > 0 && (
-            <button onClick={() => onOpenComments(post)} className="text-sm text-gray-500 mt-1">
+            <button onClick={() => onOpenComments(post)} className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 View all {post.commentCount} comments
             </button>
         )}
-        <div className="text-xs text-gray-500 mt-2 uppercase">{formatTimestamp(post.timestamp)}</div>
+        <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 uppercase">{formatTimestamp(post.timestamp)}</div>
       </div>
     </div>
     </>

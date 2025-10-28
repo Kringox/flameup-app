@@ -12,6 +12,7 @@ export enum NotificationType {
     Comment = 'comment',
     Follow = 'follow',
     Match = 'match',
+    SuperLike = 'superlike',
 }
 
 export interface User {
@@ -34,6 +35,9 @@ export interface User {
   lastDailyBonus?: Timestamp;
   swipedLeft?: string[]; // array of user IDs
   swipedRight?: string[]; // array of user IDs
+  dailySwipesUsed?: number;
+  lastSwipeReset?: Timestamp;
+  boostEndTime?: Timestamp;
 }
 
 export interface Post {

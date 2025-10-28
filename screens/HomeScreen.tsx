@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { db } from '../firebaseConfig';
+import React, { useState, useEffect, useRef } from 'react';
+import { db } from '../firebaseConfig.ts';
 import { collection, query, getDocs, orderBy, where, Timestamp, onSnapshot } from 'firebase/firestore';
 // FIX: Added file extension to types import
 import { Story, Post, User } from '../types.ts';
@@ -12,12 +12,12 @@ import PostCard from '../components/PostCard.tsx';
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
 
 const StoryCircle: React.FC<{ story: Story; onClick: () => void, isOwnStory: boolean, hasUnviewed: boolean }> = ({ story, onClick, isOwnStory, hasUnviewed }) => {
-  const ringClass = hasUnviewed ? 'bg-gradient-to-tr from-orange-400 to-red-500' : 'bg-gray-200';
+  const ringClass = hasUnviewed ? 'bg-gradient-to-tr from-orange-400 to-red-500' : 'bg-gray-200 dark:bg-gray-700';
   
   return (
     <button onClick={onClick} className="flex flex-col items-center space-y-1 flex-shrink-0">
       <div className={`relative w-16 h-16 rounded-full p-0.5 ${ringClass}`}>
-        <div className="w-full h-full bg-white rounded-full p-0.5">
+        <div className="w-full h-full bg-white dark:bg-black rounded-full p-0.5">
           <img
             className="w-full h-full rounded-full object-cover"
             src={story.user.profilePhoto}
@@ -32,7 +32,7 @@ const StoryCircle: React.FC<{ story: Story; onClick: () => void, isOwnStory: boo
           </div>
         )}
       </div>
-      <span className="text-xs text-gray-700 w-16 truncate text-center">{story.user.name}</span>
+      <span className="text-xs text-gray-700 dark:text-gray-300 w-16 truncate text-center">{story.user.name}</span>
     </button>
   );
 };
@@ -50,6 +50,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
   const [isLoading, setIsLoading] = useState(true);
   const [viewingStoryIndex, setViewingStoryIndex] = useState<number | null>(null);
   const [hasNotifications, setHasNotifications] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
       if (!db || !currentUser) {
@@ -139,6 +140,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
     );
   };
   
+  const handleLogoClick = () => {
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    // In a real app, you might also trigger a data refresh here.
+  };
+
   const ownStories = stories.filter(s => s.user.id === currentUser.id);
   const otherStories = stories.filter(s => s.user.id !== currentUser.id);
   const hasUnviewedOwnStory = ownStories.some(s => !s.viewed);
@@ -159,7 +165,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
   }
 
   return (
-    <div className="w-full">
+    <div className="w-full h-full flex flex-col" ref={scrollRef}>
         {viewingStoryIndex !== null && (
             <StoryViewer 
                 stories={viewingStoryIndex === 0 ? ownStories : otherStories.filter((_, i) => i >= viewingStoryIndex - 1)}
@@ -168,14 +174,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
                 onStoryViewed={handleStoryViewed}
             />
         )}
-        <header className="relative flex justify-center items-center p-4 border-b border-gray-200 bg-white sticky top-0 z-10">
+        <header className="relative flex justify-center items-center p-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-black sticky top-0 z-10">
             <button onClick={onOpenNotifications} className="absolute left-4">
                 <BellIcon hasNotification={hasNotifications} />
             </button>
-            <img src="/assets/logo-text.png" alt="FlameUp" className="h-8" />
+            <button onClick={handleLogoClick}>
+                <img src="/assets/logo-text.png" alt="FlameUp" className="h-8 dark:invert" />
+            </button>
         </header>
 
-      <div className="px-4 py-3 border-b border-gray-200 bg-white">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
         <div className="flex space-x-4 overflow-x-auto pb-2">
           {storyListForUI.map((story, index) => (
              <StoryCircle 

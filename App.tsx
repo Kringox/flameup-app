@@ -23,6 +23,8 @@ import UserProfileScreen from './screens/UserProfileScreen.tsx';
 import MatchModal from './components/MatchModal.tsx';
 import InAppNotification from './components/InAppNotification.tsx';
 
+type Theme = 'light' | 'dark' | 'system';
+
 const App: React.FC = () => {
   const [authState, setAuthState] = useState<{
     isLoading: boolean;
@@ -43,6 +45,30 @@ const App: React.FC = () => {
   const [matchNotification, setMatchNotification] = useState<Notification | null>(null);
   const [inAppNotification, setInAppNotification] = useState<any | null>(null);
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
+  const [theme, setTheme] = useState<Theme>((localStorage.getItem('theme') as Theme) || 'system');
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
+
+    const applyTheme = (t: Theme) => {
+      const isDark = t === 'dark' || (t === 'system' && systemTheme.matches);
+      root.classList.toggle('dark', isDark);
+      localStorage.setItem('theme', t);
+    };
+
+    applyTheme(theme);
+
+    const handleSystemThemeChange = (e: MediaQueryListEvent) => {
+        if (theme === 'system') {
+            root.classList.toggle('dark', e.matches);
+        }
+    };
+
+    systemTheme.addEventListener('change', handleSystemThemeChange);
+    return () => systemTheme.removeEventListener('change', handleSystemThemeChange);
+}, [theme]);
+
 
   useEffect(() => {
     if (firebaseInitializationError) {
@@ -167,12 +193,12 @@ const App: React.FC = () => {
     const { currentUser } = authState;
 
     return (
-      <div className="relative w-screen h-screen max-w-md mx-auto flex flex-col bg-gray-50 md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)]">
+      <div className="relative w-screen h-screen max-w-md mx-auto flex flex-col bg-gray-50 dark:bg-black md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)]">
         <main className="flex-1 overflow-y-auto">
           {activeTab === Tab.Home && <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} />}
-          {activeTab === Tab.Swipe && <SwipeScreen currentUser={currentUser} onNewMatch={handleNewMatch} />}
+          {activeTab === Tab.Swipe && <SwipeScreen currentUser={currentUser} onNewMatch={handleNewMatch} onUpdateUser={handleUpdateUser}/>}
           {activeTab === Tab.Chat && <ChatScreen currentUser={currentUser} activeChatPartnerId={activeChatPartnerId} onStartChat={handleStartChat} onCloseChat={() => setActiveChatPartnerId(null)} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} />}
-          {activeTab === Tab.Profile && <ProfileScreen currentUser={currentUser} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} />}
+          {activeTab === Tab.Profile && <ProfileScreen currentUser={currentUser} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} theme={theme} setTheme={setTheme} />}
         </main>
 
         <BottomNav 

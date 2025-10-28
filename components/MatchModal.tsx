@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 // FIX: Added file extension to types import
 import { User } from '../types.ts';
+import { hapticFeedback } from '../utils/haptics.ts';
 
 interface MatchModalProps {
   currentUser: User;
@@ -10,6 +11,10 @@ interface MatchModalProps {
 }
 
 const MatchModal: React.FC<MatchModalProps> = ({ currentUser, matchedUser, onSendMessage, onClose }) => {
+  useEffect(() => {
+    hapticFeedback('success');
+  }, []);
+
   return (
     <div className="absolute inset-0 bg-black/80 z-[100] flex justify-center items-center p-4 animate-fade-in">
        <style>{`

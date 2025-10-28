@@ -46,6 +46,7 @@ const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ user, onSetupCo
         }
       const uploadedUrls = await uploadPhotos(filesToUpload);
 
+      const now = Timestamp.now();
       const newUser: User = {
         id: user.uid,
         email: user.email!,
@@ -62,7 +63,9 @@ const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ user, onSetupCo
         coins: 100, // Welcome bonus
         xp: 0,
         level: 1,
-        createdAt: Timestamp.now(),
+        createdAt: now,
+        dailySwipesUsed: 0,
+        lastSwipeReset: now,
       };
 
       if (!db) {

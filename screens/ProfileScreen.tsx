@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 // FIX: Added file extension to types and other component/screen imports
 import { User, Post } from '../types.ts';
-import { db } from '../firebaseConfig';
+import { db } from '../firebaseConfig.ts';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import SettingsIcon from '../components/icons/SettingsIcon.tsx';
 import EditProfileScreen from './EditProfileScreen.tsx';
@@ -13,18 +13,22 @@ import ImageViewer from '../components/ImageViewer.tsx';
 import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
 
 const THEME_CLASSES: { [key: string]: { bg: string; text: string; subtext: string; border: string; }} = {
-    default: { bg: 'bg-white', text: 'text-dark-gray', subtext: 'text-gray-500', border: 'border-gray-200' },
+    default: { bg: 'bg-white dark:bg-black', text: 'text-dark-gray dark:text-gray-200', subtext: 'text-gray-500 dark:text-gray-400', border: 'border-gray-200 dark:border-gray-800' },
     dusk: { bg: 'bg-theme-dusk-bg', text: 'text-theme-dusk-text', subtext: 'text-gray-400', border: 'border-gray-700' },
     rose: { bg: 'bg-theme-rose-bg', text: 'text-theme-rose-text', subtext: 'text-pink-200', border: 'border-pink-300' },
 }
+
+type Theme = 'light' | 'dark' | 'system';
 
 interface ProfileScreenProps {
   currentUser: User;
   onUpdateUser: (updatedUser: User) => void;
   onViewProfile: (userId: string) => void;
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
 }
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser, onViewProfile }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser, onViewProfile, theme, setTheme }) => {
     const [posts, setPosts] = useState<Post[]>([]);
     const [isEditing, setIsEditing] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -70,24 +74,24 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
         setViewingPost(updatedPost);
     };
     
-    const theme = THEME_CLASSES[currentUser.profileTheme || 'default'] || THEME_CLASSES.default;
+    const themeClasses = THEME_CLASSES[currentUser.profileTheme || 'default'] || THEME_CLASSES.default;
 
     return (
-        <div className={`w-full h-full flex flex-col ${theme.bg}`}>
+        <div className={`w-full h-full flex flex-col ${themeClasses.bg}`}>
             {isEditing && <EditProfileScreen user={currentUser} onSave={handleSaveProfile} onClose={() => setIsEditing(false)} />}
-            {isSettingsOpen && <SettingsScreen user={currentUser} onClose={() => setIsSettingsOpen(false)} onUpdateUser={onUpdateUser} />}
+            {isSettingsOpen && <SettingsScreen user={currentUser} onClose={() => setIsSettingsOpen(false)} onUpdateUser={onUpdateUser} theme={theme} setTheme={setTheme} />}
             {viewingFollowList && <FollowListScreen title={viewingFollowList === 'followers' ? 'Followers' : 'Following'} userIds={currentUser[viewingFollowList]} currentUser={currentUser} onClose={() => setViewingFollowList(null)} onViewProfile={onViewProfile} />}
             {viewingPost && <PostDetailView post={viewingPost} currentUser={currentUser} onClose={() => setViewingPost(null)} onPostDeleted={handlePostDeleted} onPostUpdated={handlePostUpdated} onOpenComments={() => {}} />}
             {isImageViewerOpen && <ImageViewer images={currentUser.profilePhotos} onClose={() => setIsImageViewerOpen(false)} />}
             
-            <header className={`flex justify-between items-center p-4 ${theme.border} border-b`}>
+            <header className={`flex justify-between items-center p-4 ${themeClasses.border} border-b`}>
                 <div className="w-8"></div>
                 <div className={`flex items-center space-x-2`}>
-                    <h1 className={`text-xl font-bold ${theme.text}`}>{currentUser.name}</h1>
+                    <h1 className={`text-xl font-bold ${themeClasses.text}`}>{currentUser.name}</h1>
                     {currentUser.isPremium && <VerifiedIcon />}
                 </div>
                 <button onClick={() => setIsSettingsOpen(true)}>
-                    <SettingsIcon className={`w-6 h-6 ${theme.text}`} />
+                    <SettingsIcon className={`w-6 h-6 ${themeClasses.text}`} />
                 </button>
             </header>
             
@@ -98,30 +102,30 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                     </button>
                     <div className="flex-1 ml-6 flex justify-around text-center">
                         <div>
-                            <p className={`text-xl font-bold ${theme.text}`}>{posts.length}</p>
-                            <p className={`${theme.subtext}`}>Posts</p>
+                            <p className={`text-xl font-bold ${themeClasses.text}`}>{posts.length}</p>
+                            <p className={`${themeClasses.subtext}`}>Posts</p>
                         </div>
                         <button onClick={() => setViewingFollowList('followers')}>
-                            <p className={`text-xl font-bold ${theme.text}`}>{currentUser.followers.length}</p>
-                            <p className={`${theme.subtext}`}>Followers</p>
+                            <p className={`text-xl font-bold ${themeClasses.text}`}>{currentUser.followers.length}</p>
+                            <p className={`${themeClasses.subtext}`}>Followers</p>
                         </button>
                         <button onClick={() => setViewingFollowList('following')}>
-                            <p className={`text-xl font-bold ${theme.text}`}>{currentUser.following.length}</p>
-                            <p className={`${theme.subtext}`}>Following</p>
+                            <p className={`text-xl font-bold ${themeClasses.text}`}>{currentUser.following.length}</p>
+                            <p className={`${themeClasses.subtext}`}>Following</p>
                         </button>
                     </div>
                 </div>
 
                 <div className="mt-4">
-                    <p className={`font-semibold ${theme.text}`}>{currentUser.name}</p>
-                    <p className={`${theme.text} whitespace-pre-wrap`}>{currentUser.bio}</p>
+                    <p className={`font-semibold ${themeClasses.text}`}>{currentUser.name}</p>
+                    <p className={`${themeClasses.text} whitespace-pre-wrap`}>{currentUser.bio}</p>
                 </div>
                 
                  <div className="my-4">
                     <LevelProgressBar xp={currentUser.xp} />
                 </div>
 
-                <button onClick={() => setIsEditing(true)} className={`w-full py-2 ${theme.border} border rounded-lg font-semibold ${theme.text}`}>
+                <button onClick={() => setIsEditing(true)} className={`w-full py-2 ${themeClasses.border} border rounded-lg font-semibold ${themeClasses.text}`}>
                     Edit Profile
                 </button>
                 
