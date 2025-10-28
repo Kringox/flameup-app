@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 // FIX: Added file extension to firebaseConfig import
 import { auth, db, firebaseInitializationError } from './firebaseConfig.ts';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, onSnapshot, getDoc, collection, query, where } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, collection, query, where, Timestamp } from 'firebase/firestore';
 
 // FIX: Added file extension to types import
-import { User, Tab, Post, Notification, Chat } from './types.ts';
+import { User, Tab, Post, Notification, Chat, NotificationType } from './types.ts';
 
 // FIX: Added file extension to screen and component imports
 import AuthScreen from './screens/AuthScreen.tsx';
@@ -126,6 +126,23 @@ const App: React.FC = () => {
       }
   };
 
+  const handleNewMatch = (matchedUser: User) => {
+    // This function is called from SwipeScreen to show the match modal immediately
+    if (!authState.currentUser) return;
+    const pseudoNotification: Notification = {
+      id: `match-${matchedUser.id}-${Date.now()}`,
+      type: NotificationType.Match,
+      fromUser: {
+        id: matchedUser.id,
+        name: matchedUser.name,
+        profilePhoto: matchedUser.profilePhotos[0],
+      },
+      read: true,
+      timestamp: Timestamp.now(),
+    };
+    setMatchNotification(pseudoNotification);
+  };
+
   const renderContent = () => {
     if (authState.isLoading) {
       return <LoadingScreen />;
@@ -153,7 +170,7 @@ const App: React.FC = () => {
       <div className="relative w-screen h-screen max-w-md mx-auto flex flex-col bg-gray-50 md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)]">
         <main className="flex-1 overflow-y-auto">
           {activeTab === Tab.Home && <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} />}
-          {activeTab === Tab.Swipe && <SwipeScreen />}
+          {activeTab === Tab.Swipe && <SwipeScreen currentUser={currentUser} onNewMatch={handleNewMatch} />}
           {activeTab === Tab.Chat && <ChatScreen currentUser={currentUser} activeChatPartnerId={activeChatPartnerId} onStartChat={handleStartChat} onCloseChat={() => setActiveChatPartnerId(null)} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} />}
           {activeTab === Tab.Profile && <ProfileScreen currentUser={currentUser} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} />}
         </main>

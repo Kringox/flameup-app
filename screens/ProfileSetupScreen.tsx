@@ -57,6 +57,8 @@ const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ user, onSetupCo
         interests,
         followers: [],
         following: [],
+        swipedLeft: [],
+        swipedRight: [],
         coins: 100, // Welcome bonus
         xp: 0,
         level: 1,

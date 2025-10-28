@@ -32,6 +32,8 @@ export interface User {
   isPremium?: boolean;
   profileTheme?: 'default' | 'dusk' | 'rose';
   lastDailyBonus?: Timestamp;
+  swipedLeft?: string[]; // array of user IDs
+  swipedRight?: string[]; // array of user IDs
 }
 
 export interface Post {

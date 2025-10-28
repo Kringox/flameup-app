@@ -1,6 +1,6 @@
 
 import React from 'react';
-import FlameIcon from './icons/FlameIcon';
+import FlameIcon from './icons/FlameIcon.tsx';
 
 const FlameLoader: React.FC<{ size?: 'sm' | 'md' | 'lg' }> = ({ size = 'md' }) => {
   const sizeClasses = {
