@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 // FIX: Added file extension to firebaseConfig import
 import { auth, db, firebaseInitializationError } from './firebaseConfig.ts';
@@ -17,6 +18,7 @@ import SwipeScreen from './screens/SwipeScreen.tsx';
 import ChatScreen from './screens/ChatScreen.tsx';
 import ProfileScreen from './screens/ProfileScreen.tsx';
 import CreateScreen from './screens/CreateScreen.tsx';
+// FIX: Add file extension to CommentScreen import to resolve module not found error.
 import CommentScreen from './screens/CommentScreen.tsx';
 import NotificationsScreen from './screens/NotificationsScreen.tsx';
 import UserProfileScreen from './screens/UserProfileScreen.tsx';

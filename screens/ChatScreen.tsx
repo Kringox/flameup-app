@@ -3,7 +3,7 @@ import { db } from '../firebaseConfig';
 import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
 // FIX: Added file extension to types import
 import { Chat, User } from '../types.ts';
-// FIX: Added file extension to ConversationScreen import
+// FIX: Add file extension to ConversationScreen import to resolve module not found error.
 import ConversationScreen from './ConversationScreen.tsx';
 
 const formatTimestamp = (timestamp: Timestamp | undefined): string => {

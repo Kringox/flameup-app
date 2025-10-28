@@ -1,240 +1,186 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db } from '../firebaseConfig.ts';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, setDoc, increment, writeBatch } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, writeBatch, increment } from 'firebase/firestore';
 // FIX: Added file extension to types import
 import { User, Message, Chat } from '../types.ts';
-// FIX: Added file extension to icon imports
+// FIX: Added file extensions to icon imports
 import MoreVerticalIcon from '../components/icons/MoreVerticalIcon.tsx';
 import GiftIcon from '../components/icons/GiftIcon.tsx';
-import GiftModal from '../components/GiftModal.tsx';
-import ChatOptionsModal from '../components/ChatOptionsModal.tsx';
-import ReportModal from '../components/ReportModal.tsx';
-import { hapticFeedback } from '../utils/haptics.ts';
+
+const MessageBubble: React.FC<{ message: Message, isOwnMessage: boolean }> = ({ message, isOwnMessage }) => {
+    const bubbleClass = isOwnMessage ? 'bg-flame-orange text-white self-end rounded-br-none' : 'bg-gray-200 text-dark-gray self-start rounded-bl-none';
+    return (
+        <div className={`p-3 rounded-2xl max-w-xs md:max-w-md ${bubbleClass}`}>
+            {message.text}
+        </div>
+    );
+};
 
 interface ConversationScreenProps {
-  currentUser: User;
-  partnerId: string;
-  onClose: () => void;
-  onUpdateUser: (user: User) => void;
-  onViewProfile: (userId: string) => void;
+    currentUser: User;
+    partnerId: string;
+    onClose: () => void;
+    onUpdateUser: (user: User) => void;
+    onViewProfile: (userId: string) => void;
 }
 
 const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, partnerId, onClose, onUpdateUser, onViewProfile }) => {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [partner, setPartner] = useState<User | null>(null);
-  const [chatId, setChatId] = useState<string | null>(null);
-  const [isGiftModalOpen, setIsGiftModalOpen] = useState(false);
-  const [isOptionsModalOpen, setIsOptionsModalOpen] = useState(false);
-  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [newMessage, setNewMessage] = useState('');
+    const [chatId, setChatId] = useState<string | null>(null);
+    const [partner, setPartner] = useState<User | null>(null);
+    const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    const fetchPartnerData = async () => {
-      if (!db) return;
-      const userDoc = await getDoc(doc(db, 'users', partnerId));
-      if (userDoc.exists()) {
-        setPartner({ id: userDoc.id, ...userDoc.data() } as User);
-      }
-    };
-    fetchPartnerData();
-  }, [partnerId]);
-
-  useEffect(() => {
-    if (!db || !partner) return;
+    useEffect(() => {
+        if (!db) return;
+        const fetchPartnerData = async () => {
+            const partnerRef = doc(db, 'users', partnerId);
+            const docSnap = await getDoc(partnerRef);
+            if (docSnap.exists()) {
+                setPartner({ id: docSnap.id, ...docSnap.data() } as User);
+            }
+        };
+        fetchPartnerData();
+    }, [partnerId]);
     
-    const sortedIds = [currentUser.id, partner.id].sort();
-    const generatedChatId = sortedIds.join('_');
-    setChatId(generatedChatId);
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
 
-    // Mark messages as read for the current user
-    const chatRef = doc(db, 'chats', generatedChatId);
-    getDoc(chatRef).then(docSnap => {
-        if (docSnap.exists() && (docSnap.data().unreadCount?.[currentUser.id] || 0) > 0) {
-            updateDoc(chatRef, {
-                [`unreadCount.${currentUser.id}`]: 0
-            });
+    useEffect(() => {
+        if (!db) return;
+        const userIds = [currentUser.id, partnerId].sort();
+        const chatsRef = collection(db, 'chats');
+        const q = query(chatsRef, where('userIds', '==', userIds));
+        
+        const unsubscribe = onSnapshot(q, async (snapshot) => {
+            if (!snapshot.empty) {
+                const chatDoc = snapshot.docs[0];
+                const foundChatId = chatDoc.id;
+                setChatId(foundChatId);
+
+                // Mark messages as read
+                const chatData = chatDoc.data() as Chat;
+                if ((chatData.unreadCount?.[currentUser.id] || 0) > 0) {
+                    await updateDoc(doc(db, 'chats', foundChatId), {
+                        [`unreadCount.${currentUser.id}`]: 0
+                    });
+                }
+            }
+        });
+        return () => unsubscribe();
+    }, [currentUser.id, partnerId]);
+
+    useEffect(() => {
+        if (!chatId || !db) return;
+        const messagesQuery = query(collection(db, 'chats', chatId, 'messages'), orderBy('timestamp', 'asc'));
+        const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+            const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+            setMessages(msgs);
+        });
+        return () => unsubscribe();
+    }, [chatId]);
+
+    const handleSendMessage = async () => {
+        if (newMessage.trim() === '' || !db || !partner) return;
+
+        const text = newMessage.trim();
+        setNewMessage('');
+
+        try {
+            const userIds = [currentUser.id, partnerId].sort();
+            let currentChatId = chatId;
+            const batch = writeBatch(db);
+
+            // If chat doesn't exist, create it
+            if (!currentChatId) {
+                const newChatRef = doc(collection(db, 'chats'));
+                batch.set(newChatRef, {
+                    userIds,
+                    users: {
+                        [currentUser.id]: { name: currentUser.name, profilePhoto: currentUser.profilePhotos[0] },
+                        [partner.id]: { name: partner.name, profilePhoto: partner.profilePhotos[0] }
+                    },
+                    unreadCount: { [currentUser.id]: 0, [partner.id]: 1 },
+                    lastMessage: { text, senderId: currentUser.id, timestamp: serverTimestamp() }
+                });
+                currentChatId = newChatRef.id;
+                setChatId(currentChatId);
+
+                const messageRef = doc(collection(db, 'chats', currentChatId, 'messages'));
+                batch.set(messageRef, {
+                    chatId: currentChatId,
+                    senderId: currentUser.id,
+                    text,
+                    timestamp: serverTimestamp()
+                });
+            } else {
+                 // Add new message
+                const messageRef = doc(collection(db, 'chats', currentChatId, 'messages'));
+                batch.set(messageRef, {
+                    chatId: currentChatId,
+                    senderId: currentUser.id,
+                    text,
+                    timestamp: serverTimestamp()
+                });
+
+                // Update last message and unread count on chat document
+                const chatRef = doc(db, 'chats', currentChatId);
+                batch.update(chatRef, {
+                    lastMessage: { text, senderId: currentUser.id, timestamp: serverTimestamp() },
+                    [`unreadCount.${partnerId}`]: increment(1)
+                });
+            }
+
+            await batch.commit();
+
+        } catch (error) {
+            console.error("Error sending message:", error);
         }
-    });
-
-    const messagesRef = collection(db, 'chats', generatedChatId, 'messages');
-    const q = query(messagesRef, orderBy('timestamp', 'asc'));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const messageList = snapshot.docs.map(doc => ({ id: doc.id, chatId: generatedChatId, ...doc.data() } as Message));
-      setMessages(messageList);
-    }, (error) => {
-      console.error("Failed to fetch messages:", error);
-    });
-
-    return () => unsubscribe();
-  }, [currentUser.id, partner]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const sendMessage = async (messageText: string) => {
-    if (!db || !chatId || !partner) return;
-    hapticFeedback('light');
-    
-    const chatRef = doc(db, 'chats', chatId);
-    const newMessageRef = doc(collection(db, 'chats', chatId, 'messages'));
-    const batch = writeBatch(db);
-
-    batch.set(newMessageRef, {
-      senderId: currentUser.id,
-      text: messageText,
-      timestamp: serverTimestamp(),
-    });
-
-    const chatDoc = await getDoc(chatRef);
-    const lastMessageData = {
-        text: messageText,
-        senderId: currentUser.id,
-        timestamp: serverTimestamp(),
     };
 
-    if (!chatDoc.exists()) {
-        batch.set(chatRef, {
-            userIds: [currentUser.id, partner.id],
-            users: {
-                [currentUser.id]: { name: currentUser.name, profilePhoto: currentUser.profilePhotos[0] },
-                [partner.id]: { name: partner.name, profilePhoto: partner.profilePhotos[0] },
-            },
-            lastMessage: lastMessageData,
-            unreadCount: { [currentUser.id]: 0, [partner.id]: 1 }
-        });
-    } else {
-        batch.update(chatRef, {
-            lastMessage: lastMessageData,
-            [`unreadCount.${partnerId}`]: increment(1),
-        });
-    }
-    
-    await batch.commit();
-  };
-
-  const handleSendMessage = async () => {
-    if (newMessage.trim() === '') return;
-    const tempMessage = newMessage;
-    setNewMessage('');
-    await sendMessage(tempMessage);
-  };
-  
-  const handleSendGift = async (gift: { name: string; icon: string; cost: number }) => {
-    if (!db || !currentUser || !partner || !chatId) return;
-    if (currentUser.coins < gift.cost) {
-        alert("You don't have enough coins!");
-        return;
+    if (!partner) {
+        return <div className="absolute inset-0 bg-white z-50 flex justify-center items-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div></div>;
     }
 
-    const newCoinTotal = currentUser.coins - gift.cost;
-    const giftMessage = `Sent you a ${gift.name} ${gift.icon}`;
+    return (
+        <div className="absolute inset-0 bg-white z-50 flex flex-col">
+            <header className="flex items-center p-3 border-b border-gray-200">
+                <button onClick={onClose} className="w-8">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <button onClick={() => onViewProfile(partner.id)} className="flex-1 flex items-center min-w-0">
+                    <img src={partner.profilePhotos[0]} alt={partner.name} className="w-10 h-10 rounded-full" />
+                    <span className="font-bold ml-3 truncate">{partner.name}</span>
+                </button>
+                <button className="w-8">
+                    <MoreVerticalIcon />
+                </button>
+            </header>
 
-    onUpdateUser({ ...currentUser, coins: newCoinTotal });
-    setIsGiftModalOpen(false);
-
-    try {
-        const userRef = doc(db, 'users', currentUser.id);
-        await updateDoc(userRef, { coins: newCoinTotal });
-        await sendMessage(giftMessage);
-    } catch (error) {
-        console.error("Failed to send gift:", error);
-        onUpdateUser(currentUser); // Revert optimistic update on failure
-        alert("Failed to send gift. Please try again.");
-    }
-  };
-  
-  const handleReportSubmit = (reason: string, details: string) => {
-    console.log("Reporting user:", partner?.id, { reason, details });
-    alert("Report submitted. Thank you for helping keep our community safe.");
-    setIsReportModalOpen(false);
-  };
-
-
-  if (!partner) {
-    return <div className="absolute inset-0 bg-white z-40 flex justify-center items-center">Loading...</div>;
-  }
-
-  return (
-    <>
-    {isGiftModalOpen && (
-        <GiftModal
-            currentUser={currentUser}
-            onClose={() => setIsGiftModalOpen(false)}
-            onSendGift={handleSendGift}
-        />
-    )}
-    {isOptionsModalOpen && (
-        <ChatOptionsModal
-            onClose={() => setIsOptionsModalOpen(false)}
-            onViewProfile={() => {
-                onViewProfile(partner.id);
-                setIsOptionsModalOpen(false);
-            }}
-            onReport={() => {
-                setIsReportModalOpen(true);
-                setIsOptionsModalOpen(false);
-            }}
-            onBlock={() => {
-                alert("This feature is coming soon!");
-                setIsOptionsModalOpen(false);
-            }}
-        />
-    )}
-     {isReportModalOpen && (
-        <ReportModal 
-            reportedUser={partner}
-            onClose={() => setIsReportModalOpen(false)}
-            onSubmit={handleReportSubmit}
-        />
-     )}
-    <div className="absolute inset-0 bg-white dark:bg-black z-40 flex flex-col">
-      <header className="flex items-center p-3 border-b border-gray-200 dark:border-gray-800 sticky top-0 bg-white dark:bg-black">
-        <button onClick={onClose} className="dark:text-gray-200">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-        </button>
-        <button onClick={() => onViewProfile(partner.id)} className="flex items-center ml-2">
-            <img src={partner.profilePhotos[0]} alt={partner.name} className="w-10 h-10 rounded-full object-cover" />
-            <span className="font-bold ml-3 dark:text-gray-200">{partner.name}</span>
-        </button>
-        <div className="flex-grow" />
-        <button onClick={() => setIsOptionsModalOpen(true)} className="dark:text-gray-200"><MoreVerticalIcon /></button>
-      </header>
-      
-      <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-zinc-900">
-        {messages.map((msg) => (
-          <div key={msg.id} className={`flex mb-4 ${msg.senderId === currentUser.id ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-xs px-4 py-2 rounded-2xl ${msg.senderId === currentUser.id ? 'bg-flame-orange text-white' : 'bg-gray-200 dark:bg-zinc-700 dark:text-gray-200'}`}>
-              <p>{msg.text}</p>
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col space-y-4">
+                {messages.map(msg => <MessageBubble key={msg.id} message={msg} isOwnMessage={msg.senderId === currentUser.id} />)}
+                <div ref={messagesEndRef} />
             </div>
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
 
-      <footer className="p-2 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
-        <div className="flex items-center space-x-2">
-          <button onClick={() => setIsGiftModalOpen(true)} className="p-2 text-gray-500 hover:text-flame-orange dark:text-gray-400">
-            <GiftIcon />
-          </button>
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type a message..."
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-flame-orange bg-transparent dark:text-gray-200 dark:border-gray-600"
-            onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-          />
-          <button onClick={handleSendMessage} className="text-flame-orange font-semibold disabled:opacity-50" disabled={!newMessage.trim()}>
-            Send
-          </button>
+            <div className="p-2 border-t border-gray-200 flex items-center space-x-2">
+                <button className="p-2 text-gray-500">
+                    <GiftIcon className="w-6 h-6" />
+                </button>
+                <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Type a message..."
+                    className="flex-1 p-2 bg-gray-100 rounded-full focus:outline-none px-4"
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                />
+                <button onClick={handleSendMessage} disabled={!newMessage.trim()} className="font-bold text-flame-orange disabled:opacity-50">
+                    Send
+                </button>
+            </div>
         </div>
-      </footer>
-    </div>
-    </>
-  );
+    );
 };
 
 export default ConversationScreen;
