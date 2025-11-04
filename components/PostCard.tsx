@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 // FIX: Added file extension to types import
 import { Post, User, NotificationType } from '../types.ts';
@@ -36,19 +37,26 @@ interface PostCardProps {
   onPostUpdated?: (post: Post) => void;
   onOpenComments: (post: Post) => void;
   onViewProfile?: (userId: string) => void;
+  onUpdateUser: (user: User) => void;
 }
 
-const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, onPostUpdated, onOpenComments, onViewProfile }) => {
+const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, onPostUpdated, onOpenComments, onViewProfile, onUpdateUser }) => {
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [showOptions, setShowOptions] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isAnimatingLike, setIsAnimatingLike] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(currentUser.following.includes(post.user.id));
+  const [isFollowLoading, setIsFollowLoading] = useState(false);
 
   useEffect(() => {
     setIsLiked(post.likedBy.includes(currentUser.id));
     setLikeCount(post.likedBy.length);
   }, [post.likedBy, currentUser.id]);
+  
+  useEffect(() => {
+    setIsFollowing(currentUser.following.includes(post.user.id));
+  }, [currentUser.following, post.user.id]);
   
   const createNotification = async (type: NotificationType) => {
       if (!db || post.userId === currentUser.id) return; // Don't notify yourself
@@ -72,6 +80,38 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
       } catch (error) {
           console.error("Error creating notification:", error);
       }
+  };
+  
+  const handleFollow = async () => {
+    if (!db || isFollowLoading) return;
+    setIsFollowLoading(true);
+
+    const currentUserRef = doc(db, 'users', currentUser.id);
+
+    try {
+        await updateDoc(currentUserRef, {
+            following: arrayUnion(post.user.id)
+        });
+
+        const notificationsRef = collection(db, 'users', post.user.id, 'notifications');
+        await addDoc(notificationsRef, {
+            type: NotificationType.Follow,
+            fromUser: {
+                id: currentUser.id, name: currentUser.name, profilePhoto: currentUser.profilePhotos?.[0] || ''
+            },
+            read: false,
+            timestamp: serverTimestamp(),
+        });
+
+        setIsFollowing(true);
+        const updatedFollowingList = [...currentUser.following, post.user.id];
+        onUpdateUser({ ...currentUser, following: updatedFollowingList });
+
+    } catch (error) {
+        console.error("Error following user:", error);
+    } finally {
+        setIsFollowLoading(false);
+    }
   };
 
   const handleLike = async () => {
@@ -134,10 +174,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
   };
 
   const isOwnPost = post.userId === currentUser.id;
-  const heartIconClass = isLiked 
-      ? "text-red-500" 
-      : "text-dark-gray dark:text-gray-200 hover:text-red-500";
-  const iconClass = "text-dark-gray dark:text-gray-200 hover:text-gray-500 dark:hover:text-gray-400";
+  const heartIconClass = `w-6 h-6 ${isLiked ? "text-red-500" : "text-dark-gray dark:text-gray-200 hover:text-red-500"}`;
+  const iconClass = "w-6 h-6 text-dark-gray dark:text-gray-200 hover:text-gray-500 dark:hover:text-gray-400";
 
 
   return (
@@ -153,9 +191,17 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
       <div className="flex items-center justify-between p-3">
         <button onClick={handleProfileClick} disabled={!onViewProfile} className="flex items-center disabled:cursor-default">
             <img className="w-8 h-8 rounded-full object-cover" src={post.user.profilePhoto} alt={post.user.name} />
-            <div className="ml-3 font-semibold text-sm flex items-center space-x-1 text-dark-gray dark:text-gray-200">
+            <div className="ml-3 font-semibold text-sm flex items-center space-x-2 text-dark-gray dark:text-gray-200">
                 <span>{post.user.name}</span>
                 {post.user.isPremium && <VerifiedIcon />}
+                {!isOwnPost && !isFollowing && (
+                    <>
+                        <span className="text-gray-400 font-bold">·</span>
+                        <button onClick={handleFollow} disabled={isFollowLoading} className="font-bold text-blue-500 hover:text-blue-700 text-sm disabled:opacity-50">
+                            Follow
+                        </button>
+                    </>
+                )}
             </div>
         </button>
         {isOwnPost && (

@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebaseConfig';
 // FIX: Import 'limit' from 'firebase/firestore' to resolve 'Cannot find name' error.
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, writeBatch, increment, arrayUnion, getDocs, limit, setDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, writeBatch, increment, arrayUnion, getDocs, limit, setDoc, Timestamp } from 'firebase/firestore';
 // FIX: Added file extension to types import
 import { User, Message, Chat, Gift } from '../types.ts';
 // FIX: Added file extensions to icon imports
@@ -120,7 +121,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         if (!partner) throw new Error("Partner data not available");
 
         // Create new chat
-        const newChatRef = await addDoc(collection(db, 'chats'), {
+        const newChatData: Omit<Chat, 'id'> = {
             userIds,
             users: {
                 [currentUser.id]: { name: currentUser.name, profilePhoto: currentUser.profilePhotos[0] },
@@ -128,7 +129,9 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             },
             unreadCount: { [currentUser.id]: 0, [partner.id]: 0 },
             deletedFor: [],
-        });
+        };
+        const newChatRef = doc(collection(db, 'chats'));
+        await setDoc(newChatRef, newChatData);
         setChatId(newChatRef.id);
         return newChatRef.id;
     };
@@ -142,9 +145,20 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
         try {
             const currentChatId = await getOrCreateChat();
+
+            // Optimistic UI update
+            const tempMessage: Message = {
+                id: `temp-${Date.now()}`,
+                chatId: currentChatId,
+                senderId: currentUser.id,
+                text,
+                timestamp: Timestamp.now(),
+            };
+            setMessages(prev => [...prev, tempMessage]);
             
             // First, add the message document
-            await addDoc(collection(db, 'chats', currentChatId, 'messages'), {
+            const messageRef = collection(db, 'chats', currentChatId, 'messages');
+            await addDoc(messageRef, {
                 chatId: currentChatId,
                 senderId: currentUser.id,
                 text,
@@ -161,6 +175,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         } catch (error) {
             console.error("Error sending message:", error);
             setNewMessage(text); // Restore message on error
+            setMessages(prev => prev.filter(m => !m.id.startsWith('temp-'))); // Remove optimistic message
         } finally {
             setIsSending(false);
         }
