@@ -1,14 +1,14 @@
-
 import React from 'react';
 
 interface HeartIconProps extends React.SVGProps<SVGSVGElement> {
     isLiked: boolean;
 }
 
-const HeartIcon: React.FC<HeartIconProps> = ({ isLiked, ...props }) => {
+const HeartIcon: React.FC<HeartIconProps> = ({ isLiked, className, ...props }) => {
     return (
         <svg
             xmlns="http://www.w3.org/2000/svg"
+            className={className}
             fill={isLiked ? "currentColor" : "none"}
             viewBox="0 0 24 24"
             stroke="currentColor"

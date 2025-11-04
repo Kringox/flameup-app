@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 // FIX: Added file extension to types import
 import { Post, User, NotificationType } from '../types.ts';
@@ -174,9 +173,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
   };
 
   const isOwnPost = post.userId === currentUser.id;
-  const heartIconClass = `w-6 h-6 ${isLiked ? "text-red-500" : "text-dark-gray dark:text-gray-200 hover:text-red-500"}`;
-  const iconClass = "w-6 h-6 text-dark-gray dark:text-gray-200 hover:text-gray-500 dark:hover:text-gray-400";
-
 
   return (
     <>
@@ -243,13 +239,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
       <div className="p-3">
         <div className="flex space-x-4 mb-2">
             <button onClick={handleLike} className={`cursor-pointer transition-transform duration-200 ${isAnimatingLike ? 'animate-like-pop' : ''}`}>
-                <HeartIcon isLiked={isLiked} className={heartIconClass} />
+                <HeartIcon isLiked={isLiked} className={`w-6 h-6 ${isLiked ? "text-red-500" : "text-dark-gray dark:text-gray-200 hover:text-red-500"}`} />
             </button>
             <button onClick={() => onOpenComments(post)} className="cursor-pointer transition-transform hover:scale-110">
-                <CommentIcon className={iconClass}/>
+                <CommentIcon className="w-6 h-6 text-dark-gray dark:text-gray-200 hover:text-gray-500 dark:hover:text-gray-400"/>
             </button>
             <button className="cursor-pointer transition-transform hover:scale-110">
-                <SendIcon className={iconClass}/>
+                <SendIcon className="w-6 h-6 text-dark-gray dark:text-gray-200 hover:text-gray-500 dark:hover:text-gray-400"/>
             </button>
         </div>
         <div className="font-semibold text-sm text-dark-gray dark:text-gray-200">{likeCount} likes</div>

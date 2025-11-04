@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebaseConfig';
 // FIX: Import 'limit' from 'firebase/firestore' to resolve 'Cannot find name' error.
@@ -143,39 +142,46 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         const text = newMessage.trim();
         setNewMessage('');
 
-        try {
-            const currentChatId = await getOrCreateChat();
+        const currentChatId = await getOrCreateChat();
 
-            // Optimistic UI update
-            const tempMessage: Message = {
-                id: `temp-${Date.now()}`,
-                chatId: currentChatId,
-                senderId: currentUser.id,
-                text,
-                timestamp: Timestamp.now(),
-            };
-            setMessages(prev => [...prev, tempMessage]);
-            
-            // First, add the message document
+        // Optimistic UI update: Show the message immediately.
+        const tempMessage: Message = {
+            id: `temp-${Date.now()}`,
+            chatId: currentChatId,
+            senderId: currentUser.id,
+            text,
+            timestamp: Timestamp.now(), // Use local time for now
+        };
+        setMessages(prev => [...prev, tempMessage]);
+
+        try {
+            // The onSnapshot listener will replace the temp message with the real one from the server.
             const messageRef = collection(db, 'chats', currentChatId, 'messages');
-            await addDoc(messageRef, {
+            const messagePayload = {
                 chatId: currentChatId,
                 senderId: currentUser.id,
                 text,
                 timestamp: serverTimestamp()
-            });
-
-            // Then, update the parent chat document
+            };
+            
             const chatRef = doc(db, 'chats', currentChatId);
-            await updateDoc(chatRef, {
+            const chatPayload = {
                 lastMessage: { text, senderId: currentUser.id, timestamp: serverTimestamp() },
                 [`unreadCount.${partnerId}`]: increment(1)
-            });
+            };
+
+            // Run writes in parallel
+            await Promise.all([
+                addDoc(messageRef, messagePayload),
+                updateDoc(chatRef, chatPayload)
+            ]);
 
         } catch (error) {
             console.error("Error sending message:", error);
-            setNewMessage(text); // Restore message on error
-            setMessages(prev => prev.filter(m => !m.id.startsWith('temp-'))); // Remove optimistic message
+            // If sending fails, remove the optimistic message and restore the input.
+            setNewMessage(text);
+            setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
+            alert("Failed to send message.");
         } finally {
             setIsSending(false);
         }

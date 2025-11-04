@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 // FIX: Added file extension to firebaseConfig import
 import { auth, db, firebaseInitializationError } from './firebaseConfig.ts';
