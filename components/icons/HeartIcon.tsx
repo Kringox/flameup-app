@@ -5,17 +5,13 @@ interface HeartIconProps extends React.SVGProps<SVGSVGElement> {
 }
 
 const HeartIcon: React.FC<HeartIconProps> = ({ isLiked, ...props }) => {
-    const fillClass = isLiked ? "currentColor" : "none";
-    const strokeClass = isLiked ? "none" : "currentColor";
-    const colorClass = isLiked ? "text-red-500" : "text-gray-800";
-
     return (
         <svg
             xmlns="http://www.w3.org/2000/svg"
-            className={`h-6 w-6 cursor-pointer hover:text-red-500 transition-colors ${colorClass}`}
-            fill={fillClass}
+            className="h-6 w-6" // Nur die Größe wird intern definiert
+            fill={isLiked ? "currentColor" : "none"}
             viewBox="0 0 24 24"
-            stroke={strokeClass}
+            stroke="currentColor"
             strokeWidth={2}
             {...props}
         >

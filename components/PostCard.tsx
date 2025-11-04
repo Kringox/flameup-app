@@ -134,6 +134,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
   };
 
   const isOwnPost = post.userId === currentUser.id;
+  const heartIconClass = isLiked 
+      ? "text-red-500" 
+      : "text-dark-gray dark:text-gray-200 hover:text-red-500";
+  const iconClass = "text-dark-gray dark:text-gray-200 hover:text-gray-500 dark:hover:text-gray-400";
+
 
   return (
     <>
@@ -191,14 +196,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
       
       <div className="p-3">
         <div className="flex space-x-4 mb-2">
-            <button onClick={handleLike} className={`transition-transform duration-200 ${isAnimatingLike ? 'animate-like-pop' : ''}`}>
-                <HeartIcon isLiked={isLiked} className="text-dark-gray dark:text-gray-200" />
+            <button onClick={handleLike} className={`cursor-pointer transition-transform duration-200 ${isAnimatingLike ? 'animate-like-pop' : ''}`}>
+                <HeartIcon isLiked={isLiked} className={heartIconClass} />
             </button>
-            <button onClick={() => onOpenComments(post)} className="transition-transform hover:scale-110">
-                <CommentIcon className="text-dark-gray dark:text-gray-200"/>
+            <button onClick={() => onOpenComments(post)} className="cursor-pointer transition-transform hover:scale-110">
+                <CommentIcon className={iconClass}/>
             </button>
-            <button className="transition-transform hover:scale-110">
-                <SendIcon className="text-dark-gray dark:text-gray-200"/>
+            <button className="cursor-pointer transition-transform hover:scale-110">
+                <SendIcon className={iconClass}/>
             </button>
         </div>
         <div className="font-semibold text-sm text-dark-gray dark:text-gray-200">{likeCount} likes</div>
