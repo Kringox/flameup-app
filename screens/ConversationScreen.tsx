@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, writeBatch, increment, arrayUnion } from 'firebase/firestore';
+// FIX: Import 'limit' from 'firebase/firestore' to resolve 'Cannot find name' error.
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, writeBatch, increment, arrayUnion, getDocs, limit, setDoc } from 'firebase/firestore';
 // FIX: Added file extension to types import
 import { User, Message, Chat, Gift } from '../types.ts';
 // FIX: Added file extensions to icon imports
@@ -102,6 +103,36 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         return () => unsubscribe();
     }, [chatId]);
 
+    const getOrCreateChat = async (): Promise<string> => {
+        if (chatId) return chatId;
+
+        // Check if chat exists again to prevent race conditions
+        const userIds = [currentUser.id, partnerId].sort();
+        const chatsRef = collection(db, 'chats');
+        const q = query(chatsRef, where('userIds', '==', userIds), limit(1));
+        const existingChatSnapshot = await getDocs(q);
+        if (!existingChatSnapshot.empty) {
+            const existingChatId = existingChatSnapshot.docs[0].id;
+            setChatId(existingChatId);
+            return existingChatId;
+        }
+        
+        if (!partner) throw new Error("Partner data not available");
+
+        // Create new chat
+        const newChatRef = await addDoc(collection(db, 'chats'), {
+            userIds,
+            users: {
+                [currentUser.id]: { name: currentUser.name, profilePhoto: currentUser.profilePhotos[0] },
+                [partner.id]: { name: partner.name, profilePhoto: partner.profilePhotos[0] }
+            },
+            unreadCount: { [currentUser.id]: 0, [partner.id]: 0 },
+            deletedFor: [],
+        });
+        setChatId(newChatRef.id);
+        return newChatRef.id;
+    };
+
     const handleSendMessage = async () => {
         if (newMessage.trim() === '' || !db || !partner || isSending) return;
 
@@ -110,79 +141,68 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         setNewMessage('');
 
         try {
-            const userIds = [currentUser.id, partnerId].sort();
-            let currentChatId = chatId;
-            const batch = writeBatch(db);
-
-            if (!currentChatId) {
-                const newChatRef = doc(collection(db, 'chats'));
-                batch.set(newChatRef, {
-                    userIds,
-                    users: {
-                        [currentUser.id]: { name: currentUser.name, profilePhoto: currentUser.profilePhotos[0] },
-                        [partner.id]: { name: partner.name, profilePhoto: partner.profilePhotos[0] }
-                    },
-                    unreadCount: { [currentUser.id]: 0, [partner.id]: 1 },
-                    lastMessage: { text, senderId: currentUser.id, timestamp: serverTimestamp() }
-                });
-                currentChatId = newChatRef.id;
-                setChatId(currentChatId); // Set the chat ID for the message listener to pick up
-            }
-
-            const messageRef = doc(collection(db, 'chats', currentChatId, 'messages'));
-            batch.set(messageRef, {
+            const currentChatId = await getOrCreateChat();
+            
+            // First, add the message document
+            await addDoc(collection(db, 'chats', currentChatId, 'messages'), {
                 chatId: currentChatId,
                 senderId: currentUser.id,
                 text,
                 timestamp: serverTimestamp()
             });
 
+            // Then, update the parent chat document
             const chatRef = doc(db, 'chats', currentChatId);
-            batch.update(chatRef, {
+            await updateDoc(chatRef, {
                 lastMessage: { text, senderId: currentUser.id, timestamp: serverTimestamp() },
                 [`unreadCount.${partnerId}`]: increment(1)
             });
 
-            await batch.commit();
-
         } catch (error) {
             console.error("Error sending message:", error);
-            setNewMessage(text);
+            setNewMessage(text); // Restore message on error
         } finally {
             setIsSending(false);
         }
     };
     
     const handleSendGift = async (gift: Gift) => {
-        if (!db || !partner || isSending || currentUser.coins < gift.cost) return;
+        if (!db || !partner || isSending || currentUser.coins < gift.cost) {
+            if(currentUser.coins < gift.cost) alert("Not enough coins.");
+            return;
+        }
         setIsSending(true);
         setIsGiftModalOpen(false);
         
         try {
-             const userIds = [currentUser.id, partnerId].sort();
-            let currentChatId = chatId;
-            const batch = writeBatch(db);
-             
-            if (!currentChatId) {
-                 const newChatRef = doc(collection(db, 'chats'));
-                batch.set(newChatRef, { userIds, users: { [currentUser.id]: { name: currentUser.name, profilePhoto: currentUser.profilePhotos[0] }, [partner.id]: { name: partner.name, profilePhoto: partner.profilePhotos[0] } } });
-                currentChatId = newChatRef.id;
-                setChatId(currentChatId);
-            }
-            
-            const messageRef = doc(collection(db, 'chats', currentChatId, 'messages'));
-            batch.set(messageRef, { chatId: currentChatId, senderId: currentUser.id, gift, timestamp: serverTimestamp() });
+            const currentChatId = await getOrCreateChat();
+            const newCoinTotal = currentUser.coins - gift.cost;
 
-            const chatRef = doc(db, 'chats', currentChatId);
-            batch.update(chatRef, { lastMessage: { text: `${gift.icon} ${gift.name}`, senderId: currentUser.id, timestamp: serverTimestamp() }, [`unreadCount.${partnerId}`]: increment(1) });
-            
+            // 1. Debit the user's coins. This can be done first.
             const userRef = doc(db, 'users', currentUser.id);
-            batch.update(userRef, { coins: increment(-gift.cost) });
-            
-            await batch.commit();
-            onUpdateUser({...currentUser, coins: currentUser.coins - gift.cost });
+            await updateDoc(userRef, { coins: increment(-gift.cost) });
+            onUpdateUser({...currentUser, coins: newCoinTotal }); // Optimistic update
+
+            // 2. Add the gift message.
+            await addDoc(collection(db, 'chats', currentChatId, 'messages'), { 
+                chatId: currentChatId, 
+                senderId: currentUser.id, 
+                gift, 
+                timestamp: serverTimestamp() 
+            });
+
+            // 3. Update the chat document.
+            const chatRef = doc(db, 'chats', currentChatId);
+            await updateDoc(chatRef, { 
+                lastMessage: { text: `${gift.icon} ${gift.name}`, senderId: currentUser.id, timestamp: serverTimestamp() }, 
+                [`unreadCount.${partnerId}`]: increment(1) 
+            });
+
         } catch(error) {
             console.error("Error sending gift:", error);
+            // Rollback the optimistic update if something fails later
+            onUpdateUser(currentUser); 
+            alert("Could not send gift. Please try again.");
         } finally {
             setIsSending(false);
         }
