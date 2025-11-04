@@ -1,12 +1,9 @@
 import React, { useState } from 'react';
-import { User } from '../types.ts';
+// FIX: Import User and Gift types from the central types file.
+import { User, Gift } from '../types.ts';
 import FlameIcon from './icons/FlameIcon.tsx';
 
-interface Gift {
-    name: string;
-    icon: string;
-    cost: number;
-}
+// FIX: Remove local Gift interface definition as it's now imported.
 
 const GIFTS: Gift[] = [
     { name: 'Rose', icon: '🌹', cost: 10 },

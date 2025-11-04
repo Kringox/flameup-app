@@ -43,6 +43,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
   const [likeCount, setLikeCount] = useState(0);
   const [showOptions, setShowOptions] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isAnimatingLike, setIsAnimatingLike] = useState(false);
 
   useEffect(() => {
     setIsLiked(post.likedBy.includes(currentUser.id));
@@ -76,6 +77,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
   const handleLike = async () => {
     if (!db) return;
     hapticFeedback('light');
+    
+    if (!isLiked) {
+        setIsAnimatingLike(true);
+        setTimeout(() => setIsAnimatingLike(false), 400);
+    }
+
     const postRef = doc(db, 'posts', post.id);
     
     const newLikedState = !isLiked;
@@ -137,7 +144,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
             onSave={handleUpdateCaption}
         />
     )}
-    <div className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden mb-4">
+    <div className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden mb-4 shadow-sm">
       <div className="flex items-center justify-between p-3">
         <button onClick={handleProfileClick} disabled={!onViewProfile} className="flex items-center disabled:cursor-default">
             <img className="w-8 h-8 rounded-full object-cover" src={post.user.profilePhoto} alt={post.user.name} />
@@ -152,7 +159,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
                     <MoreHorizontalIcon className="h-5 w-5 text-gray-500" />
                 </button>
                 {showOptions && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-zinc-700 rounded-md shadow-lg z-20">
+                    <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-zinc-700 rounded-md shadow-lg z-20 animate-fade-in-fast">
                         <ul className="py-1">
                             <li>
                                 <button
@@ -184,19 +191,19 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
       
       <div className="p-3">
         <div className="flex space-x-4 mb-2">
-            <button onClick={handleLike}>
+            <button onClick={handleLike} className={`transition-transform duration-200 ${isAnimatingLike ? 'animate-like-pop' : ''}`}>
                 <HeartIcon isLiked={isLiked} className="text-dark-gray dark:text-gray-200" />
             </button>
-            <button onClick={() => onOpenComments(post)}>
+            <button onClick={() => onOpenComments(post)} className="transition-transform hover:scale-110">
                 <CommentIcon className="text-dark-gray dark:text-gray-200"/>
             </button>
-            <button>
+            <button className="transition-transform hover:scale-110">
                 <SendIcon className="text-dark-gray dark:text-gray-200"/>
             </button>
         </div>
         <div className="font-semibold text-sm text-dark-gray dark:text-gray-200">{likeCount} likes</div>
         <p className="text-sm mt-1 text-dark-gray dark:text-gray-200">
-          <span className="font-semibold">{post.user.name}</span> {post.caption}
+          <button onClick={handleProfileClick} disabled={!onViewProfile} className="font-semibold">{post.user.name}</button> {post.caption}
         </p>
          {post.commentCount > 0 && (
             <button onClick={() => onOpenComments(post)} className="text-sm text-gray-500 dark:text-gray-400 mt-1">

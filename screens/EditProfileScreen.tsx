@@ -3,6 +3,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { User } from '../types.ts';
 import { uploadPhotos } from '../utils/photoUploader.ts';
 import SparklesIcon from '../components/icons/SparklesIcon.tsx';
+import { db } from '../firebaseConfig.ts';
+import { doc, updateDoc } from 'firebase/firestore';
+
 
 interface EditProfileScreenProps {
   user: User;
@@ -42,21 +45,31 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
 
 
   const handleSave = async () => {
+    if (!db) return;
     setIsLoading(true);
     try {
       const newFilesToUpload = photos.filter(p => p instanceof File) as File[];
       const existingUrls = photos.filter(p => typeof p === 'string') as string[];
       
       const uploadedUrls = newFilesToUpload.length > 0 ? await uploadPhotos(newFilesToUpload) : [];
+      
+      const finalPhotos = [...existingUrls, ...uploadedUrls];
 
-      onSave({
-        ...user,
+      const updatedData = {
         name,
         bio,
         interests,
-        profilePhotos: [...existingUrls, ...uploadedUrls],
+        profilePhotos: finalPhotos,
         profileTheme,
+      };
+
+      await updateDoc(doc(db, 'users', user.id), updatedData);
+
+      onSave({
+        ...user,
+        ...updatedData
       });
+
     } catch (error) {
       console.error("Error saving profile:", error);
       alert("Could not save changes. Please try again.");
@@ -103,11 +116,11 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
 
 
   return (
-    <div className="absolute inset-0 bg-gray-50 z-50 flex flex-col">
+    <div className="absolute inset-0 bg-gray-50 dark:bg-zinc-900 z-50 flex flex-col animate-slide-in-right">
       {/* Header */}
-      <header className="flex justify-between items-center p-4 border-b border-gray-200 bg-white flex-shrink-0">
-        <button onClick={onClose} className="text-lg text-gray-600">Cancel</button>
-        <h1 className="text-xl font-bold text-dark-gray">Edit Profile</h1>
+      <header className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex-shrink-0">
+        <button onClick={onClose} className="text-lg text-gray-600 dark:text-gray-300">Cancel</button>
+        <h1 className="text-xl font-bold text-dark-gray dark:text-gray-100">Edit Profile</h1>
         <button onClick={handleSave} disabled={isLoading} className="text-lg font-bold text-flame-orange disabled:opacity-50">
             {isLoading ? 'Saving...' : 'Save'}
         </button>
@@ -117,7 +130,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
       <div className="flex-1 overflow-y-auto p-4">
         {/* Photos */}
         <div>
-          <h2 className="text-md font-semibold text-gray-500 mb-2">Photos</h2>
+          <h2 className="text-md font-semibold text-gray-500 dark:text-gray-400 mb-2">Photos</h2>
           <input
             type="file"
             ref={fileInputRef}
@@ -127,7 +140,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
           />
           <div className="grid grid-cols-3 gap-2">
             {Array.from({ length: 6 }).map((_, index) => (
-              <div key={index} className="aspect-square rounded-lg bg-gray-200 flex items-center justify-center relative overflow-hidden">
+              <div key={index} className="aspect-square rounded-lg bg-gray-200 dark:bg-zinc-800 flex items-center justify-center relative overflow-hidden">
                 {photoPreviews[index] ? (
                   <>
                     <img src={photoPreviews[index]} alt={`Profile ${index + 1}`} className="w-full h-full object-cover" />
@@ -139,7 +152,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
                     </button>
                   </>
                 ) : (
-                  <button onClick={() => handlePhotoClick(index)} className="w-8 h-8 bg-gray-300 rounded-full text-gray-500 flex items-center justify-center">
+                  <button onClick={() => handlePhotoClick(index)} className="w-8 h-8 bg-gray-300 dark:bg-zinc-700 rounded-full text-gray-500 dark:text-gray-400 flex items-center justify-center">
                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                   </button>
                 )}
@@ -150,25 +163,25 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
 
         {/* Name */}
         <div className="mt-6">
-          <label htmlFor="name" className="text-md font-semibold text-gray-500 mb-2 block">Name</label>
+          <label htmlFor="name" className="text-md font-semibold text-gray-500 dark:text-gray-400 mb-2 block">Name</label>
           <input 
             type="text" 
             id="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-flame-orange"
+            className="w-full px-4 py-2 border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-dark-gray dark:text-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-flame-orange"
           />
         </div>
 
         {/* Bio */}
         <div className="mt-6">
-          <label htmlFor="bio" className="text-md font-semibold text-gray-500 mb-2 block">Bio</label>
+          <label htmlFor="bio" className="text-md font-semibold text-gray-500 dark:text-gray-400 mb-2 block">Bio</label>
           <textarea 
             id="bio"
             value={bio}
             onChange={(e) => setBio(e.target.value)}
             rows={4}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-flame-orange"
+            className="w-full px-4 py-2 border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-dark-gray dark:text-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-flame-orange"
             maxLength={500}
           />
            <p className="text-right text-sm text-gray-400 mt-1">{bio.length} / 500</p>
@@ -176,7 +189,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
 
         {/* Interests */}
         <div className="mt-6">
-          <h2 className="text-md font-semibold text-gray-500 mb-2">Interests</h2>
+          <h2 className="text-md font-semibold text-gray-500 dark:text-gray-400 mb-2">Interests</h2>
           <div className="flex flex-wrap gap-2">
             {interests.map(interest => (
               <div key={interest} className="flex items-center bg-flame-orange/20 text-flame-red font-semibold rounded-full px-3 py-1 text-sm">
@@ -191,7 +204,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
                      setInterests([...interests, e.currentTarget.value.trim()]);
                      e.currentTarget.value = '';
                  }
-             }} className="bg-gray-100 rounded-full px-3 py-1 text-sm flex-1 min-w-[100px]" />
+             }} className="bg-gray-100 dark:bg-zinc-800 rounded-full px-3 py-1 text-sm flex-1 min-w-[100px] text-dark-gray dark:text-gray-200" />
           </div>
         </div>
 
@@ -200,10 +213,10 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
             <div className="mt-6">
                 <div className="flex items-center space-x-2 mb-2">
                     <SparklesIcon className="w-5 h-5 text-premium-gold" />
-                    <h2 className="text-md font-semibold text-gray-500">Customize Profile (Premium)</h2>
+                    <h2 className="text-md font-semibold text-gray-500 dark:text-gray-400">Customize Profile (Premium)</h2>
                 </div>
-                <div className="p-3 bg-white rounded-lg border border-gray-200">
-                    <h3 className="text-sm font-semibold mb-2">Profile Theme</h3>
+                <div className="p-3 bg-white dark:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700">
+                    <h3 className="text-sm font-semibold mb-2 dark:text-gray-200">Profile Theme</h3>
                     <div className="flex space-x-2">
                         {THEMES.map(theme => (
                             <button key={theme.id} onClick={() => setProfileTheme(theme.id)} className={`flex-1 p-2 rounded-lg border-2 ${profileTheme === theme.id ? theme.border : 'border-transparent'}`}>

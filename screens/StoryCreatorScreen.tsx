@@ -1,10 +1,13 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useContext } from 'react';
 // FIX: Added file extension to types import
 import { User } from '../types.ts';
-import { db } from '../firebaseConfig';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../firebaseConfig.ts';
+import { collection, addDoc, serverTimestamp, doc, updateDoc, increment } from 'firebase/firestore';
 // FIX: Added file extension to photoUploader import
 import { uploadPhotos } from '../utils/photoUploader.ts';
+import { XpAction } from '../utils/xpUtils.ts';
+import { XpContext } from '../contexts/XpContext.ts';
+
 
 interface StoryCreatorScreenProps {
   user: User;
@@ -16,6 +19,8 @@ const StoryCreatorScreen: React.FC<StoryCreatorScreenProps> = ({ user, onClose }
     const [preview, setPreview] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const { showXpToast } = useContext(XpContext);
+
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
@@ -36,8 +41,15 @@ const StoryCreatorScreen: React.FC<StoryCreatorScreenProps> = ({ user, onClose }
                 userProfilePhoto: user.profilePhotos[0],
                 mediaUrl: uploadedUrl,
                 viewed: [],
+                likedBy: [],
                 timestamp: serverTimestamp(),
             });
+            
+            // Grant XP for posting a story
+            const userRef = doc(db, 'users', user.id);
+            await updateDoc(userRef, { xp: increment(XpAction.CREATE_POST) });
+            showXpToast(XpAction.CREATE_POST);
+
             onClose();
         } catch (error) {
             console.error("Error creating story:", error);
@@ -48,7 +60,7 @@ const StoryCreatorScreen: React.FC<StoryCreatorScreenProps> = ({ user, onClose }
     };
 
     return (
-        <div className="absolute inset-0 bg-black z-50 flex flex-col justify-center">
+        <div className="absolute inset-0 bg-black z-50 flex flex-col justify-center animate-fade-in">
             <header className="absolute top-0 left-0 right-0 flex justify-between items-center p-4">
                 <button onClick={onClose} className="text-white">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>

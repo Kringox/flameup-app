@@ -1,25 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
 // FIX: Added file extension to types import
-import { Story } from '../types.ts';
+import { Story, User } from '../types.ts';
+import HeartIcon from './icons/HeartIcon.tsx';
+import { db } from '../firebaseConfig.ts';
+import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+
 
 interface StoryViewerProps {
     stories: Story[];
+    currentUser: User;
     startIndex?: number;
     onClose: () => void;
     onStoryViewed: (storyId: string) => void;
 }
 
-const StoryViewer: React.FC<StoryViewerProps> = ({ stories, startIndex = 0, onClose, onStoryViewed }) => {
+const StoryViewer: React.FC<StoryViewerProps> = ({ stories, currentUser, startIndex = 0, onClose, onStoryViewed }) => {
     const [currentIndex, setCurrentIndex] = useState(startIndex);
     const [progress, setProgress] = useState(0);
+    const [isLiked, setIsLiked] = useState(false);
+    const [isAnimatingLike, setIsAnimatingLike] = useState(false);
     const timerRef = useRef<number | null>(null);
     const storyDuration = 5000; // 5 seconds per story
+    
+    const currentStory = stories[currentIndex];
 
     useEffect(() => {
-        if (stories.length > 0 && stories[currentIndex]?.id) {
-            onStoryViewed(stories[currentIndex].id);
+        if (currentStory?.id) {
+            onStoryViewed(currentStory.id);
+            setIsLiked(currentStory.likedBy?.includes(currentUser.id) || false);
         }
-    }, [currentIndex, stories, onStoryViewed]);
+    }, [currentIndex, stories, onStoryViewed, currentUser.id, currentStory]);
 
     const goToNextStory = () => {
         if (currentIndex < stories.length - 1) {
@@ -55,16 +65,37 @@ const StoryViewer: React.FC<StoryViewerProps> = ({ stories, startIndex = 0, onCl
         };
     }, [currentIndex, stories.length]);
 
-    if (!stories || stories.length === 0) {
+    const handleLike = async () => {
+        if (!db || !currentStory || !currentStory.id) return;
+
+        if (!isLiked) {
+            setIsAnimatingLike(true);
+            setTimeout(() => setIsAnimatingLike(false), 400);
+        }
+        
+        const newLikedState = !isLiked;
+        setIsLiked(newLikedState);
+
+        try {
+            const storyRef = doc(db, 'stories', currentStory.id);
+            await updateDoc(storyRef, {
+                likedBy: newLikedState ? arrayUnion(currentUser.id) : arrayRemove(currentUser.id)
+            });
+        } catch (error) {
+            console.error("Error liking story:", error);
+            setIsLiked(!newLikedState); // Revert on error
+        }
+    };
+
+    if (!stories || stories.length === 0 || !currentStory) {
         onClose();
         return null;
     }
 
-    const currentStory = stories[currentIndex];
     const storyUser = currentStory.user;
 
     return (
-        <div className="absolute inset-0 bg-black z-[100] flex flex-col justify-center">
+        <div className="absolute inset-0 bg-black z-[100] flex flex-col justify-center animate-fade-in">
             <div className="absolute top-0 left-0 right-0 p-3 z-10">
                 <div className="flex items-center space-x-1">
                     {stories.map((_, index) => (
@@ -93,6 +124,11 @@ const StoryViewer: React.FC<StoryViewerProps> = ({ stories, startIndex = 0, onCl
                     <div className="w-1/3 h-full" onClick={goToPrevStory}></div>
                     <div className="w-2/3 h-full" onClick={goToNextStory}></div>
                 </div>
+            </div>
+            <div className="absolute bottom-4 right-4 z-20">
+                 <button onClick={handleLike} className={`transition-transform duration-200 ${isAnimatingLike ? 'animate-like-pop' : ''}`}>
+                    <HeartIcon isLiked={isLiked} className="w-8 h-8 text-white drop-shadow-lg" />
+                </button>
             </div>
         </div>
     );

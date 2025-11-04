@@ -38,6 +38,7 @@ export interface User {
   dailySwipesUsed?: number;
   lastSwipeReset?: Timestamp;
   boostEndTime?: Timestamp;
+  blockedUsers?: string[]; // array of user IDs
 }
 
 export interface Post {
@@ -61,11 +62,19 @@ export interface Story {
     mediaUrl: string;
     viewed: string[] | boolean; // Can be array of user IDs who viewed or a simple boolean for own story viewed status
     timestamp: Timestamp | null;
+    likedBy?: string[]; // array of user IDs
     user: {
         id: string;
         name: string;
         profilePhoto: string;
     };
+}
+
+// FIX: Define and export the Gift interface for reusability.
+export interface Gift {
+    name: string;
+    icon: string;
+    cost: number;
 }
 
 export interface Message {
@@ -74,10 +83,12 @@ export interface Message {
     senderId: string;
     text: string;
     timestamp: Timestamp;
+    // FIX: Use the exported Gift interface.
+    gift?: Gift;
 }
 
 export interface Chat {
-    id: string;
+    id:string;
     userIds: string[];
     users: {
         [key: string]: {
@@ -93,6 +104,7 @@ export interface Chat {
     unreadCount?: {
         [key: string]: number;
     };
+    deletedFor?: string[]; // array of user IDs who deleted the chat
 }
 
 export interface Comment {

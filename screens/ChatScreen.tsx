@@ -33,23 +33,23 @@ const ChatListItem: React.FC<{ chat: Chat; currentUser: User; onSelect: (partner
   const isUnread = unreadCount > 0;
 
   return (
-    <div onClick={() => onSelect(partnerId)} className="flex items-center p-4 hover:bg-gray-100 cursor-pointer">
+    <button onClick={() => onSelect(partnerId)} className="w-full flex items-center p-4 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer transition-colors text-left">
       <div className="relative">
         <img className="w-14 h-14 rounded-full object-cover" src={partner.profilePhoto} alt={partner.name} />
       </div>
-      <div className="flex-1 ml-4 border-b border-gray-200 pb-4">
+      <div className="flex-1 ml-4 border-b border-gray-200 dark:border-zinc-700 pb-4">
         <div className="flex justify-between items-center">
-          <h3 className={`text-lg transition-all ${isUnread ? 'font-bold text-dark-gray' : 'font-semibold text-gray-800'}`}>{partner.name}</h3>
-          <span className="text-xs text-gray-500">{formatTimestamp(chat.lastMessage?.timestamp)}</span>
+          <h3 className={`text-lg transition-all ${isUnread ? 'font-bold text-dark-gray dark:text-gray-100' : 'font-semibold text-gray-800 dark:text-gray-300'}`}>{partner.name}</h3>
+          <span className="text-xs text-gray-500 dark:text-gray-400">{formatTimestamp(chat.lastMessage?.timestamp)}</span>
         </div>
         <div className="flex justify-between items-center mt-1">
-          <p className={`text-sm truncate w-11/12 transition-all ${isUnread ? 'font-semibold text-dark-gray' : 'text-gray-600'}`}>{chat.lastMessage?.text || 'No messages yet'}</p>
+          <p className={`text-sm truncate w-11/12 transition-all ${isUnread ? 'font-semibold text-dark-gray dark:text-gray-200' : 'text-gray-600 dark:text-gray-400'}`}>{chat.lastMessage?.text || 'No messages yet'}</p>
           {isUnread && (
              <span className="w-2.5 h-2.5 bg-flame-red rounded-full flex-shrink-0" aria-label="Unread message"></span>
           )}
         </div>
       </div>
-    </div>
+    </button>
   );
 };
 
@@ -71,7 +71,9 @@ const ChatList: React.FC<{ currentUser: User, onStartChat: (partnerId: string) =
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const chatList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Chat));
+            const chatList = snapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() } as Chat))
+                .filter(chat => !chat.deletedFor?.includes(currentUser.id)); // Filter deleted chats
             setChats(chatList);
             setIsLoading(false);
         }, (error) => {
@@ -83,11 +85,11 @@ const ChatList: React.FC<{ currentUser: User, onStartChat: (partnerId: string) =
     }, [currentUser.id]);
 
     if (isLoading) {
-        return <div className="flex justify-center items-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div></div>;
+        return <div className="flex justify-center items-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-200"></div></div>;
     }
     
     if (chats.length === 0) {
-        return <p className="text-center text-gray-500 mt-8">No conversations yet. Start swiping!</p>;
+        return <p className="text-center text-gray-500 dark:text-gray-400 mt-8">No conversations yet. Start swiping!</p>;
     }
 
     return (
@@ -116,12 +118,12 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ currentUser, activeChatPartnerI
 
   return (
     <div className="w-full h-full flex flex-col">
-        <header className="p-4 border-b border-gray-200 bg-white sticky top-0 z-10">
-            <h1 className="text-2xl font-bold text-dark-gray text-center">Chats</h1>
+        <header className="p-4 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-black sticky top-0 z-10">
+            <h1 className="text-2xl font-bold text-dark-gray dark:text-gray-100 text-center">Chats</h1>
         </header>
 
         <div className="p-4">
-             <input type="text" placeholder="Search chats..." className="w-full px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-flame-orange" />
+             <input type="text" placeholder="Search chats..." className="w-full px-4 py-2 border border-gray-300 dark:border-zinc-700 rounded-full focus:outline-none focus:ring-2 focus:ring-flame-orange bg-transparent dark:text-gray-200" />
         </div>
 
         <div className="flex-1 overflow-y-auto">

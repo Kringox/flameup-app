@@ -1,14 +1,29 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, writeBatch, increment } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, writeBatch, increment, arrayUnion } from 'firebase/firestore';
 // FIX: Added file extension to types import
-import { User, Message, Chat } from '../types.ts';
+import { User, Message, Chat, Gift } from '../types.ts';
 // FIX: Added file extensions to icon imports
 import MoreVerticalIcon from '../components/icons/MoreVerticalIcon.tsx';
 import GiftIcon from '../components/icons/GiftIcon.tsx';
+import ChatOptionsModal from '../components/ChatOptionsModal.tsx';
+import ReportModal from '../components/ReportModal.tsx';
+import GiftModal from '../components/GiftModal.tsx';
+// FIX: Import FlameLoader component to resolve 'Cannot find name' error.
+import FlameLoader from '../components/FlameLoader.tsx';
 
 const MessageBubble: React.FC<{ message: Message, isOwnMessage: boolean }> = ({ message, isOwnMessage }) => {
-    const bubbleClass = isOwnMessage ? 'bg-flame-orange text-white self-end rounded-br-none' : 'bg-gray-200 text-dark-gray self-start rounded-bl-none';
+    const bubbleClass = isOwnMessage ? 'bg-flame-orange text-white self-end rounded-br-none' : 'bg-gray-200 dark:bg-zinc-700 text-dark-gray dark:text-gray-200 self-start rounded-bl-none';
+    
+    if (message.gift) {
+        return (
+             <div className={`p-3 rounded-2xl max-w-xs md:max-w-md text-center flex flex-col items-center ${bubbleClass}`}>
+                <span className="text-4xl">{message.gift.icon}</span>
+                <p className="font-semibold mt-1">Sent a {message.gift.name}</p>
+            </div>
+        )
+    }
+    
     return (
         <div className={`p-3 rounded-2xl max-w-xs md:max-w-md ${bubbleClass}`}>
             {message.text}
@@ -29,6 +44,10 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const [newMessage, setNewMessage] = useState('');
     const [chatId, setChatId] = useState<string | null>(null);
     const [partner, setPartner] = useState<User | null>(null);
+    const [isOptionsOpen, setIsOptionsOpen] = useState(false);
+    const [isReportOpen, setIsReportOpen] = useState(false);
+    const [isGiftModalOpen, setIsGiftModalOpen] = useState(false);
+    const [isSending, setIsSending] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
@@ -59,7 +78,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 const foundChatId = chatDoc.id;
                 setChatId(foundChatId);
 
-                // Mark messages as read
                 const chatData = chatDoc.data() as Chat;
                 if ((chatData.unreadCount?.[currentUser.id] || 0) > 0) {
                     await updateDoc(doc(db, 'chats', foundChatId), {
@@ -72,7 +90,10 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     }, [currentUser.id, partnerId]);
 
     useEffect(() => {
-        if (!chatId || !db) return;
+        if (!chatId || !db) {
+            setMessages([]);
+            return;
+        };
         const messagesQuery = query(collection(db, 'chats', chatId, 'messages'), orderBy('timestamp', 'asc'));
         const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
             const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
@@ -82,8 +103,9 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     }, [chatId]);
 
     const handleSendMessage = async () => {
-        if (newMessage.trim() === '' || !db || !partner) return;
+        if (newMessage.trim() === '' || !db || !partner || isSending) return;
 
+        setIsSending(true);
         const text = newMessage.trim();
         setNewMessage('');
 
@@ -92,7 +114,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             let currentChatId = chatId;
             const batch = writeBatch(db);
 
-            // If chat doesn't exist, create it
             if (!currentChatId) {
                 const newChatRef = doc(collection(db, 'chats'));
                 batch.set(newChatRef, {
@@ -105,55 +126,108 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                     lastMessage: { text, senderId: currentUser.id, timestamp: serverTimestamp() }
                 });
                 currentChatId = newChatRef.id;
-                setChatId(currentChatId);
-
-                const messageRef = doc(collection(db, 'chats', currentChatId, 'messages'));
-                batch.set(messageRef, {
-                    chatId: currentChatId,
-                    senderId: currentUser.id,
-                    text,
-                    timestamp: serverTimestamp()
-                });
-            } else {
-                 // Add new message
-                const messageRef = doc(collection(db, 'chats', currentChatId, 'messages'));
-                batch.set(messageRef, {
-                    chatId: currentChatId,
-                    senderId: currentUser.id,
-                    text,
-                    timestamp: serverTimestamp()
-                });
-
-                // Update last message and unread count on chat document
-                const chatRef = doc(db, 'chats', currentChatId);
-                batch.update(chatRef, {
-                    lastMessage: { text, senderId: currentUser.id, timestamp: serverTimestamp() },
-                    [`unreadCount.${partnerId}`]: increment(1)
-                });
+                setChatId(currentChatId); // Set the chat ID for the message listener to pick up
             }
+
+            const messageRef = doc(collection(db, 'chats', currentChatId, 'messages'));
+            batch.set(messageRef, {
+                chatId: currentChatId,
+                senderId: currentUser.id,
+                text,
+                timestamp: serverTimestamp()
+            });
+
+            const chatRef = doc(db, 'chats', currentChatId);
+            batch.update(chatRef, {
+                lastMessage: { text, senderId: currentUser.id, timestamp: serverTimestamp() },
+                [`unreadCount.${partnerId}`]: increment(1)
+            });
 
             await batch.commit();
 
         } catch (error) {
             console.error("Error sending message:", error);
+            setNewMessage(text);
+        } finally {
+            setIsSending(false);
+        }
+    };
+    
+    const handleSendGift = async (gift: Gift) => {
+        if (!db || !partner || isSending || currentUser.coins < gift.cost) return;
+        setIsSending(true);
+        setIsGiftModalOpen(false);
+        
+        try {
+             const userIds = [currentUser.id, partnerId].sort();
+            let currentChatId = chatId;
+            const batch = writeBatch(db);
+             
+            if (!currentChatId) {
+                 const newChatRef = doc(collection(db, 'chats'));
+                batch.set(newChatRef, { userIds, users: { [currentUser.id]: { name: currentUser.name, profilePhoto: currentUser.profilePhotos[0] }, [partner.id]: { name: partner.name, profilePhoto: partner.profilePhotos[0] } } });
+                currentChatId = newChatRef.id;
+                setChatId(currentChatId);
+            }
+            
+            const messageRef = doc(collection(db, 'chats', currentChatId, 'messages'));
+            batch.set(messageRef, { chatId: currentChatId, senderId: currentUser.id, gift, timestamp: serverTimestamp() });
+
+            const chatRef = doc(db, 'chats', currentChatId);
+            batch.update(chatRef, { lastMessage: { text: `${gift.icon} ${gift.name}`, senderId: currentUser.id, timestamp: serverTimestamp() }, [`unreadCount.${partnerId}`]: increment(1) });
+            
+            const userRef = doc(db, 'users', currentUser.id);
+            batch.update(userRef, { coins: increment(-gift.cost) });
+            
+            await batch.commit();
+            onUpdateUser({...currentUser, coins: currentUser.coins - gift.cost });
+        } catch(error) {
+            console.error("Error sending gift:", error);
+        } finally {
+            setIsSending(false);
         }
     };
 
+    const handleBlock = async () => {
+        if(!db || !partner) return;
+        await updateDoc(doc(db, 'users', currentUser.id), {
+            blockedUsers: arrayUnion(partner.id)
+        });
+        onClose();
+    };
+
+    const handleReport = async (reason: string, details: string) => {
+        if(!db || !partner) return;
+        await addDoc(collection(db, 'reports'), {
+            reportedUserId: partner.id,
+            reportingUserId: currentUser.id,
+            reason,
+            details,
+            timestamp: serverTimestamp()
+        });
+        setIsReportOpen(false);
+        setIsOptionsOpen(false);
+        alert('Report submitted. Thank you.');
+    };
+
     if (!partner) {
-        return <div className="absolute inset-0 bg-white z-50 flex justify-center items-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div></div>;
+        return <div className="absolute inset-0 bg-white z-50 flex justify-center items-center"><FlameLoader /></div>;
     }
 
     return (
-        <div className="absolute inset-0 bg-white z-50 flex flex-col">
-            <header className="flex items-center p-3 border-b border-gray-200">
-                <button onClick={onClose} className="w-8">
+        <div className="absolute inset-0 bg-white dark:bg-black z-50 flex flex-col animate-slide-in-right">
+            {isOptionsOpen && <ChatOptionsModal onClose={() => setIsOptionsOpen(false)} onViewProfile={() => { setIsOptionsOpen(false); onViewProfile(partner.id); }} onReport={() => setIsReportOpen(true)} onBlock={handleBlock} />}
+            {isReportOpen && partner && <ReportModal reportedUser={partner} onClose={() => setIsReportOpen(false)} onSubmit={handleReport} />}
+            {isGiftModalOpen && <GiftModal onClose={() => setIsGiftModalOpen(false)} currentUser={currentUser} onSendGift={handleSendGift}/>}
+            <header className="flex items-center p-3 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                <button onClick={onClose} className="w-8 text-dark-gray dark:text-gray-200">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 </button>
                 <button onClick={() => onViewProfile(partner.id)} className="flex-1 flex items-center min-w-0">
                     <img src={partner.profilePhotos[0]} alt={partner.name} className="w-10 h-10 rounded-full" />
-                    <span className="font-bold ml-3 truncate">{partner.name}</span>
+                    <span className="font-bold ml-3 truncate text-dark-gray dark:text-gray-200">{partner.name}</span>
                 </button>
-                <button className="w-8">
+                <button onClick={() => setIsOptionsOpen(true)} className="w-8 text-dark-gray dark:text-gray-200">
                     <MoreVerticalIcon />
                 </button>
             </header>
@@ -163,8 +237,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 <div ref={messagesEndRef} />
             </div>
 
-            <div className="p-2 border-t border-gray-200 flex items-center space-x-2">
-                <button className="p-2 text-gray-500">
+            <div className="p-2 border-t border-gray-200 dark:border-zinc-800 flex items-center space-x-2 bg-white dark:bg-zinc-900">
+                <button onClick={() => setIsGiftModalOpen(true)} className="p-2 text-gray-500 dark:text-gray-400">
                     <GiftIcon className="w-6 h-6" />
                 </button>
                 <input
@@ -172,10 +246,10 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Type a message..."
-                    className="flex-1 p-2 bg-gray-100 rounded-full focus:outline-none px-4"
+                    className="flex-1 p-2 bg-gray-100 dark:bg-zinc-800 rounded-full focus:outline-none px-4 text-dark-gray dark:text-gray-200"
                     onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                 />
-                <button onClick={handleSendMessage} disabled={!newMessage.trim()} className="font-bold text-flame-orange disabled:opacity-50">
+                <button onClick={handleSendMessage} disabled={!newMessage.trim() || isSending} className="font-bold text-flame-orange disabled:opacity-50">
                     Send
                 </button>
             </div>

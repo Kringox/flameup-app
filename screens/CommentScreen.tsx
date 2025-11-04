@@ -1,10 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, increment } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, increment, writeBatch } from 'firebase/firestore';
 // FIX: Added file extension to types import
 import { Post, User, Comment, NotificationType } from '../types.ts';
 // FIX: Added file extension to VerifiedIcon import
 import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
+import { XpAction } from '../utils/xpUtils.ts';
+import { XpContext } from '../contexts/XpContext.ts';
+
 
 const CommentRow: React.FC<{ comment: Comment; onViewProfile: (userId: string) => void; }> = ({ comment, onViewProfile }) => {
     return (
@@ -13,8 +17,8 @@ const CommentRow: React.FC<{ comment: Comment; onViewProfile: (userId: string) =
                 <img src={comment.userProfilePhoto} alt={comment.userName} className="w-8 h-8 rounded-full" />
             </button>
             <div className="flex-1">
-                <p className="text-sm">
-                    <button onClick={() => onViewProfile(comment.userId)} className="font-semibold mr-1 flex items-center">
+                <p className="text-sm dark:text-gray-200">
+                    <button onClick={() => onViewProfile(comment.userId)} className="font-semibold mr-1 flex items-center dark:text-gray-100">
                         {comment.userName}
                         {comment.isPremium && <VerifiedIcon className="w-4 h-4 ml-1" />}
                     </button>
@@ -37,6 +41,7 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
     const [newComment, setNewComment] = useState('');
     const [isPosting, setIsPosting] = useState(false);
     const commentsEndRef = useRef<null | HTMLDivElement>(null);
+    const { showXpToast } = useContext(XpContext);
 
     useEffect(() => {
         if (!db) return;
@@ -80,38 +85,56 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
     const handlePostComment = async () => {
         if (newComment.trim() === '' || !db || isPosting) return;
         setIsPosting(true);
-        const commentData = {
-            postId: post.id,
-            userId: currentUser.id,
-            userName: currentUser.name,
-            userProfilePhoto: currentUser.profilePhotos[0],
-            isPremium: currentUser.isPremium || false,
-            text: newComment.trim(),
-            likedBy: [],
-            timestamp: serverTimestamp(),
-        };
+        const commentText = newComment.trim();
 
         try {
-            await addDoc(collection(db, 'posts', post.id, 'comments'), commentData);
-            await updateDoc(doc(db, 'posts', post.id), {
-                commentCount: increment(1)
+            const batch = writeBatch(db);
+            
+            // 1. Create the new comment document
+            const commentRef = doc(collection(db, 'posts', post.id, 'comments'));
+            batch.set(commentRef, {
+                postId: post.id,
+                userId: currentUser.id,
+                userName: currentUser.name,
+                userProfilePhoto: currentUser.profilePhotos[0],
+                isPremium: currentUser.isPremium || false,
+                text: commentText,
+                likedBy: [],
+                timestamp: serverTimestamp(),
             });
-            await createNotification(newComment.trim());
+
+            // 2. Atomically increment the comment count on the post
+            const postRef = doc(db, 'posts', post.id);
+            batch.update(postRef, { commentCount: increment(1) });
+            
+            // 3. Award XP for commenting
+            const userRef = doc(db, 'users', currentUser.id);
+            batch.update(userRef, { xp: increment(XpAction.RECEIVE_COMMENT) });
+
+            // Commit all writes at once
+            await batch.commit();
+
+            showXpToast(XpAction.RECEIVE_COMMENT);
+            
+            // 4. Create notification after the comment is successfully posted
+            await createNotification(commentText);
+            
             setNewComment('');
         } catch (error) {
             console.error("Error posting comment: ", error);
+            alert("Could not post comment. Please try again.");
         } finally {
             setIsPosting(false);
         }
     };
 
     return (
-        <div className="absolute inset-0 bg-white z-50 flex flex-col">
-            <header className="flex items-center p-4 border-b border-gray-200">
-                <button onClick={onClose} className="w-8">
+        <div className="absolute inset-0 bg-white dark:bg-zinc-900 z-50 flex flex-col animate-fade-in">
+            <header className="flex items-center p-4 border-b border-gray-200 dark:border-zinc-800">
+                <button onClick={onClose} className="w-8 text-dark-gray dark:text-gray-200">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 </button>
-                <h1 className="text-xl font-bold text-center flex-1">Comments</h1>
+                <h1 className="text-xl font-bold text-center flex-1 dark:text-gray-100">Comments</h1>
                 <div className="w-8"></div>
             </header>
 
@@ -120,14 +143,14 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
                 <div ref={commentsEndRef} />
             </div>
 
-            <div className="p-2 border-t border-gray-200 flex items-center">
+            <div className="p-2 border-t border-gray-200 dark:border-zinc-800 flex items-center">
                 <img src={currentUser.profilePhotos[0]} alt="My profile" className="w-10 h-10 rounded-full" />
                 <input
                     type="text"
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
                     placeholder={`Comment as ${currentUser.name}...`}
-                    className="flex-1 mx-2 p-2 border-none focus:outline-none"
+                    className="flex-1 mx-2 p-2 border-none focus:outline-none bg-transparent dark:text-gray-200"
                     onKeyDown={(e) => e.key === 'Enter' && handlePostComment()}
                 />
                 <button onClick={handlePostComment} disabled={!newComment.trim() || isPosting} className="font-bold text-flame-orange disabled:opacity-50">

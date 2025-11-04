@@ -24,6 +24,9 @@ import NotificationsScreen from './screens/NotificationsScreen.tsx';
 import UserProfileScreen from './screens/UserProfileScreen.tsx';
 import MatchModal from './components/MatchModal.tsx';
 import InAppNotification from './components/InAppNotification.tsx';
+import XPToast from './components/XPToast.tsx';
+import { XpContext } from './contexts/XpContext.ts';
+
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -48,6 +51,15 @@ const App: React.FC = () => {
   const [inAppNotification, setInAppNotification] = useState<any | null>(null);
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
   const [theme, setTheme] = useState<Theme>((localStorage.getItem('theme') as Theme) || 'system');
+  const [xpToast, setXpToast] = useState<{ amount: number; key: number } | null>(null);
+
+
+  const showXpToast = (amount: number) => {
+    setXpToast({ amount, key: Date.now() });
+    setTimeout(() => {
+        setXpToast(null);
+    }, 2500); // Hide after 2.5 seconds
+  };
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -102,7 +114,12 @@ const App: React.FC = () => {
 
           // Listen for unread messages
           const chatsRef = collection(db, 'chats');
-          const q = query(chatsRef, where('userIds', 'array-contains', userData.id));
+          // FIX: Add filter for deleted chats
+          const q = query(
+              chatsRef, 
+              where('userIds', 'array-contains', userData.id),
+              where('deletedFor', 'not-in', [[userData.id]])
+          );
           unsubscribeChats = onSnapshot(q, (chatSnapshot) => {
             const anyUnread = chatSnapshot.docs.some(doc => {
               const chatData = doc.data() as Chat;
@@ -195,45 +212,48 @@ const App: React.FC = () => {
     const { currentUser } = authState;
 
     return (
-      <div className="relative w-screen h-screen max-w-md mx-auto flex flex-col bg-gray-50 dark:bg-black md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)]">
-        <main className="flex-1 overflow-y-auto">
-          {activeTab === Tab.Home && <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} />}
-          {activeTab === Tab.Swipe && <SwipeScreen currentUser={currentUser} onNewMatch={handleNewMatch} onUpdateUser={handleUpdateUser}/>}
-          {activeTab === Tab.Chat && <ChatScreen currentUser={currentUser} activeChatPartnerId={activeChatPartnerId} onStartChat={handleStartChat} onCloseChat={() => setActiveChatPartnerId(null)} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} />}
-          {activeTab === Tab.Profile && <ProfileScreen currentUser={currentUser} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} theme={theme} setTheme={setTheme} />}
-        </main>
+      <XpContext.Provider value={{ showXpToast }}>
+        <div className="relative w-screen h-screen max-w-md mx-auto flex flex-col bg-gray-50 dark:bg-black md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)] overflow-hidden">
+          {xpToast && <XPToast key={xpToast.key} amount={xpToast.amount} />}
+          <main className="flex-1 overflow-y-auto">
+            {activeTab === Tab.Home && <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} />}
+            {activeTab === Tab.Swipe && <SwipeScreen currentUser={currentUser} onNewMatch={handleNewMatch} onUpdateUser={handleUpdateUser}/>}
+            {activeTab === Tab.Chat && <ChatScreen currentUser={currentUser} activeChatPartnerId={activeChatPartnerId} onStartChat={handleStartChat} onCloseChat={() => setActiveChatPartnerId(null)} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} />}
+            {activeTab === Tab.Profile && <ProfileScreen currentUser={currentUser} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} theme={theme} setTheme={setTheme} />}
+          </main>
 
-        <BottomNav 
-          activeTab={activeTab} 
-          setActiveTab={setActiveTab} 
-          onOpenCreate={() => setIsCreateOpen(true)} 
-          hasUnreadMessages={hasUnreadMessages}
-        />
+          <BottomNav 
+            activeTab={activeTab} 
+            setActiveTab={setActiveTab} 
+            onOpenCreate={() => setIsCreateOpen(true)} 
+            hasUnreadMessages={hasUnreadMessages}
+          />
 
-        {/* Modals and Overlays */}
-        {isCreateOpen && <CreateScreen user={currentUser} onClose={() => setIsCreateOpen(false)} />}
-        {viewingPostComments && <CommentScreen post={viewingPostComments} currentUser={currentUser} onClose={() => setViewingPostComments(null)} onViewProfile={handleViewProfile} />}
-        {isNotificationsOpen && <NotificationsScreen user={currentUser} onClose={() => setIsNotificationsOpen(false)} onShowMatch={handleShowMatch} onViewProfile={handleViewProfile} />}
-        {viewingUserId && <UserProfileScreen currentUserId={currentUser.id} viewingUserId={viewingUserId} onClose={() => setViewingUserId(null)} onStartChat={handleStartChat} />}
-        {matchNotification && authState.currentUser && (
-            <MatchModal 
-                currentUser={authState.currentUser}
-                matchedUser={{id: matchNotification.fromUser.id, name: matchNotification.fromUser.name, profilePhotos: [matchNotification.fromUser.profilePhoto]} as any}
-                onSendMessage={handleSendMessageFromMatch}
-                onClose={() => setMatchNotification(null)}
-            />
-        )}
-        {inAppNotification && (
-            <InAppNotification 
-                notification={inAppNotification} 
-                onReply={(partnerId) => {
-                    handleStartChat(partnerId);
-                    setInAppNotification(null);
-                }} 
-                onClose={() => setInAppNotification(null)}
-            />
-        )}
-      </div>
+          {/* Modals and Overlays */}
+          {isCreateOpen && <CreateScreen user={currentUser} onClose={() => setIsCreateOpen(false)} />}
+          {viewingPostComments && <CommentScreen post={viewingPostComments} currentUser={currentUser} onClose={() => setViewingPostComments(null)} onViewProfile={handleViewProfile} />}
+          {isNotificationsOpen && <NotificationsScreen user={currentUser} onClose={() => setIsNotificationsOpen(false)} onShowMatch={handleShowMatch} onViewProfile={handleViewProfile} />}
+          {viewingUserId && <UserProfileScreen currentUserId={currentUser.id} viewingUserId={viewingUserId} onClose={() => setViewingUserId(null)} onStartChat={handleStartChat} />}
+          {matchNotification && authState.currentUser && (
+              <MatchModal 
+                  currentUser={authState.currentUser}
+                  matchedUser={{id: matchNotification.fromUser.id, name: matchNotification.fromUser.name, profilePhotos: [matchNotification.fromUser.profilePhoto]} as any}
+                  onSendMessage={handleSendMessageFromMatch}
+                  onClose={() => setMatchNotification(null)}
+              />
+          )}
+          {inAppNotification && (
+              <InAppNotification 
+                  notification={inAppNotification} 
+                  onReply={(partnerId) => {
+                      handleStartChat(partnerId);
+                      setInAppNotification(null);
+                  }} 
+                  onClose={() => setInAppNotification(null)}
+              />
+          )}
+        </div>
+      </XpContext.Provider>
     );
   };
   
