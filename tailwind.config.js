@@ -57,6 +57,9 @@ export default {
         'fade-in': 'fade-in 0.2s ease-out',
         'fade-in-fast': 'fade-in-fast 0.2s ease-out',
         'slide-in-right': 'slide-in-right 0.3s ease-out',
+        // FIX: Add swipe animations
+        'swipe-out-left': 'swipe-out-left 0.3s ease-out forwards',
+        'swipe-out-right': 'swipe-out-right 0.3s ease-out forwards',
         'toast-in': 'toast-in 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards',
         'toast-out': 'toast-out 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards 2s',
       },

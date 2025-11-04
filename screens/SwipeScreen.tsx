@@ -1,230 +1,272 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
+// FIX: Add file extension to firebaseConfig import
 import { db } from '../firebaseConfig.ts';
-import { collection, query, where, getDocs, limit, doc, updateDoc, arrayUnion, getDoc, addDoc, serverTimestamp, Timestamp, writeBatch, increment } from 'firebase/firestore';
-// FIX: Added file extension to types and constants imports
+// FIX: Import necessary functions from 'firebase/firestore'
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  arrayUnion,
+  runTransaction,
+  increment,
+  Timestamp,
+  limit,
+} from 'firebase/firestore';
+// FIX: Add file extension to types import
 import { User, NotificationType } from '../types.ts';
-// FIX: Added file extension to icon imports
+// FIX: Add file extensions to component and util imports
+import FilterModal from '../components/FilterModal.tsx';
+import FilterIcon from '../components/icons/FilterIcon.tsx';
 import XIcon from '../components/icons/XIcon.tsx';
 import HeartIcon from '../components/icons/HeartIcon.tsx';
 import StarIcon from '../components/icons/StarIcon.tsx';
-import FilterIcon from '../components/icons/FilterIcon.tsx';
-import FilterModal from '../components/FilterModal.tsx';
-import FlameLoader from '../components/FlameLoader.tsx';
 import { hapticFeedback } from '../utils/haptics.ts';
-
-const DAILY_SWIPE_LIMIT = 20;
-const SUPERLIKE_COST = 5;
-
-const ProfileCard: React.FC<{ user: User, swipeDirection: 'left' | 'right' | null }> = ({ user, swipeDirection }) => {
-    let animationClass = '';
-    if (swipeDirection === 'left') animationClass = 'swiping-left';
-    if (swipeDirection === 'right') animationClass = 'swiping-right';
-
-    return (
-        <div className={`absolute top-0 left-0 w-full h-full rounded-2xl overflow-hidden shadow-2xl bg-gray-300 dark:bg-zinc-800 transition-transform duration-500 ${animationClass}`}>
-            <img src={user.profilePhotos[0]} alt={user.name} className="w-full h-full object-cover" />
-            <div className="absolute bottom-0 left-0 w-full h-1/3 bg-gradient-to-t from-black/80 to-transparent p-4 flex flex-col justify-end">
-                <h2 className="text-white text-3xl font-bold">{user.name}, {user.age}</h2>
-                <p className="text-white text-lg line-clamp-2">{user.bio}</p>
-            </div>
-        </div>
-    );
-};
-
+import { XpAction } from '../utils/xpUtils.ts';
+import { XpContext } from '../contexts/XpContext.ts';
+import FlameLoader from '../components/FlameLoader.tsx';
+import WifiOffIcon from '../components/icons/WifiOffIcon.tsx';
 
 interface SwipeScreenProps {
-    currentUser: User;
-    onNewMatch: (matchedUser: User) => void;
-    onUpdateUser: (user: User) => void;
+  currentUser: User;
+  onNewMatch: (matchedUser: User) => void;
+  onUpdateUser: (updatedUser: User) => void;
 }
 
-const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUpdateUser }) => {
-    const [users, setUsers] = useState<User[]>([]);
-    const [currentIndex, setCurrentIndex] = useState(0);
-    const [isLoading, setIsLoading] = useState(true);
-    const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-    const [filters, setFilters] = useState({ ageRange: [18, 40] as [number, number], distance: 50 });
-    const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
+const SwipeCard: React.FC<{ user: User }> = ({ user }) => {
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
-    const swipesLeft = useMemo(() => Math.max(0, DAILY_SWIPE_LIMIT - (currentUser.dailySwipesUsed || 0)), [currentUser.dailySwipesUsed]);
-
-    useEffect(() => {
-        const checkSwipeReset = async () => {
-            if (!db) return;
-            const now = Timestamp.now();
-            const lastReset = currentUser.lastSwipeReset || new Timestamp(0, 0);
-            const hoursSinceReset = (now.seconds - lastReset.seconds) / 3600;
-
-            if (hoursSinceReset >= 24) {
-                const userRef = doc(db, 'users', currentUser.id);
-                await updateDoc(userRef, {
-                    dailySwipesUsed: 0,
-                    lastSwipeReset: now
-                });
-                onUpdateUser({ ...currentUser, dailySwipesUsed: 0, lastSwipeReset: now });
-            }
-        };
-        checkSwipeReset();
-    }, []);
-
-    useEffect(() => {
-        const fetchUsers = async () => {
-            if (!db) return;
-            setIsLoading(true);
-            const seenUsers = [...(currentUser.swipedLeft || []), ...(currentUser.swipedRight || []), currentUser.id, ...(currentUser.blockedUsers || [])];
-            
-            const usersRef = collection(db, 'users');
-            // This query is basic. A real-world app would have more complex filtering (location, age, etc.)
-            const q = query(usersRef, where('id', 'not-in', seenUsers.slice(0,10)), limit(20));
-            
-            try {
-                const querySnapshot = await getDocs(q);
-                const fetchedUsers = querySnapshot.docs
-                    .map(doc => ({ id: doc.id, ...doc.data() } as User));
-
-                setUsers(fetchedUsers);
-            } catch (error) {
-                 console.error("Error fetching users. It's possible the 'not-in' query limit was exceeded.", error);
-                 // Fallback to a simpler query if the initial one fails
-                 const fallbackQuery = query(usersRef, limit(20));
-                 const fallbackSnapshot = await getDocs(fallbackQuery);
-                 const fetchedUsers = fallbackSnapshot.docs
-                    .map(doc => ({ id: doc.id, ...doc.data() } as User))
-                    .filter(user => !seenUsers.includes(user.id));
-                 setUsers(fetchedUsers);
-            }
-            
-            setCurrentIndex(0);
-            setIsLoading(false);
-        };
-        fetchUsers();
-    }, [currentUser.id, currentUser.swipedLeft, currentUser.swipedRight, currentUser.blockedUsers]);
-    
-    const advanceToNextUser = () => {
-        setCurrentIndex(prevIndex => prevIndex + 1);
-        setSwipeDirection(null);
+  const nextPhoto = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (user.profilePhotos.length > 1) {
+      setActivePhotoIndex((p) => (p + 1) % user.profilePhotos.length);
     }
+  };
 
-    const handleSwipeAction = async (targetUser: User, action: 'pass' | 'like' | 'superlike') => {
-        if (!db || swipeDirection) return;
+  const prevPhoto = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (user.profilePhotos.length > 1) {
+      setActivePhotoIndex((p) => (p - 1 + user.profilePhotos.length) % user.profilePhotos.length);
+    }
+  };
 
-        let cost = 0;
-        if (action === 'superlike') cost = SUPERLIKE_COST;
-        else if (swipesLeft <= 0) cost = 1;
+  return (
+    <div className="absolute inset-0 w-full h-full bg-gray-200 rounded-2xl overflow-hidden shadow-2xl">
+      {user.profilePhotos && user.profilePhotos.length > 0 ? (
+        <img src={user.profilePhotos[activePhotoIndex]} alt={user.name} className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-full h-full bg-gray-300 flex items-center justify-center">
+            <span className="text-gray-500">No Photo</span>
+        </div>
+      )}
 
-        if (currentUser.coins < cost) {
-            alert("You don't have enough coins!");
-            return;
-        }
+      {user.profilePhotos && user.profilePhotos.length > 1 && (
+        <>
+          <div className="absolute top-0 left-0 right-0 flex p-2 space-x-1 z-10">
+            {user.profilePhotos.map((_, index) => (
+              <div key={index} className={`h-1 flex-1 rounded-full ${index === activePhotoIndex ? 'bg-white' : 'bg-white/50'}`} />
+            ))}
+          </div>
+          <div className="absolute inset-0 flex">
+            <div className="w-1/2 h-full" onClick={prevPhoto} />
+            <div className="w-1/2 h-full" onClick={nextPhoto} />
+          </div>
+        </>
+      )}
 
-        hapticFeedback('light');
-        setSwipeDirection(action === 'pass' ? 'left' : 'right');
+      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
+        <h2 className="text-white text-3xl font-bold">{user.name}, {user.age}</h2>
+        <p className="text-white mt-1 line-clamp-2">{user.bio}</p>
+        <div className="flex flex-wrap gap-2 mt-2">
+          {user.interests.slice(0, 4).map((interest) => (
+            <span key={interest} className="bg-white/20 text-white text-xs font-semibold px-2 py-1 rounded-full">{interest}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
 
-        setTimeout(() => {
-            advanceToNextUser();
-        }, 500);
+const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch }) => {
+  const [users, setUsers] = useState<User[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [filters, setFilters] = useState({ ageRange: [18, 40], distance: 50 });
+  const [swipeAnimation, setSwipeAnimation] = useState<'left' | 'right' | null>(null);
 
-        try {
-            const batch = writeBatch(db);
-            const userRef = doc(db, 'users', currentUser.id);
+  const { showXpToast } = useContext(XpContext);
 
-            const updates: any = {};
-            if (cost > 0) updates.coins = increment(-cost);
-            if (action !== 'superlike' && swipesLeft > 0) updates.dailySwipesUsed = increment(1);
+  const fetchUsers = useCallback(async () => {
+    if (!db) {
+      setError('Database connection not available.');
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      const seenUsers = new Set([...(currentUser.swipedLeft || []), ...(currentUser.swipedRight || []), currentUser.id]);
+      
+      const q = query(
+        collection(db, 'users'), 
+        where('age', '>=', filters.ageRange[0]),
+        where('age', '<=', filters.ageRange[1]),
+        limit(50) // Fetch a larger batch to filter from
+      );
 
-            if (action === 'pass') {
-                updates.swipedLeft = arrayUnion(targetUser.id);
-            } else { // like, superlike
-                updates.swipedRight = arrayUnion(targetUser.id);
-            }
-            batch.update(userRef, updates);
+      const querySnapshot = await getDocs(q);
+      const fetchedUsers = querySnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as User))
+        .filter(u => !seenUsers.has(u.id));
 
-            // Check for match
-            if (action !== 'pass') {
-                const targetUserDoc = await getDoc(doc(db, 'users', targetUser.id));
+      setUsers(fetchedUsers);
+      setCurrentIndex(0);
+    } catch (err) {
+      console.error('Error fetching users for swiping:', err);
+      setError('Could not load profiles. Please try again later.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentUser, filters]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  const handleSwipe = async (direction: 'left' | 'right') => {
+    if (currentIndex >= users.length || swipeAnimation) return;
+
+    const targetUser = users[currentIndex];
+    hapticFeedback(direction === 'right' ? 'light' : 'selection');
+    setSwipeAnimation(direction);
+
+    setTimeout(() => {
+      setCurrentIndex((prev) => prev + 1);
+      setSwipeAnimation(null);
+    }, 300);
+
+    if (!db) return;
+
+    try {
+        let isMatch = false;
+        await runTransaction(db, async (transaction) => {
+            const currentUserRef = doc(db, 'users', currentUser.id);
+            const updateData: { [key: string]: any } = {};
+
+            if (direction === 'left') {
+                updateData.swipedLeft = arrayUnion(targetUser.id);
+            } else {
+                updateData.swipedRight = arrayUnion(targetUser.id);
+                updateData.xp = increment(XpAction.SWIPE_LIKE);
+
+                const targetUserRef = doc(db, 'users', targetUser.id);
+                const targetUserDoc = await transaction.get(targetUserRef);
                 if (targetUserDoc.exists() && targetUserDoc.data().swipedRight?.includes(currentUser.id)) {
-                    onNewMatch(targetUser);
-                    hapticFeedback('success');
+                    isMatch = true;
+                    updateData.xp = increment(XpAction.SWIPE_LIKE + XpAction.MATCH);
                     
-                    const myNotifRef = doc(collection(db, 'users', currentUser.id, 'notifications'));
-                    batch.set(myNotifRef, { type: NotificationType.Match, fromUser: { id: targetUser.id, name: targetUser.name, profilePhoto: targetUser.profilePhotos[0] }, read: false, timestamp: serverTimestamp() });
-                    
-                    const theirNotifRef = doc(collection(db, 'users', targetUser.id, 'notifications'));
-                    batch.set(theirNotifRef, { type: NotificationType.Match, fromUser: { id: currentUser.id, name: currentUser.name, profilePhoto: currentUser.profilePhotos[0] }, read: false, timestamp: serverTimestamp() });
-                } else if (action === 'superlike') {
-                    const theirNotifRef = doc(collection(db, 'users', targetUser.id, 'notifications'));
-                    batch.set(theirNotifRef, { type: NotificationType.SuperLike, fromUser: { id: currentUser.id, name: currentUser.name, profilePhoto: currentUser.profilePhotos[0] }, read: false, timestamp: serverTimestamp() });
+                    const targetNotifRef = doc(collection(db, 'users', targetUser.id, 'notifications'));
+                    transaction.set(targetNotifRef, {
+                        type: NotificationType.Match,
+                        fromUser: { id: currentUser.id, name: currentUser.name, profilePhoto: currentUser.profilePhotos[0] },
+                        read: false,
+                        timestamp: Timestamp.now(),
+                    });
+                    transaction.update(targetUserRef, { xp: increment(XpAction.MATCH) });
                 }
             }
+            transaction.update(currentUserRef, updateData);
+        });
 
-            await batch.commit();
-            
-            const updatedUserFields: Partial<User> = {
-                coins: currentUser.coins - cost
-            };
-            if (action !== 'superlike' && swipesLeft > 0) {
-                 updatedUserFields.dailySwipesUsed = (currentUser.dailySwipesUsed || 0) + 1;
+        if (direction === 'right') {
+            if (isMatch) {
+                onNewMatch(targetUser);
+                showXpToast(XpAction.SWIPE_LIKE + XpAction.MATCH);
+            } else {
+                showXpToast(XpAction.SWIPE_LIKE);
             }
-            onUpdateUser({ ...currentUser, ...updatedUserFields });
-        } catch (error) {
-            console.error("Error processing swipe:", error);
-            // Revert on error could be complex with animations, so we'll just log for now
         }
-    };
+    } catch (error) {
+      console.error('Failed to process swipe:', error);
+    }
+  };
 
-    const currentProfile = !isLoading && users.length > currentIndex ? users[currentIndex] : null;
-    const canSwipe = swipesLeft > 0 || currentUser.coins > 0;
-    const canSuperLike = currentUser.coins >= SUPERLIKE_COST;
-    
+  const currentCardUser = users[currentIndex];
+  const nextCardUser = users[currentIndex + 1];
 
-    return (
-        <div className="w-full h-full flex flex-col items-center bg-gray-100 dark:bg-zinc-900 p-4">
-            {isFilterModalOpen && <FilterModal onClose={() => setIsFilterModalOpen(false)} onApply={setFilters} currentFilters={filters}/>}
-            
-            <header className="w-full flex justify-between items-center mb-4 text-dark-gray dark:text-gray-200">
-                <div>
-                    <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-flame-orange to-flame-red">Discover</h1>
-                </div>
-                <div className="flex items-center space-x-4">
-                    <div className="text-right">
-                        <p className="font-bold">{swipesLeft > 0 ? swipesLeft : currentUser.coins}</p>
-                        <p className="text-xs text-gray-500">{swipesLeft > 0 ? 'Free Swipes' : 'Coins Left'}</p>
-                    </div>
-                    <button onClick={() => setIsFilterModalOpen(true)}>
-                        <FilterIcon className="w-6 h-6" />
-                    </button>
-                </div>
-            </header>
+  const animationClasses = {
+    left: 'animate-swipe-out-left',
+    right: 'animate-swipe-out-right',
+  };
 
-            <div className="relative flex-1 w-full max-w-sm mb-4">
-                {isLoading && <div className="flex justify-center items-center h-full"><FlameLoader /></div>}
-                {!isLoading && users[currentIndex + 1] && (
-                    <div className="absolute top-0 left-0 w-full h-full transform scale-95 opacity-75">
-                         <ProfileCard user={users[currentIndex + 1]} swipeDirection={null}/>
-                    </div>
-                )}
-                {!isLoading && currentProfile && <ProfileCard user={currentProfile} swipeDirection={swipeDirection}/>}
-                {!isLoading && !currentProfile && (
-                    <div className="flex flex-col justify-center items-center h-full text-center p-4 bg-white dark:bg-zinc-800 rounded-2xl shadow-lg">
-                        <h2 className="text-xl font-bold text-dark-gray dark:text-gray-200">That's Everyone!</h2>
-                        <p className="text-gray-500 dark:text-gray-400 mt-2">You've seen all the profiles for now. Check back later for new people.</p>
-                    </div>
-                )}
-            </div>
-
-            <div className="flex justify-around items-center w-full max-w-xs">
-                <button onClick={() => currentProfile && handleSwipeAction(currentProfile, 'pass')} disabled={!currentProfile || !canSwipe || !!swipeDirection} className="w-16 h-16 rounded-full bg-white dark:bg-zinc-700 shadow-lg flex justify-center items-center disabled:opacity-50 transition-transform hover:scale-110">
-                    <XIcon className="w-8 h-8 text-gray-500" />
-                </button>
-                <button onClick={() => currentProfile && handleSwipeAction(currentProfile, 'like')} disabled={!currentProfile || !canSwipe || !!swipeDirection} className="w-20 h-20 rounded-full bg-white dark:bg-zinc-700 shadow-lg flex justify-center items-center text-red-500 disabled:opacity-50 transition-transform hover:scale-110">
-                    <HeartIcon isLiked={false} className="w-10 h-10" />
-                </button>
-                <button onClick={() => currentProfile && handleSwipeAction(currentProfile, 'superlike')} disabled={!currentProfile || !canSuperLike || !!swipeDirection} className="w-16 h-16 rounded-full bg-white dark:bg-zinc-700 shadow-lg flex justify-center items-center text-blue-500 disabled:opacity-50 transition-transform hover:scale-110">
-                    <StarIcon className="w-8 h-8" />
-                </button>
-            </div>
+  const renderContent = () => {
+    if (isLoading) {
+      return <div className="flex justify-center items-center h-full"><FlameLoader /></div>;
+    }
+    if (error) {
+      return (
+        <div className="flex flex-col justify-center items-center h-full text-center p-4">
+          <WifiOffIcon className="w-16 h-16 text-gray-400 mb-4" />
+          <h3 className="font-bold text-lg">Oops! Something went wrong.</h3>
+          <p className="text-gray-600 dark:text-gray-400">{error}</p>
+          <button onClick={fetchUsers} className="mt-4 px-4 py-2 bg-flame-orange text-white rounded-lg">Try Again</button>
         </div>
+      );
+    }
+    if (!currentCardUser) {
+      return (
+        <div className="flex flex-col justify-center items-center h-full text-center p-4">
+          <h3 className="font-bold text-lg dark:text-gray-200">That's everyone for now!</h3>
+          <p className="text-gray-600 dark:text-gray-400">Check back later for new profiles or try adjusting your filters.</p>
+          <button onClick={fetchUsers} className="mt-4 px-4 py-2 bg-flame-orange text-white rounded-lg">Refresh</button>
+        </div>
+      );
+    }
+    return (
+      <div className="flex-1 flex flex-col justify-between items-center p-4">
+        <div className="relative w-full h-full flex-1">
+          {nextCardUser && (
+            <div className="absolute inset-0 w-full h-full transform scale-95">
+              <SwipeCard user={nextCardUser} />
+            </div>
+          )}
+          {currentCardUser && (
+            <div className={`absolute inset-0 w-full h-full ${swipeAnimation ? animationClasses[swipeAnimation] : ''}`}>
+              <SwipeCard user={currentCardUser} />
+            </div>
+          )}
+        </div>
+        <div className="flex justify-around items-center w-full mt-4 flex-shrink-0">
+          <button onClick={() => handleSwipe('left')} className="w-16 h-16 bg-white dark:bg-zinc-800 rounded-full shadow-lg flex justify-center items-center text-gray-500">
+            <XIcon className="w-8 h-8" />
+          </button>
+          <button className="w-14 h-14 bg-white dark:bg-zinc-800 rounded-full shadow-lg flex justify-center items-center text-blue-500">
+            <StarIcon className="w-7 h-7" />
+          </button>
+          <button onClick={() => handleSwipe('right')} className="w-16 h-16 bg-white dark:bg-zinc-800 rounded-full shadow-lg flex justify-center items-center text-red-500">
+            <HeartIcon isLiked={false} className="w-8 h-8" />
+          </button>
+        </div>
+      </div>
     );
+  };
+
+  return (
+    <div className="w-full h-full flex flex-col bg-gray-100 dark:bg-black">
+      {isFilterOpen && <FilterModal onClose={() => setIsFilterOpen(false)} onApply={setFilters} currentFilters={filters} />}
+      <header className="flex justify-between items-center p-4 flex-shrink-0">
+        <div className="w-8"></div>
+        <img src="/assets/logo-icon.png" alt="FlameUp" className="h-8 dark:invert" />
+        <button onClick={() => setIsFilterOpen(true)}>
+          <FilterIcon className="w-6 h-6 text-gray-600 dark:text-gray-300" />
+        </button>
+      </header>
+      {renderContent()}
+    </div>
+  );
 };
 
 export default SwipeScreen;
