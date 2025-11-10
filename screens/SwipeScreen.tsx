@@ -98,8 +98,10 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
         setIsLoading(true);
         setError(null);
         
-        const swipedLeft = currentUser.swipedLeft ?? [];
-        const swipedRight = currentUser.swipedRight ?? [];
+        // FIX: Harden against malformed currentUser data to prevent crash.
+        // If swipedLeft/Right are not arrays in Firestore, this prevents a TypeError on spread.
+        const swipedLeft = Array.isArray(currentUser.swipedLeft) ? currentUser.swipedLeft : [];
+        const swipedRight = Array.isArray(currentUser.swipedRight) ? currentUser.swipedRight : [];
         const seenUsers = new Set([currentUser.id, ...swipedLeft, ...swipedRight]);
 
         const validateAndFilterUsers = (userList: any[]): User[] => {
