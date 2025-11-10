@@ -188,8 +188,9 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     };
     
     const handleSendGift = async (gift: Gift) => {
-        if (!db || !partner || isSending || currentUser.coins < gift.cost) {
-            if(currentUser.coins < gift.cost) alert("Not enough coins.");
+        const currentCoins = currentUser.coins ?? 0;
+        if (!db || !partner || isSending || currentCoins < gift.cost) {
+            if (currentCoins < gift.cost) alert("Not enough coins.");
             return;
         }
         setIsSending(true);
@@ -197,7 +198,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         
         try {
             const currentChatId = await getOrCreateChat();
-            const newCoinTotal = currentUser.coins - gift.cost;
+            const newCoinTotal = currentCoins - gift.cost;
 
             // 1. Debit the user's coins. This can be done first.
             const userRef = doc(db, 'users', currentUser.id);

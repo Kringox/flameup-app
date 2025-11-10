@@ -6,15 +6,18 @@ type Language = 'en' | 'de';
 
 const translations = { en, de };
 
+// FIX: Export the I18nKey type for type-safe usage in other components.
+export type I18nKey = keyof typeof en;
+
 interface I18nContextType {
   language: Language;
-  t: (key: keyof typeof en) => string;
+  t: (key: I18nKey) => string;
 }
 
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
 export const I18nProvider: React.FC<{ children: ReactNode; language: Language }> = ({ children, language }) => {
-  const t = (key: keyof typeof en): string => {
+  const t = (key: I18nKey): string => {
     return translations[language][key] || translations['en'][key];
   };
 

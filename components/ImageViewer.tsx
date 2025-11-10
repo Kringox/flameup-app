@@ -51,7 +51,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ images, startIndex = 0, onClo
       </div>
       
       <div className="relative w-screen h-screen flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
-        <img src={images[currentIndex]} alt={`View ${currentIndex + 1}`} className="max-h-screen max-w-screen object-contain" />
+        <img src={images[currentIndex]} alt={`View ${currentIndex + 1}`} className="w-full h-full object-cover" />
         <div 
           className="absolute inset-0 w-full h-full"
           onClick={handleTap}

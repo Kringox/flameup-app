@@ -3,7 +3,7 @@ import React from 'react';
 import { User } from '../types.ts';
 // FIX: Added file extension to firebaseConfig import
 import { db } from '../firebaseConfig.ts';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, increment } from 'firebase/firestore';
 
 interface BuyCoinsModalProps {
     onClose: () => void;
@@ -21,10 +21,17 @@ const BuyCoinsModal: React.FC<BuyCoinsModalProps> = ({ onClose, currentUser, onU
     
     const handleBuy = async (coins: number) => {
         if (!db) return;
-        const newCoinTotal = currentUser.coins + coins;
-        await updateDoc(doc(db, 'users', currentUser.id), { coins: newCoinTotal });
-        onUpdateUser({ ...currentUser, coins: newCoinTotal });
-        onClose();
+        const newCoinTotal = (currentUser.coins ?? 0) + coins;
+        try {
+            // Use Firestore's atomic increment operation
+            await updateDoc(doc(db, 'users', currentUser.id), { coins: increment(coins) });
+            // Optimistically update the local state
+            onUpdateUser({ ...currentUser, coins: newCoinTotal });
+            onClose();
+        } catch (error) {
+            console.error("Error purchasing coins:", error);
+            alert("Purchase failed. Please try again.");
+        }
     };
 
     return (

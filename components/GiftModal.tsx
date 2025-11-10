@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 // FIX: Import User and Gift types from the central types file.
 import { User, Gift } from '../types.ts';
 import FlameIcon from './icons/FlameIcon.tsx';
-import { useI18n } from '../contexts/I18nContext.ts';
+// FIX: Import I18nKey for type-safe translation key mapping.
+import { useI18n, I18nKey } from '../contexts/I18nContext.ts';
 
 // FIX: Remove local Gift interface definition as it's now imported.
 
@@ -13,6 +14,14 @@ const GIFTS = [
     { name: 'Diamond', icon: '💎', cost: 100 },
     { name: 'Heart', icon: '❤️‍🔥', cost: 25 },
 ] as const;
+
+// FIX: Create a type-safe map from gift names to translation keys to resolve the TypeScript error.
+const giftTranslationMap: Record<(typeof GIFTS)[number]['name'], I18nKey> = {
+    'Rose': 'gift_rose',
+    'Teddy Bear': 'gift_teddybear',
+    'Diamond': 'gift_diamond',
+    'Heart': 'gift_heart',
+};
 
 interface GiftModalProps {
     onClose: () => void;
@@ -47,7 +56,7 @@ const GiftModal: React.FC<GiftModalProps> = ({ onClose, currentUser, onSendGift 
                             className={`p-4 border-2 rounded-lg text-center bg-gray-50 dark:bg-zinc-700 ${selectedGift?.name === gift.name ? 'border-flame-orange' : 'border-gray-200 dark:border-zinc-600'}`}
                         >
                             <span className="text-4xl">{gift.icon}</span>
-                            <p className="font-semibold dark:text-gray-200">{t(`gift_${gift.name.toLowerCase().replace(' ', '')}`)}</p>
+                            <p className="font-semibold dark:text-gray-200">{t(giftTranslationMap[gift.name])}</p>
                             <div className="flex items-center justify-center text-sm text-gray-600 dark:text-gray-400">
                                 <FlameIcon isGradient className="w-4 h-4 mr-1" />
                                 <span>{gift.cost}</span>

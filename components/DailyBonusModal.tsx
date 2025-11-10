@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { User } from '../types.ts';
 // FIX: Added file extension to firebaseConfig import
 import { db } from '../firebaseConfig.ts';
-import { doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, updateDoc, Timestamp, increment } from 'firebase/firestore';
 // FIX: Added file extension to icon import
 import FlameIcon from './icons/FlameIcon.tsx';
 
@@ -19,15 +19,22 @@ const DailyBonusModal: React.FC<DailyBonusModalProps> = ({ onClose, currentUser,
 
     const handleClaim = async () => {
         if (claimed || !db) return;
+        setClaimed(true); // Optimistically update modal state
         
-        const newCoinTotal = currentUser.coins + bonusAmount;
+        const newCoinTotal = (currentUser.coins ?? 0) + bonusAmount;
         const newBonusTimestamp = Timestamp.now();
-        await updateDoc(doc(db, 'users', currentUser.id), {
-            coins: newCoinTotal,
-            lastDailyBonus: newBonusTimestamp
-        });
-        onUpdateUser({ ...currentUser, coins: newCoinTotal, lastDailyBonus: newBonusTimestamp });
-        setClaimed(true);
+        
+        try {
+            await updateDoc(doc(db, 'users', currentUser.id), {
+                coins: increment(bonusAmount),
+                lastDailyBonus: newBonusTimestamp
+            });
+            onUpdateUser({ ...currentUser, coins: newCoinTotal, lastDailyBonus: newBonusTimestamp });
+        } catch (error) {
+            console.error("Error claiming bonus:", error);
+            alert("Failed to claim bonus. Please try again.");
+            setClaimed(false); // Revert on failure
+        }
     };
 
     return (
