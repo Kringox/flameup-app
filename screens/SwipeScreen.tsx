@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback, useContext } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { db } from '../firebaseConfig.ts';
-import { collection, query, getDocs, limit, doc, updateDoc, arrayUnion, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
+import { collection, query, getDocs, limit, doc, updateDoc, arrayUnion, writeBatch, serverTimestamp, increment, where } from 'firebase/firestore';
 import { User, NotificationType } from '../types.ts';
 import XIcon from '../components/icons/XIcon.tsx';
 import HeartIcon from '../components/icons/HeartIcon.tsx';
@@ -10,7 +10,6 @@ import WifiOffIcon from '../components/icons/WifiOffIcon.tsx';
 import { hapticFeedback } from '../utils/haptics.ts';
 import { XpContext } from '../contexts/XpContext.ts';
 import { XpAction } from '../utils/xpUtils.ts';
-import { DEMO_USERS_FOR_UI } from '../constants.ts';
 
 interface SwipeScreenProps {
   currentUser: User;
@@ -19,7 +18,7 @@ interface SwipeScreenProps {
 }
 
 const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; }> = ({ user, isVisible, animation }) => {
-  const [activePhotoIndex, useStateState] = useState(0);
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
   if (!isVisible) return null;
 
@@ -28,14 +27,14 @@ const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; }
   const nextPhoto = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (photos.length > 1) {
-      useStateState(p => (p + 1) % photos.length);
+      setActivePhotoIndex(p => (p + 1) % photos.length);
     }
   };
 
   const prevPhoto = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (photos.length > 1) {
-      useStateState(p => (p - 1 + photos.length) % photos.length);
+      setActivePhotoIndex(p => (p - 1 + photos.length) % photos.length);
     }
   };
 
@@ -85,35 +84,46 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
     const [animation, setAnimation] = useState('');
     const { showXpToast } = useContext(XpContext);
 
-    // CRITICAL DEBUGGING STEP: Use static demo data to isolate the crash source.
     const fetchUsers = useCallback(async () => {
+        if (!db) {
+            setError("Database connection is not available.");
+            setIsLoading(false);
+            return;
+        }
         setIsLoading(true);
         setError(null);
         try {
-            // This replaces the Firestore query with static data.
-            // If the app loads, the problem is with the Firestore call or rules.
-            // If it still crashes, the problem is in the rendering logic.
-            const demoUsers = DEMO_USERS_FOR_UI.filter(u => u.id !== currentUser.id);
-            
-            // Simulate network delay for a better loading experience
-            await new Promise(resolve => setTimeout(resolve, 500));
+            // CRITICAL FIX: Default swiped arrays to [] to prevent crash on undefined.
+            const swipedLeft = currentUser.swipedLeft ?? [];
+            const swipedRight = currentUser.swipedRight ?? [];
+            const seenUsers = [currentUser.id, ...swipedLeft, ...swipedRight];
 
-            setUsers(demoUsers);
+            const usersRef = collection(db, 'users');
+            // Fetch a batch of users. Filtering happens client-side because Firestore's 'not-in'
+            // query is limited to 10 items, which is not scalable for seen users.
+            const q = query(usersRef, limit(20));
+            const querySnapshot = await getDocs(q);
+            
+            const fetchedUsers = querySnapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() } as User))
+                .filter(u => !seenUsers.includes(u.id)); // Filter out already seen users.
+
+            setUsers(fetchedUsers);
             setCurrentIndex(0);
         } catch (err: any) {
-            console.error("Error setting up demo users for swiping:", err);
-            setError("Could not load profiles due to an internal error.");
+            console.error("Error fetching users for swiping:", err);
+            setError("Could not load new profiles. Please check your connection.");
         } finally {
             setIsLoading(false);
         }
-    }, [currentUser.id]);
+    }, [currentUser]);
 
     useEffect(() => {
         fetchUsers();
     }, [fetchUsers]);
 
     const handleSwipe = async (direction: 'left' | 'right' | 'super') => {
-        if (currentIndex >= users.length) return;
+        if (currentIndex >= users.length || !db) return;
 
         const swipedUserId = users[currentIndex].id;
         const swipedUser = users[currentIndex];
@@ -131,15 +141,6 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
             setAnimation('');
         }, 300);
 
-        // Prevent Firestore writes for demo data to avoid errors during debugging
-        if (swipedUserId.startsWith('demo-user-')) {
-             if (direction === 'right' || direction === 'super') {
-                showXpToast(XpAction.SWIPE_LIKE);
-            }
-            return;
-        }
-
-        if (!db) return;
         try {
             const userRef = doc(db, 'users', currentUser.id);
             const batch = writeBatch(db);
@@ -151,11 +152,13 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                 batch.update(userRef, { xp: increment(XpAction.SWIPE_LIKE) });
                 showXpToast(XpAction.SWIPE_LIKE);
                 
+                // Check for a match
                 if (swipedUser.swipedRight?.includes(currentUser.id)) {
                     onNewMatch(swipedUser);
                     batch.update(userRef, { xp: increment(XpAction.MATCH) });
                     showXpToast(XpAction.MATCH);
                     
+                    // Create notification for the matched user
                     const notifRef = doc(collection(db, 'users', swipedUserId, 'notifications'));
                     batch.set(notifRef, {
                         type: NotificationType.Match,
@@ -166,6 +169,11 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                 }
             }
             await batch.commit();
+            
+            // Optimistically update the user object in the parent state
+            const updatedSwipedList = [...(currentUser[fieldToUpdate] || []), swipedUserId];
+            onUpdateUser({...currentUser, [fieldToUpdate]: updatedSwipedList});
+
         } catch (error) {
             console.error(`Error handling swipe ${direction}:`, error);
         }
