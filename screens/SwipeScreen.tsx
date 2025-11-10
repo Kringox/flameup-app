@@ -78,8 +78,8 @@ const SwipeCard: React.FC<{ user: User }> = ({ user }) => {
       )}
 
       <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
-        <h2 className="text-white text-3xl font-bold">{user.name}, {user.age}</h2>
-        <p className="text-white mt-1 line-clamp-2">{user.aboutMe}</p>
+        <h2 className="text-white text-3xl font-bold">{user.name || 'User'}{user.age ? `, ${user.age}` : ''}</h2>
+        <p className="text-white mt-1 line-clamp-2">{user.aboutMe || ''}</p>
         <div className="flex flex-wrap gap-2 mt-2">
           {(user.interests || '').split(',').slice(0, 4).map((interest) => (
             <span key={interest.trim()} className="bg-white/20 text-white text-xs font-semibold px-2 py-1 rounded-full">{interest.trim()}</span>
