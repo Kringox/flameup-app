@@ -22,9 +22,23 @@ interface SwipeScreenProps {
 const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; }> = ({ user, isVisible, animation }) => {
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
+  // Crash-proofing: Add defensive checks here to prevent render errors from malformed data.
+  const photos = user?.profilePhotos;
+  const hasValidPhotos = Array.isArray(photos) && photos.length > 0 && photos.every(p => typeof p === 'string' && p.trim() !== '');
+
   if (!isVisible) return null;
 
-  const photos = user.profilePhotos || [];
+  if (!hasValidPhotos) {
+    console.error("SwipeCard rendering fallback due to invalid photos for user:", user);
+    return (
+        <div className={`absolute inset-0 w-full h-full bg-gray-300 dark:bg-zinc-700 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center p-4 text-center ${animation}`}>
+            <div className="text-red-500">
+                <p className="font-bold">Profile Error</p>
+                <p className="text-sm">This profile could not be loaded due to an image error.</p>
+            </div>
+        </div>
+    );
+  }
 
   const nextPhoto = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -42,13 +56,7 @@ const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; }
 
   return (
     <div className={`absolute inset-0 w-full h-full bg-gray-200 rounded-2xl overflow-hidden shadow-2xl transition-transform duration-500 ${animation}`}>
-       {photos.length > 0 ? (
-        <img src={photos[activePhotoIndex]} alt={user.name} className="w-full h-full object-cover" />
-      ) : (
-        <div className="w-full h-full bg-gray-300 flex items-center justify-center">
-          <span className="text-gray-500">No Photo</span>
-        </div>
-      )}
+       <img src={photos[activePhotoIndex]} alt={user.name} className="w-full h-full object-cover" />
 
       {photos.length > 1 && (
         <>
@@ -95,15 +103,20 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
         const seenUsers = new Set([currentUser.id, ...swipedLeft, ...swipedRight]);
 
         const validateAndFilterUsers = (userList: any[]): User[] => {
-            return userList
-                .filter(u => 
-                    u && // user object exists
-                    !seenUsers.has(u.id) && // not already seen
-                    typeof u.name === 'string' && u.name.trim() !== '' && // must have a non-empty name
-                    Array.isArray(u.profilePhotos) && u.profilePhotos.length > 0 // must have at least one photo
-                ) as User[];
+            return userList.filter(u => {
+                if (!u || !u.id || typeof u.id !== 'string') return false;
+                if (seenUsers.has(u.id)) return false;
+                if (typeof u.name !== 'string' || u.name.trim() === '') return false;
+                if (!Array.isArray(u.profilePhotos) || u.profilePhotos.length === 0) return false;
+                if (u.profilePhotos.some(p => typeof p !== 'string' || p.trim() === '')) {
+                    console.warn(`Filtering out user ${u.id} due to invalid item in profilePhotos array.`);
+                    return false;
+                }
+                return true;
+            }) as User[];
         };
 
+        let finalUsers: User[] = [];
         try {
             if (!db) throw new Error("Database connection not available.");
 
@@ -117,24 +130,19 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
             ) as QuerySnapshot;
             
             const firestoreDocs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            let finalUsers = validateAndFilterUsers(firestoreDocs);
+            finalUsers = validateAndFilterUsers(firestoreDocs);
             
-            if (finalUsers.length === 0) {
-                console.log("No new valid users from Firestore, falling back to demo users.");
-                finalUsers = validateAndFilterUsers(DEMO_USERS_FOR_UI);
-                setUsers(finalUsers);
-            } else {
-                setUsers(finalUsers);
-            }
-
         } catch (err: any) {
-            console.error("Error fetching users from Firestore, falling back to demo users:", err);
-            const demoUsers = validateAndFilterUsers(DEMO_USERS_FOR_UI);
-            setUsers(demoUsers);
+            console.error("Error fetching users from Firestore:", err);
             if (err.message.includes("took too long")) {
                 setError("Could not load profiles. Please check your connection and try again.");
             }
         } finally {
+            if (finalUsers.length === 0) {
+                console.log("No valid users from Firestore or fetch failed. Falling back to demo users.");
+                finalUsers = validateAndFilterUsers(DEMO_USERS_FOR_UI);
+            }
+            setUsers(finalUsers);
             setCurrentIndex(0);
             setIsLoading(false);
         }
