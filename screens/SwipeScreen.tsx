@@ -198,10 +198,15 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                     batch.update(userRef, { xp: increment(XpAction.MATCH) });
                     showXpToast(XpAction.MATCH);
                     
+                    // CRITICAL FIX: Ensure currentUser has a valid photo before creating a notification to prevent a crash.
+                    const currentUserProfilePhoto = (Array.isArray(currentUser.profilePhotos) && currentUser.profilePhotos.length > 0)
+                        ? currentUser.profilePhotos[0]
+                        : `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==`; // Fallback photo
+
                     const notifRef = doc(collection(db, 'users', swipedUserId, 'notifications'));
                     batch.set(notifRef, {
                         type: NotificationType.Match,
-                        fromUser: { id: currentUser.id, name: currentUser.name, profilePhoto: currentUser.profilePhotos[0] },
+                        fromUser: { id: currentUser.id, name: currentUser.name, profilePhoto: currentUserProfilePhoto },
                         read: false,
                         timestamp: serverTimestamp(),
                     });
