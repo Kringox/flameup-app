@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { db } from '../firebaseConfig.ts';
-import { collection, query, getDocs, limit, doc, updateDoc, arrayUnion, writeBatch, serverTimestamp, increment, where } from 'firebase/firestore';
+import { collection, query, getDocs, limit, doc, updateDoc, arrayUnion, writeBatch, serverTimestamp, increment, where, documentId, QuerySnapshot } from 'firebase/firestore';
 import { User, NotificationType } from '../types.ts';
 import XIcon from '../components/icons/XIcon.tsx';
 import HeartIcon from '../components/icons/HeartIcon.tsx';
@@ -16,6 +16,19 @@ interface SwipeScreenProps {
   onNewMatch: (matchedUser: User) => void;
   onUpdateUser: (updatedUser: User) => void;
 }
+
+const promiseWithTimeout = <T,>(
+  promise: Promise<T>,
+  ms: number,
+  timeoutError = new Error('Promise timed out')
+): Promise<T> => {
+  const timeout = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(timeoutError);
+    }, ms);
+  });
+  return Promise.race<T>([promise, timeout]);
+};
 
 const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; }> = ({ user, isVisible, animation }) => {
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
@@ -93,26 +106,34 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
         setIsLoading(true);
         setError(null);
         try {
-            // CRITICAL FIX: Default swiped arrays to [] to prevent crash on undefined.
             const swipedLeft = currentUser.swipedLeft ?? [];
             const swipedRight = currentUser.swipedRight ?? [];
             const seenUsers = [currentUser.id, ...swipedLeft, ...swipedRight];
 
             const usersRef = collection(db, 'users');
-            // Fetch a batch of users. Filtering happens client-side because Firestore's 'not-in'
-            // query is limited to 10 items, which is not scalable for seen users.
-            const q = query(usersRef, limit(20));
-            const querySnapshot = await getDocs(q);
+            // Fetch users, excluding the current user. Fetch a bit more to have a buffer for client-side filtering.
+            const q = query(usersRef, where(documentId(), '!=', currentUser.id), limit(30));
+            
+            // Fetch with an 8-second timeout to prevent infinite loading state.
+            const querySnapshot = await promiseWithTimeout(
+                getDocs(q), 
+                8000, 
+                new Error("Fetching profiles took too long.")
+            ) as QuerySnapshot;
             
             const fetchedUsers = querySnapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() } as User))
-                .filter(u => !seenUsers.includes(u.id)); // Filter out already seen users.
+                .filter(u => !seenUsers.includes(u.id));
 
             setUsers(fetchedUsers);
             setCurrentIndex(0);
         } catch (err: any) {
             console.error("Error fetching users for swiping:", err);
-            setError("Could not load new profiles. Please check your connection.");
+            if (err.message.includes("too long")) {
+                setError("Profiles took too long to load. Please check your connection and try again.");
+            } else {
+                setError("Could not load new profiles. Please try again.");
+            }
         } finally {
             setIsLoading(false);
         }
