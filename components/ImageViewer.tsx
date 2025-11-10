@@ -30,7 +30,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ images, startIndex = 0, onClo
   };
 
   return (
-    <div className="fixed inset-0 bg-black z-[100] flex flex-col items-center justify-center animate-fade-in" onClick={onClose}>
+    <div className="absolute inset-0 bg-black z-[100] flex flex-col items-center justify-center animate-fade-in" onClick={onClose}>
       <style>{`
             @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
             .animate-fade-in { animation: fade-in 0.2s ease-out; }
@@ -50,8 +50,8 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ images, startIndex = 0, onClo
         ))}
       </div>
       
-      <div className="relative w-screen h-screen flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
-        <img src={images[currentIndex]} alt={`View ${currentIndex + 1}`} className="w-full h-full object-cover" />
+      <div className="relative w-full h-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+        <img src={images[currentIndex]} alt={`View ${currentIndex + 1}`} className="w-full h-full object-contain" />
         <div 
           className="absolute inset-0 w-full h-full"
           onClick={handleTap}

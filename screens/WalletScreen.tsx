@@ -47,7 +47,7 @@ const WalletScreen: React.FC<WalletScreenProps> = ({ user, onClose, onUpdateUser
                     <p className="text-gray-500 dark:text-gray-400">{t('yourBalance')}</p>
                     <div className="flex items-center justify-center mt-2 text-dark-gray dark:text-gray-200">
                         <FlameIcon isGradient className="w-8 h-8" />
-                        <span className="text-4xl font-bold ml-2">{user.coins ?? 0}</span>
+                        <span className="text-4xl font-bold ml-2">{Number(user.coins) || 0}</span>
                     </div>
                 </div>
 

@@ -21,7 +21,7 @@ const BuyCoinsModal: React.FC<BuyCoinsModalProps> = ({ onClose, currentUser, onU
     
     const handleBuy = async (coins: number) => {
         if (!db) return;
-        const newCoinTotal = (currentUser.coins ?? 0) + coins;
+        const newCoinTotal = (Number(currentUser.coins) || 0) + coins;
         try {
             // Use Firestore's atomic increment operation
             await updateDoc(doc(db, 'users', currentUser.id), { coins: increment(coins) });

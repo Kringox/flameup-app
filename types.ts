@@ -28,7 +28,7 @@ export interface User {
   language?: 'en' | 'de';
   followers: string[]; // array of user IDs
   following: string[]; // array of user IDs
-  coins: number;
+  coins?: number;
   xp: number;
   level: number;
   createdAt: Timestamp;

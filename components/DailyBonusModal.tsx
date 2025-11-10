@@ -21,7 +21,7 @@ const DailyBonusModal: React.FC<DailyBonusModalProps> = ({ onClose, currentUser,
         if (claimed || !db) return;
         setClaimed(true); // Optimistically update modal state
         
-        const newCoinTotal = (currentUser.coins ?? 0) + bonusAmount;
+        const newCoinTotal = (Number(currentUser.coins) || 0) + bonusAmount;
         const newBonusTimestamp = Timestamp.now();
         
         try {

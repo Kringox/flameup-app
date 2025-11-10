@@ -188,7 +188,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     };
     
     const handleSendGift = async (gift: Gift) => {
-        const currentCoins = currentUser.coins ?? 0;
+        const currentCoins = Number(currentUser.coins) || 0;
         if (!db || !partner || isSending || currentCoins < gift.cost) {
             if (currentCoins < gift.cost) alert("Not enough coins.");
             return;

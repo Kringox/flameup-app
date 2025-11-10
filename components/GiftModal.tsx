@@ -39,7 +39,7 @@ const GiftModal: React.FC<GiftModalProps> = ({ onClose, currentUser, onSendGift 
         }
     };
     
-    const currentCoins = currentUser.coins ?? 0;
+    const currentCoins = Number(currentUser.coins) || 0;
     const selectedCost = selectedGift?.cost ?? 0;
     const canAfford = currentCoins >= selectedCost;
 

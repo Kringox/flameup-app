@@ -160,7 +160,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                     </div>
                     <div className="flex items-center font-bold text-lg">
                         <FlameIcon isGradient className="w-5 h-5 mr-2" />
-                        <span className={`${themeClasses.text}`}>{currentUser.coins ?? 0}</span>
+                        <span className={`${themeClasses.text}`}>{Number(currentUser.coins) || 0}</span>
                     </div>
                 </button>
 
