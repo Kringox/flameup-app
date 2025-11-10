@@ -1,36 +1,104 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebaseConfig';
-// FIX: Import 'limit' from 'firebase/firestore' to resolve 'Cannot find name' error.
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, writeBatch, increment, arrayUnion, getDocs, limit, setDoc, Timestamp } from 'firebase/firestore';
-// FIX: Added file extension to types import
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, writeBatch, increment, arrayUnion, getDocs, limit, setDoc, Timestamp, arrayRemove } from 'firebase/firestore';
 import { User, Message, Chat, Gift } from '../types.ts';
-// FIX: Added file extensions to icon imports
 import MoreVerticalIcon from '../components/icons/MoreVerticalIcon.tsx';
 import GiftIcon from '../components/icons/GiftIcon.tsx';
 import ChatOptionsModal from '../components/ChatOptionsModal.tsx';
 import ReportModal from '../components/ReportModal.tsx';
 import GiftModal from '../components/GiftModal.tsx';
-// FIX: Import FlameLoader component to resolve 'Cannot find name' error.
 import FlameLoader from '../components/FlameLoader.tsx';
+import { useI18n } from '../contexts/I18nContext.ts';
 
-const MessageBubble: React.FC<{ message: Message, isOwnMessage: boolean }> = ({ message, isOwnMessage }) => {
+const REACTION_EMOJIS = ['🔥', '❤️', '😂', '😮', '👍', '😢'];
+
+const ReplyPreview: React.FC<{ message: Message, onCancel: () => void }> = ({ message, onCancel }) => {
+    const { t } = useI18n();
+    return (
+        <div className="p-2 border-b border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 flex justify-between items-center">
+            <div className="text-xs text-gray-600 dark:text-gray-400">
+                <p className="font-semibold">{t('replyingTo')} {message.senderName}</p>
+                <p className="italic truncate">{message.text}</p>
+            </div>
+            <button onClick={onCancel} className="p-1">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+        </div>
+    );
+};
+
+const MessageBubble: React.FC<{ message: Message, isOwnMessage: boolean, onLongPress: (e: React.MouseEvent, msg: Message) => void }> = ({ message, isOwnMessage, onLongPress }) => {
     const bubbleClass = isOwnMessage ? 'bg-flame-orange text-white self-end rounded-br-none' : 'bg-gray-200 dark:bg-zinc-700 text-dark-gray dark:text-gray-200 self-start rounded-bl-none';
     
+    if (message.isRecalled) {
+        return (
+             <div className="p-3 rounded-2xl max-w-xs md:max-w-md bg-gray-100 dark:bg-zinc-800 self-center text-center text-sm italic text-gray-500 dark:text-gray-400">
+                Message recalled
+            </div>
+        )
+    }
+
     if (message.gift) {
         return (
-             <div className={`p-3 rounded-2xl max-w-xs md:max-w-md text-center flex flex-col items-center ${bubbleClass}`}>
+             <div onContextMenu={(e) => onLongPress(e, message)} className={`p-3 rounded-2xl max-w-xs md:max-w-md text-center flex flex-col items-center ${bubbleClass}`}>
                 <span className="text-4xl">{message.gift.icon}</span>
                 <p className="font-semibold mt-1">Sent a {message.gift.name}</p>
             </div>
         )
     }
     
+    // FIX: Add Array.isArray check to safely access `length` on `userIds`, which is inferred as `unknown`. This resolves the error on line 50.
+    const reactions = message.reactions && Object.entries(message.reactions).filter(([, userIds]) => Array.isArray(userIds) && userIds.length > 0);
+    
     return (
-        <div className={`p-3 rounded-2xl max-w-xs md:max-w-md ${bubbleClass}`}>
-            {message.text}
+        <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'}`}>
+            <div onContextMenu={(e) => onLongPress(e, message)} className={`p-3 rounded-2xl max-w-xs md:max-w-md relative ${bubbleClass}`}>
+                {message.replyTo && (
+                    <div className="p-2 bg-black/10 dark:bg-white/10 rounded-lg mb-1 text-sm">
+                        <p className="font-bold">{message.replyTo.senderName}</p>
+                        <p className="opacity-80 truncate">{message.replyTo.text}</p>
+                    </div>
+                )}
+                {message.text}
+            </div>
+             {reactions && reactions.length > 0 && (
+                <div className="flex space-x-1 mt-1">
+                    {reactions.map(([emoji, userIds]) => (
+                        <div key={emoji} className="px-2 py-0.5 bg-white dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 rounded-full flex items-center shadow-sm">
+                            <span className="text-sm">{emoji}</span>
+                            {/* FIX: Add type assertion for `userIds` to fix `length` access on `unknown` type, resolving the error on line 68. */}
+                            <span className="text-xs ml-1 font-semibold text-gray-700 dark:text-gray-300">{(userIds as string[]).length}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };
+
+const MessageContextMenu: React.FC<{ message: Message; position: { x: number; y: number }; onClose: () => void; onReply: () => void; onReact: (emoji: string) => void; onRecall: () => void; isOwnMessage: boolean }> = ({ message, position, onClose, onReply, onReact, onRecall, isOwnMessage }) => {
+    const isRecallable = isOwnMessage && message.timestamp && (Date.now() - message.timestamp.toDate().getTime()) < 5 * 60 * 1000;
+    
+    return (
+        <>
+            <div className="fixed inset-0 z-[90]" onClick={onClose} />
+            <div style={{ top: position.y, left: position.x }} className="fixed bg-white dark:bg-zinc-800 rounded-lg shadow-2xl z-[100] animate-fade-in-fast overflow-hidden">
+                <div className="flex p-2 space-x-2 border-b dark:border-zinc-700">
+                    {REACTION_EMOJIS.map(emoji => (
+                        <button key={emoji} onClick={() => onReact(emoji)} className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-700 text-2xl transition-transform hover:scale-125">
+                            {emoji}
+                        </button>
+                    ))}
+                </div>
+                <div className="flex flex-col text-sm font-semibold">
+                    <button onClick={onReply} className="p-3 text-left hover:bg-gray-100 dark:hover:bg-zinc-700 dark:text-gray-200">Reply</button>
+                    {isRecallable && <button onClick={onRecall} className="p-3 text-left text-error-red hover:bg-gray-100 dark:hover:bg-zinc-700">Recall</button>}
+                </div>
+            </div>
+        </>
+    )
+};
+
 
 interface ConversationScreenProps {
     currentUser: User;
@@ -49,6 +117,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const [isReportOpen, setIsReportOpen] = useState(false);
     const [isGiftModalOpen, setIsGiftModalOpen] = useState(false);
     const [isSending, setIsSending] = useState(false);
+    const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+    const [contextMenu, setContextMenu] = useState<{ message: Message; position: { x: number; y: number } } | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
@@ -97,7 +167,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         };
         const messagesQuery = query(collection(db, 'chats', chatId, 'messages'), orderBy('timestamp', 'asc'));
         const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
-            const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+            const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), timestamp: doc.data().timestamp } as Message));
             setMessages(msgs);
         });
         return () => unsubscribe();
@@ -105,8 +175,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
     const getOrCreateChat = async (): Promise<string> => {
         if (chatId) return chatId;
-
-        // Check if chat exists again to prevent race conditions
         const userIds = [currentUser.id, partnerId].sort();
         const chatsRef = collection(db, 'chats');
         const q = query(chatsRef, where('userIds', '==', userIds), limit(1));
@@ -119,15 +187,12 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         
         if (!partner) throw new Error("Partner data not available");
 
-        // Create new chat
         const newChatData: Omit<Chat, 'id'> = {
             userIds,
             users: {
                 [currentUser.id]: { name: currentUser.name, profilePhoto: currentUser.profilePhotos[0] },
                 [partner.id]: { name: partner.name, profilePhoto: partner.profilePhotos[0] }
             },
-            unreadCount: { [currentUser.id]: 0, [partner.id]: 0 },
-            deletedFor: [],
         };
         const newChatRef = doc(collection(db, 'chats'));
         await setDoc(newChatRef, newChatData);
@@ -137,32 +202,24 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
     const handleSendMessage = async () => {
         if (newMessage.trim() === '' || !db || !partner || isSending) return;
-
         setIsSending(true);
         const text = newMessage.trim();
+        const replyContext = replyingTo ? { messageId: replyingTo.id, senderName: partner.id === replyingTo.senderId ? partner.name : currentUser.name, text: replyingTo.text } : null;
         setNewMessage('');
-
-        const currentChatId = await getOrCreateChat();
-
-        // Optimistic UI update: Show the message immediately.
-        const tempMessage: Message = {
-            id: `temp-${Date.now()}`,
-            chatId: currentChatId,
-            senderId: currentUser.id,
-            text,
-            timestamp: Timestamp.now(), // Use local time for now
-        };
-        setMessages(prev => [...prev, tempMessage]);
+        setReplyingTo(null);
 
         try {
-            // The onSnapshot listener will replace the temp message with the real one from the server.
+            const currentChatId = await getOrCreateChat();
             const messageRef = collection(db, 'chats', currentChatId, 'messages');
-            const messagePayload = {
+            const messagePayload: any = {
                 chatId: currentChatId,
                 senderId: currentUser.id,
                 text,
                 timestamp: serverTimestamp()
             };
+            if(replyContext) {
+                messagePayload.replyTo = replyContext;
+            }
             
             const chatRef = doc(db, 'chats', currentChatId);
             const chatPayload = {
@@ -170,7 +227,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 [`unreadCount.${partnerId}`]: increment(1)
             };
 
-            // Run writes in parallel
             await Promise.all([
                 addDoc(messageRef, messagePayload),
                 updateDoc(chatRef, chatPayload)
@@ -178,9 +234,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
         } catch (error) {
             console.error("Error sending message:", error);
-            // If sending fails, remove the optimistic message and restore the input.
-            setNewMessage(text);
-            setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
             alert("Failed to send message.");
         } finally {
             setIsSending(false);
@@ -198,14 +251,10 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         
         try {
             const currentChatId = await getOrCreateChat();
-            const newCoinTotal = currentCoins - gift.cost;
-
-            // 1. Debit the user's coins. This can be done first.
             const userRef = doc(db, 'users', currentUser.id);
             await updateDoc(userRef, { coins: increment(-gift.cost) });
-            onUpdateUser({...currentUser, coins: newCoinTotal }); // Optimistic update
+            onUpdateUser({...currentUser, coins: (currentCoins - gift.cost) }); 
 
-            // 2. Add the gift message.
             await addDoc(collection(db, 'chats', currentChatId, 'messages'), { 
                 chatId: currentChatId, 
                 senderId: currentUser.id, 
@@ -213,7 +262,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 timestamp: serverTimestamp() 
             });
 
-            // 3. Update the chat document.
             const chatRef = doc(db, 'chats', currentChatId);
             await updateDoc(chatRef, { 
                 lastMessage: { text: `${gift.icon} ${gift.name}`, senderId: currentUser.id, timestamp: serverTimestamp() }, 
@@ -222,7 +270,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
         } catch(error) {
             console.error("Error sending gift:", error);
-            // Rollback the optimistic update if something fails later
             onUpdateUser(currentUser); 
             alert("Could not send gift. Please try again.");
         } finally {
@@ -237,6 +284,16 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         });
         onClose();
     };
+    
+    const handleDeleteChat = async () => {
+        if (!chatId || !db) return;
+        if (window.confirm("Delete this chat? It will only be removed for you.")) {
+             await updateDoc(doc(db, 'chats', chatId), {
+                deletedFor: arrayUnion(currentUser.id)
+            });
+            onClose();
+        }
+    }
 
     const handleReport = async (reason: string, details: string) => {
         if(!db || !partner) return;
@@ -251,6 +308,38 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         setIsOptionsOpen(false);
         alert('Report submitted. Thank you.');
     };
+    
+    const handleLongPress = (e: React.MouseEvent, message: Message) => {
+        e.preventDefault();
+        setContextMenu({ message, position: { x: e.clientX, y: e.clientY } });
+    };
+
+    const handleReact = async (message: Message, emoji: string) => {
+        if (!chatId || !db) return;
+        const messageRef = doc(db, 'chats', chatId, 'messages', message.id);
+        const currentReactions = message.reactions || {};
+        const usersForEmoji = currentReactions[emoji] || [];
+        const isReacted = usersForEmoji.includes(currentUser.id);
+
+        const newReactions = { ...currentReactions };
+        if (isReacted) {
+            newReactions[emoji] = usersForEmoji.filter(id => id !== currentUser.id);
+        } else {
+            newReactions[emoji] = [...usersForEmoji, currentUser.id];
+        }
+
+        await updateDoc(messageRef, { reactions: newReactions });
+        setContextMenu(null);
+    };
+    
+    const handleRecall = async (message: Message) => {
+         if (!chatId || !db) return;
+         if (window.confirm("Recall this message?")) {
+            const messageRef = doc(db, 'chats', chatId, 'messages', message.id);
+            await updateDoc(messageRef, { isRecalled: true, text: '' });
+         }
+         setContextMenu(null);
+    }
 
     if (!partner) {
         return <div className="absolute inset-0 bg-white z-50 flex justify-center items-center"><FlameLoader /></div>;
@@ -258,7 +347,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
     return (
         <div className="absolute inset-0 bg-white dark:bg-black z-50 flex flex-col animate-slide-in-right">
-            {isOptionsOpen && <ChatOptionsModal onClose={() => setIsOptionsOpen(false)} onViewProfile={() => { setIsOptionsOpen(false); onViewProfile(partner.id); }} onReport={() => setIsReportOpen(true)} onBlock={handleBlock} />}
+            {contextMenu && <MessageContextMenu {...contextMenu} onClose={() => setContextMenu(null)} onReact={(emoji) => handleReact(contextMenu.message, emoji)} onRecall={() => handleRecall(contextMenu.message)} onReply={() => { setReplyingTo(contextMenu.message); setContextMenu(null); }} isOwnMessage={contextMenu.message.senderId === currentUser.id} />}
+            {isOptionsOpen && <ChatOptionsModal onClose={() => setIsOptionsOpen(false)} onViewProfile={() => { setIsOptionsOpen(false); onViewProfile(partner.id); }} onReport={() => setIsReportOpen(true)} onBlock={handleBlock} onDeleteChat={handleDeleteChat} />}
             {isReportOpen && partner && <ReportModal reportedUser={partner} onClose={() => setIsReportOpen(false)} onSubmit={handleReport} />}
             {isGiftModalOpen && <GiftModal onClose={() => setIsGiftModalOpen(false)} currentUser={currentUser} onSendGift={handleSendGift}/>}
             <header className="flex items-center p-3 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
@@ -275,25 +365,28 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             </header>
 
             <div className="flex-1 overflow-y-auto p-4 flex flex-col space-y-4">
-                {messages.map(msg => <MessageBubble key={msg.id} message={msg} isOwnMessage={msg.senderId === currentUser.id} />)}
+                {messages.map(msg => <MessageBubble key={msg.id} message={{...msg, senderName: msg.senderId === currentUser.id ? currentUser.name : partner.name}} isOwnMessage={msg.senderId === currentUser.id} onLongPress={handleLongPress} />)}
                 <div ref={messagesEndRef} />
             </div>
-
-            <div className="p-2 border-t border-gray-200 dark:border-zinc-800 flex items-center space-x-2 bg-white dark:bg-zinc-900">
-                <button onClick={() => setIsGiftModalOpen(true)} className="p-2 text-gray-500 dark:text-gray-400">
-                    <GiftIcon className="w-6 h-6" />
-                </button>
-                <input
-                    type="text"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Type a message..."
-                    className="flex-1 p-2 bg-gray-100 dark:bg-zinc-800 rounded-full focus:outline-none px-4 text-dark-gray dark:text-gray-200"
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                />
-                <button onClick={handleSendMessage} disabled={!newMessage.trim() || isSending} className="font-bold text-flame-orange disabled:opacity-50">
-                    Send
-                </button>
+            
+            <div>
+                 {replyingTo && <ReplyPreview message={{...replyingTo, senderName: replyingTo.senderId === currentUser.id ? currentUser.name : partner.name}} onCancel={() => setReplyingTo(null)} />}
+                <div className="p-2 border-t border-gray-200 dark:border-zinc-800 flex items-center space-x-2 bg-white dark:bg-zinc-900">
+                    <button onClick={() => setIsGiftModalOpen(true)} className="p-2 text-gray-500 dark:text-gray-400">
+                        <GiftIcon className="w-6 h-6" />
+                    </button>
+                    <input
+                        type="text"
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        placeholder="Type a message..."
+                        className="flex-1 p-2 bg-gray-100 dark:bg-zinc-800 rounded-full focus:outline-none px-4 text-dark-gray dark:text-gray-200"
+                        onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                    />
+                    <button onClick={handleSendMessage} disabled={!newMessage.trim() || isSending} className="font-bold text-flame-orange disabled:opacity-50">
+                        Send
+                    </button>
+                </div>
             </div>
         </div>
     );

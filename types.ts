@@ -41,6 +41,12 @@ export interface User {
   lastSwipeReset?: Timestamp;
   boostEndTime?: Timestamp;
   blockedUsers?: string[]; // array of user IDs
+  pinnedChats?: string[]; // array of chat IDs
+  privacySettings?: {
+    showTyping: boolean;
+    sendReadReceipts: boolean;
+    showLastOnline: boolean;
+  };
 }
 
 export interface Post {
@@ -87,6 +93,13 @@ export interface Message {
     timestamp: Timestamp;
     // FIX: Use the exported Gift interface.
     gift?: Gift;
+    reactions?: { [key: string]: string[] }; // emoji: array of user IDs
+    replyTo?: {
+        messageId: string;
+        senderName: string;
+        text: string;
+    };
+    isRecalled?: boolean;
 }
 
 export interface Chat {

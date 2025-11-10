@@ -18,6 +18,7 @@ import ShieldCheckIcon from '../components/icons/ShieldCheckIcon.tsx';
 // FIX: Import missing UsersIcon component
 import UsersIcon from '../components/icons/UsersIcon.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
+import PrivacySettingsScreen from './PrivacySettingsScreen.tsx';
 
 type Theme = 'light' | 'dark' | 'system';
 type Language = 'en' | 'de';
@@ -78,6 +79,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdate
                 return <AchievementsScreen user={user} onClose={() => setActiveSubScreen(null)} />;
             case 'security':
                 return <SecuritySettingsScreen onClose={() => setActiveSubScreen(null)} />;
+            case 'privacy':
+                return <PrivacySettingsScreen user={user} onUpdateUser={onUpdateUser} onClose={() => setActiveSubScreen(null)} />;
             default:
                 return null;
         }
@@ -147,6 +150,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdate
                             <button onClick={() => setActiveSubScreen('security')} className="w-full text-left font-semibold text-dark-gray dark:text-gray-200 flex items-center py-2">
                                 <ShieldCheckIcon className="w-5 h-5 mr-3 text-gray-500" />
                                 {t('securitySettings')}
+                            </button>
+                             <button onClick={() => setActiveSubScreen('privacy')} className="w-full text-left font-semibold text-dark-gray dark:text-gray-200 flex items-center py-2">
+                                <ShieldCheckIcon className="w-5 h-5 mr-3 text-gray-500" />
+                                {t('privacySettingsTitle')}
                             </button>
                             <button className="w-full text-left font-semibold text-dark-gray dark:text-gray-200 flex items-center py-2">
                                 <UsersIcon className="w-5 h-5 mr-3 text-gray-500" />

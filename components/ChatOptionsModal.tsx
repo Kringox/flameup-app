@@ -5,9 +5,10 @@ interface ChatOptionsModalProps {
   onViewProfile: () => void;
   onReport: () => void;
   onBlock: () => void;
+  onDeleteChat: () => void;
 }
 
-const ChatOptionsModal: React.FC<ChatOptionsModalProps> = ({ onClose, onViewProfile, onReport, onBlock }) => {
+const ChatOptionsModal: React.FC<ChatOptionsModalProps> = ({ onClose, onViewProfile, onReport, onBlock, onDeleteChat }) => {
   return (
     <div className="absolute inset-0 bg-black/60 z-50 flex justify-center items-end" onClick={onClose}>
       <div 
@@ -20,6 +21,9 @@ const ChatOptionsModal: React.FC<ChatOptionsModalProps> = ({ onClose, onViewProf
           </button>
           <button onClick={onReport} className="w-full p-3 bg-gray-100 dark:bg-zinc-700 rounded-lg font-semibold text-gray-800 dark:text-gray-200 text-center">
             Report User
+          </button>
+          <button onClick={onDeleteChat} className="w-full p-3 bg-gray-100 dark:bg-zinc-700 rounded-lg font-semibold text-error-red text-center">
+            Delete Chat
           </button>
           <button onClick={onBlock} className="w-full p-3 bg-gray-100 dark:bg-zinc-700 rounded-lg font-semibold text-error-red text-center">
             Block User
