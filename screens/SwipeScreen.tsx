@@ -98,29 +98,31 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
         setIsLoading(true);
         setError(null);
         
-        // FIX: Harden against malformed currentUser data to prevent crash.
-        // If swipedLeft/Right are not arrays in Firestore, this prevents a TypeError on spread.
-        const swipedLeft = Array.isArray(currentUser.swipedLeft) ? currentUser.swipedLeft : [];
-        const swipedRight = Array.isArray(currentUser.swipedRight) ? currentUser.swipedRight : [];
-        const seenUsers = new Set([currentUser.id, ...swipedLeft, ...swipedRight]);
+        try {
+            // All data processing is now inside the try...catch block to prevent unhandled exceptions.
+            if (!db) throw new Error("Database connection not available.");
+            if (!currentUser || !currentUser.id) throw new Error("Current user data is invalid.");
 
-        const validateAndFilterUsers = (userList: any[]): User[] => {
-            return userList.filter(u => {
+            const swipedLeft = Array.isArray(currentUser.swipedLeft) ? currentUser.swipedLeft : [];
+            const swipedRight = Array.isArray(currentUser.swipedRight) ? currentUser.swipedRight : [];
+            const seenUsers = new Set([currentUser.id, ...swipedLeft, ...swipedRight]);
+
+            // Crash-proof validation function
+            const validateUser = (u: any): u is User => {
                 if (!u || !u.id || typeof u.id !== 'string') return false;
                 if (seenUsers.has(u.id)) return false;
                 if (typeof u.name !== 'string' || u.name.trim() === '') return false;
-                if (!Array.isArray(u.profilePhotos) || u.profilePhotos.length === 0) return false;
-                if (u.profilePhotos.some(p => typeof p !== 'string' || p.trim() === '')) {
+                
+                const photos = u.profilePhotos;
+                if (!Array.isArray(photos) || photos.length === 0) return false;
+                
+                // This check is safer and won't crash if an element is not a string.
+                if (photos.some(p => !(typeof p === 'string' && p.trim() !== ''))) {
                     console.warn(`Filtering out user ${u.id} due to invalid item in profilePhotos array.`);
                     return false;
                 }
                 return true;
-            }) as User[];
-        };
-
-        let finalUsers: User[] = [];
-        try {
-            if (!db) throw new Error("Database connection not available.");
+            };
 
             const usersRef = collection(db, 'users');
             const q = query(usersRef, where(documentId(), '!=', currentUser.id), limit(30));
@@ -132,19 +134,21 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
             ) as QuerySnapshot;
             
             const firestoreDocs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            finalUsers = validateAndFilterUsers(firestoreDocs);
+            const fetchedUsers = firestoreDocs.filter(validateUser);
+            
+            if (fetchedUsers.length === 0) {
+                console.log("No valid users from Firestore. Falling back to demo users.");
+                const demoUsersToShow = DEMO_USERS_FOR_UI.filter(validateUser);
+                setUsers(demoUsersToShow);
+            } else {
+                setUsers(fetchedUsers);
+            }
             
         } catch (err: any) {
-            console.error("Error fetching users from Firestore:", err);
-            if (err.message.includes("took too long")) {
-                setError("Could not load profiles. Please check your connection and try again.");
-            }
+            console.error("Fatal error fetching users:", err);
+            // This comprehensive catch ensures a user-facing error is always shown.
+            setError("Could not load profiles. Please check your connection and try again.");
         } finally {
-            if (finalUsers.length === 0) {
-                console.log("No valid users from Firestore or fetch failed. Falling back to demo users.");
-                finalUsers = validateAndFilterUsers(DEMO_USERS_FOR_UI);
-            }
-            setUsers(finalUsers);
             setCurrentIndex(0);
             setIsLoading(false);
         }
@@ -189,7 +193,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                 batch.update(userRef, { xp: increment(XpAction.SWIPE_LIKE) });
                 showXpToast(XpAction.SWIPE_LIKE);
                 
-                if (swipedUser.swipedRight?.includes(currentUser.id)) {
+                if (Array.isArray(swipedUser.swipedRight) && swipedUser.swipedRight.includes(currentUser.id)) {
                     onNewMatch(swipedUser);
                     batch.update(userRef, { xp: increment(XpAction.MATCH) });
                     showXpToast(XpAction.MATCH);
@@ -205,7 +209,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
             }
             await batch.commit();
             
-            const updatedSwipedList = [...(currentUser[fieldToUpdate] || []), swipedUserId];
+            const updatedSwipedList = [...(Array.isArray(currentUser[fieldToUpdate]) ? currentUser[fieldToUpdate] : []), swipedUserId];
             onUpdateUser({...currentUser, [fieldToUpdate]: updatedSwipedList});
 
         } catch (error) {
