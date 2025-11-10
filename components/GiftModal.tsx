@@ -2,15 +2,17 @@ import React, { useState } from 'react';
 // FIX: Import User and Gift types from the central types file.
 import { User, Gift } from '../types.ts';
 import FlameIcon from './icons/FlameIcon.tsx';
+import { useI18n } from '../contexts/I18nContext.ts';
 
 // FIX: Remove local Gift interface definition as it's now imported.
 
-const GIFTS: Gift[] = [
+// FIX: Use 'as const' to infer literal types for gift names, making the dynamic translation key type-safe.
+const GIFTS = [
     { name: 'Rose', icon: '🌹', cost: 10 },
     { name: 'Teddy Bear', icon: '🧸', cost: 50 },
     { name: 'Diamond', icon: '💎', cost: 100 },
     { name: 'Heart', icon: '❤️‍🔥', cost: 25 },
-];
+] as const;
 
 interface GiftModalProps {
     onClose: () => void;
@@ -19,19 +21,24 @@ interface GiftModalProps {
 }
 
 const GiftModal: React.FC<GiftModalProps> = ({ onClose, currentUser, onSendGift }) => {
-    const [selectedGift, setSelectedGift] = useState<Gift | null>(null);
+    const [selectedGift, setSelectedGift] = useState<(typeof GIFTS)[number] | null>(null);
+    const { t } = useI18n();
 
     const handleSend = () => {
         if (selectedGift) {
             onSendGift(selectedGift);
         }
     };
+    
+    const currentCoins = currentUser.coins ?? 0;
+    const selectedCost = selectedGift?.cost ?? 0;
+    const canAfford = currentCoins >= selectedCost;
 
     return (
         <div className="absolute inset-0 bg-black/70 flex justify-center items-center z-[100]" onClick={onClose}>
             <div className="bg-white dark:bg-zinc-800 rounded-lg w-11/12 max-w-md p-6" onClick={e => e.stopPropagation()}>
-                <h2 className="text-xl font-bold text-center dark:text-gray-200">Send a Gift</h2>
-                <p className="text-center text-gray-500 dark:text-gray-400 text-sm mt-1">Your balance: {currentUser.coins} coins</p>
+                <h2 className="text-xl font-bold text-center dark:text-gray-200">{t('sendGiftTitle')}</h2>
+                <p className="text-center text-gray-500 dark:text-gray-400 text-sm mt-1">{t('yourBalance')}: {currentCoins} {t('coins')}</p>
                 <div className="grid grid-cols-2 gap-4 mt-4">
                     {GIFTS.map(gift => (
                         <button 
@@ -40,7 +47,7 @@ const GiftModal: React.FC<GiftModalProps> = ({ onClose, currentUser, onSendGift 
                             className={`p-4 border-2 rounded-lg text-center bg-gray-50 dark:bg-zinc-700 ${selectedGift?.name === gift.name ? 'border-flame-orange' : 'border-gray-200 dark:border-zinc-600'}`}
                         >
                             <span className="text-4xl">{gift.icon}</span>
-                            <p className="font-semibold dark:text-gray-200">{gift.name}</p>
+                            <p className="font-semibold dark:text-gray-200">{t(`gift_${gift.name.toLowerCase().replace(' ', '')}`)}</p>
                             <div className="flex items-center justify-center text-sm text-gray-600 dark:text-gray-400">
                                 <FlameIcon isGradient className="w-4 h-4 mr-1" />
                                 <span>{gift.cost}</span>
@@ -50,10 +57,10 @@ const GiftModal: React.FC<GiftModalProps> = ({ onClose, currentUser, onSendGift 
                 </div>
                 <button 
                     onClick={handleSend}
-                    disabled={!selectedGift || currentUser.coins < (selectedGift?.cost || 0)}
+                    disabled={!selectedGift || !canAfford}
                     className="w-full mt-6 py-3 bg-flame-orange text-white font-bold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    {currentUser.coins < (selectedGift?.cost || 0) ? 'Not enough coins' : 'Send Gift'}
+                    {!canAfford && selectedGift ? t('notEnoughCoins') : t('sendGiftButton')}
                 </button>
             </div>
         </div>

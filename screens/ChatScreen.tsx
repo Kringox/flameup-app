@@ -5,6 +5,7 @@ import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'fireba
 import { Chat, User } from '../types.ts';
 // FIX: Add file extension to ConversationScreen import to resolve module not found error.
 import ConversationScreen from './ConversationScreen.tsx';
+import { useI18n } from '../contexts/I18nContext.ts';
 
 const formatTimestamp = (timestamp: Timestamp | undefined): string => {
     if (!timestamp) return '';
@@ -23,6 +24,7 @@ const formatTimestamp = (timestamp: Timestamp | undefined): string => {
 };
 
 const ChatListItem: React.FC<{ chat: Chat; currentUser: User; onSelect: (partnerId: string) => void }> = ({ chat, currentUser, onSelect }) => {
+  const { t } = useI18n();
   const partnerId = chat.userIds.find(id => id !== currentUser.id);
   if (!partnerId) return null;
   
@@ -43,7 +45,7 @@ const ChatListItem: React.FC<{ chat: Chat; currentUser: User; onSelect: (partner
           <span className="text-xs text-gray-500 dark:text-gray-400">{formatTimestamp(chat.lastMessage?.timestamp)}</span>
         </div>
         <div className="flex justify-between items-center mt-1">
-          <p className={`text-sm truncate w-11/12 transition-all ${isUnread ? 'font-semibold text-dark-gray dark:text-gray-200' : 'text-gray-600 dark:text-gray-400'}`}>{chat.lastMessage?.text || 'No messages yet'}</p>
+          <p className={`text-sm truncate w-11/12 transition-all ${isUnread ? 'font-semibold text-dark-gray dark:text-gray-200' : 'text-gray-600 dark:text-gray-400'}`}>{chat.lastMessage?.text || t('noMessagesYet')}</p>
           {isUnread && (
              <span className="w-2.5 h-2.5 bg-flame-red rounded-full flex-shrink-0" aria-label="Unread message"></span>
           )}
@@ -56,6 +58,7 @@ const ChatListItem: React.FC<{ chat: Chat; currentUser: User; onSelect: (partner
 const ChatList: React.FC<{ currentUser: User, onStartChat: (partnerId: string) => void }> = ({ currentUser, onStartChat }) => {
     const [chats, setChats] = useState<Chat[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const { t } = useI18n();
 
     useEffect(() => {
         if (!db) {
@@ -89,7 +92,7 @@ const ChatList: React.FC<{ currentUser: User, onStartChat: (partnerId: string) =
     }
     
     if (chats.length === 0) {
-        return <p className="text-center text-gray-500 dark:text-gray-400 mt-8">No conversations yet. Start swiping!</p>;
+        return <p className="text-center text-gray-500 dark:text-gray-400 mt-8">{t('noConversations')}</p>;
     }
 
     return (
@@ -112,6 +115,8 @@ interface ChatScreenProps {
 }
 
 const ChatScreen: React.FC<ChatScreenProps> = ({ currentUser, activeChatPartnerId, onStartChat, onCloseChat, onUpdateUser, onViewProfile }) => {
+  const { t } = useI18n();
+  
   if (activeChatPartnerId) {
     return <ConversationScreen currentUser={currentUser} partnerId={activeChatPartnerId} onClose={onCloseChat} onUpdateUser={onUpdateUser} onViewProfile={onViewProfile} />
   }
@@ -119,11 +124,11 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ currentUser, activeChatPartnerI
   return (
     <div className="w-full h-full flex flex-col">
         <header className="p-4 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-black sticky top-0 z-10">
-            <h1 className="text-2xl font-bold text-dark-gray dark:text-gray-100 text-center">Chats</h1>
+            <h1 className="text-2xl font-bold text-dark-gray dark:text-gray-100 text-center">{t('chatsTitle')}</h1>
         </header>
 
         <div className="p-4">
-             <input type="text" placeholder="Search chats..." className="w-full px-4 py-2 border border-gray-300 dark:border-zinc-700 rounded-full focus:outline-none focus:ring-2 focus:ring-flame-orange bg-transparent dark:text-gray-200" />
+             <input type="text" placeholder={t('searchChats')} className="w-full px-4 py-2 border border-gray-300 dark:border-zinc-700 rounded-full focus:outline-none focus:ring-2 focus:ring-flame-orange bg-transparent dark:text-gray-200" />
         </div>
 
         <div className="flex-1 overflow-y-auto">

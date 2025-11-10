@@ -6,6 +6,7 @@ import FlameIcon from './icons/FlameIcon.tsx';
 import ChatIcon from './icons/ChatIcon.tsx';
 import UserIcon from './icons/UserIcon.tsx';
 import PlusIcon from './icons/PlusIcon.tsx';
+import { useI18n } from '../contexts/I18nContext.ts';
 
 interface BottomNavProps {
   activeTab: Tab;
@@ -15,7 +16,7 @@ interface BottomNavProps {
 }
 
 const NavItem: React.FC<{
-  label: Tab;
+  label: string;
   icon: React.ReactNode;
   isActive: boolean;
   onClick: () => void;
@@ -40,16 +41,17 @@ const NavItem: React.FC<{
 };
 
 const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, onOpenCreate, hasUnreadMessages }) => {
+  const { t } = useI18n();
   return (
     <nav className="flex-shrink-0 h-16 bg-white border-t border-gray-200 flex justify-around items-center shadow-lg md:rounded-b-2xl">
       <NavItem
-        label={Tab.Home}
+        label={t('navHome')}
         icon={<HomeIcon />}
         isActive={activeTab === Tab.Home}
         onClick={() => setActiveTab(Tab.Home)}
       />
       <NavItem
-        label={Tab.Swipe}
+        label={t('navSwipe')}
         icon={<FlameIcon isGradient={activeTab === Tab.Swipe} />}
         isActive={activeTab === Tab.Swipe}
         onClick={() => setActiveTab(Tab.Swipe)}
@@ -65,14 +67,14 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, onOpenCr
       </button>
 
       <NavItem
-        label={Tab.Chat}
+        label={t('navChat')}
         icon={<ChatIcon />}
         isActive={activeTab === Tab.Chat}
         onClick={() => setActiveTab(Tab.Chat)}
         hasNotification={hasUnreadMessages}
       />
       <NavItem
-        label={Tab.Profile}
+        label={t('navProfile')}
         icon={<UserIcon />}
         isActive={activeTab === Tab.Profile}
         onClick={() => setActiveTab(Tab.Profile)}

@@ -17,6 +17,7 @@ import DesktopIcon from '../components/icons/DesktopIcon.tsx';
 import ShieldCheckIcon from '../components/icons/ShieldCheckIcon.tsx';
 // FIX: Import missing UsersIcon component
 import UsersIcon from '../components/icons/UsersIcon.tsx';
+import { useI18n } from '../contexts/I18nContext.ts';
 
 type Theme = 'light' | 'dark' | 'system';
 type Language = 'en' | 'de';
@@ -41,6 +42,7 @@ const SettingsItem: React.FC<{ onClick: () => void, children: React.ReactNode, i
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdateUser, theme, setTheme }) => {
     const [activeSubScreen, setActiveSubScreen] = useState<string | null>(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const { t } = useI18n();
 
     const handleLogout = () => {
         if (!auth) return;
@@ -95,14 +97,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdate
                  <button onClick={onClose} className="w-8 text-dark-gray dark:text-gray-200">
                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 </button>
-                <h1 className="text-xl font-bold text-center flex-1 text-dark-gray dark:text-gray-200">Settings</h1>
+                <h1 className="text-xl font-bold text-center flex-1 text-dark-gray dark:text-gray-200">{t('settingsTitle')}</h1>
                 <div className="w-8"></div>
             </header>
 
             <main className="flex-1 overflow-y-auto p-4">
                 <div className="space-y-4">
                     <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg shadow-sm">
-                        <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">Appearance</h2>
+                        <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">{t('appearance')}</h2>
                         <div className="flex bg-gray-200 dark:bg-zinc-700 rounded-lg p-1">
                             {(['light', 'dark', 'system'] as Theme[]).map(t => (
                                 <button
@@ -120,7 +122,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdate
                     </div>
                     
                     <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg shadow-sm">
-                        <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">Sprache / Language</h2>
+                        <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">{t('language')}</h2>
                         <div className="flex bg-gray-200 dark:bg-zinc-700 rounded-lg p-1">
                             {(['de', 'en'] as Language[]).map(lang => (
                                 <button
@@ -134,27 +136,27 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdate
                         </div>
                     </div>
 
-                    <SettingsItem onClick={() => setActiveSubScreen('subscription')}>Manage Subscription</SettingsItem>
-                    <SettingsItem onClick={() => setActiveSubScreen('wallet')}>My Wallet</SettingsItem>
-                    <SettingsItem onClick={() => setActiveSubScreen('achievements')}>Achievements</SettingsItem>
-                    <SettingsItem onClick={() => setActiveSubScreen('friends')}>Best Friends</SettingsItem>
+                    <SettingsItem onClick={() => setActiveSubScreen('subscription')}>{t('manageSubscription')}</SettingsItem>
+                    <SettingsItem onClick={() => setActiveSubScreen('wallet')}>{t('myWallet')}</SettingsItem>
+                    <SettingsItem onClick={() => setActiveSubScreen('achievements')}>{t('achievements')}</SettingsItem>
+                    <SettingsItem onClick={() => setActiveSubScreen('friends')}>{t('bestFriends')}</SettingsItem>
                     
                     <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg shadow-sm">
-                         <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-2">Account & Security</h2>
+                         <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-2">{t('accountAndSecurity')}</h2>
                          <div className="space-y-2">
                             <button onClick={() => setActiveSubScreen('security')} className="w-full text-left font-semibold text-dark-gray dark:text-gray-200 flex items-center py-2">
                                 <ShieldCheckIcon className="w-5 h-5 mr-3 text-gray-500" />
-                                Security Settings
+                                {t('securitySettings')}
                             </button>
                             <button className="w-full text-left font-semibold text-dark-gray dark:text-gray-200 flex items-center py-2">
                                 <UsersIcon className="w-5 h-5 mr-3 text-gray-500" />
-                                Privacy Policy
+                                {t('privacyPolicy')}
                             </button>
                          </div>
                     </div>
                     
-                    <SettingsItem onClick={handleLogout} isDestructive>Log Out</SettingsItem>
-                    <SettingsItem onClick={() => setIsDeleteModalOpen(true)} isDestructive>Delete Account</SettingsItem>
+                    <SettingsItem onClick={handleLogout} isDestructive>{t('logOut')}</SettingsItem>
+                    <SettingsItem onClick={() => setIsDeleteModalOpen(true)} isDestructive>{t('deleteAccount')}</SettingsItem>
                 </div>
             </main>
         </div>

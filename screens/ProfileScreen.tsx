@@ -13,6 +13,7 @@ import ImageViewer from '../components/ImageViewer.tsx';
 import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
 import WalletScreen from './WalletScreen.tsx';
 import FlameIcon from '../components/icons/FlameIcon.tsx';
+import { useI18n } from '../contexts/I18nContext.ts';
 
 const THEME_CLASSES: { [key: string]: { bg: string; text: string; subtext: string; border: string; }} = {
     default: { bg: 'bg-white dark:bg-black', text: 'text-dark-gray dark:text-gray-200', subtext: 'text-gray-500 dark:text-gray-400', border: 'border-gray-200 dark:border-gray-800' },
@@ -38,6 +39,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
     const [viewingFollowList, setViewingFollowList] = useState<'followers' | 'following' | null>(null);
     const [viewingPost, setViewingPost] = useState<Post | null>(null);
     const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
+    const { t } = useI18n();
 
     useEffect(() => {
         if (!db) return;
@@ -107,15 +109,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                     <div className="flex-1 ml-6 flex justify-around text-center">
                         <div>
                             <p className={`text-xl font-bold ${themeClasses.text}`}>{posts.length}</p>
-                            <p className={`${themeClasses.subtext}`}>Posts</p>
+                            <p className={`${themeClasses.subtext}`}>{t('posts')}</p>
                         </div>
                         <button onClick={() => setViewingFollowList('followers')}>
                             <p className={`text-xl font-bold ${themeClasses.text}`}>{currentUser.followers.length}</p>
-                            <p className={`${themeClasses.subtext}`}>Followers</p>
+                            <p className={`${themeClasses.subtext}`}>{t('followers')}</p>
                         </button>
                         <button onClick={() => setViewingFollowList('following')}>
                             <p className={`text-xl font-bold ${themeClasses.text}`}>{currentUser.following.length}</p>
-                            <p className={`${themeClasses.subtext}`}>Following</p>
+                            <p className={`${themeClasses.subtext}`}>{t('following')}</p>
                         </button>
                     </div>
                 </div>
@@ -125,19 +127,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                     <div className="mt-2 space-y-4">
                         {currentUser.aboutMe && (
                             <div>
-                                <h3 className={`font-bold text-sm uppercase ${themeClasses.subtext} mb-1`}>About Me</h3>
+                                <h3 className={`font-bold text-sm uppercase ${themeClasses.subtext} mb-1`}>{t('aboutMe')}</h3>
                                 <p className={`${themeClasses.text} whitespace-pre-wrap`}>{currentUser.aboutMe}</p>
                             </div>
                         )}
                         {currentUser.interests && (
                             <div>
-                                <h3 className={`font-bold text-sm uppercase ${themeClasses.subtext} mb-1`}>Interests</h3>
+                                <h3 className={`font-bold text-sm uppercase ${themeClasses.subtext} mb-1`}>{t('interests')}</h3>
                                 <p className={`${themeClasses.text} whitespace-pre-wrap`}>{currentUser.interests}</p>
                             </div>
                         )}
                         {currentUser.lifestyle && (
                             <div>
-                                <h3 className={`font-bold text-sm uppercase ${themeClasses.subtext} mb-1`}>Lifestyle</h3>
+                                <h3 className={`font-bold text-sm uppercase ${themeClasses.subtext} mb-1`}>{t('lifestyle')}</h3>
                                 <p className={`${themeClasses.text} whitespace-pre-wrap`}>{currentUser.lifestyle}</p>
                             </div>
                         )}
@@ -153,17 +155,17 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                     className={`w-full flex items-center justify-between p-3 mb-4 ${themeClasses.bg} border ${themeClasses.border} rounded-lg shadow-sm transition-transform hover:scale-105`}
                 >
                     <div>
-                        <p className={`font-semibold ${themeClasses.text}`}>Wallet</p>
-                        <p className={`text-sm ${themeClasses.subtext}`}>View your balance</p>
+                        <p className={`font-semibold ${themeClasses.text}`}>{t('wallet')}</p>
+                        <p className={`text-sm ${themeClasses.subtext}`}>{t('viewYourBalance')}</p>
                     </div>
                     <div className="flex items-center font-bold text-lg">
                         <FlameIcon isGradient className="w-5 h-5 mr-2" />
-                        <span className={`${themeClasses.text}`}>{currentUser.coins}</span>
+                        <span className={`${themeClasses.text}`}>{currentUser.coins ?? 0}</span>
                     </div>
                 </button>
 
                 <button onClick={() => setIsEditing(true)} className={`w-full py-2 ${themeClasses.border} border rounded-lg font-semibold ${themeClasses.text}`}>
-                    Edit Profile
+                    {t('editProfile')}
                 </button>
                 
                 <div className="grid grid-cols-3 gap-1 mt-4">

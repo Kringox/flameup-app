@@ -6,6 +6,7 @@ import { doc, onSnapshot, getDoc, collection, query, where, Timestamp } from 'fi
 
 // FIX: Added file extension to types import
 import { User, Tab, Post, Notification, Chat, NotificationType } from './types.ts';
+import { I18nProvider } from './contexts/I18nContext.ts';
 
 // FIX: Added file extension to screen and component imports
 import AuthScreen from './screens/AuthScreen.tsx';
@@ -211,48 +212,50 @@ const App: React.FC = () => {
     const { currentUser } = authState;
 
     return (
-      <XpContext.Provider value={{ showXpToast }}>
-        <div className="relative w-screen h-screen max-w-md mx-auto flex flex-col bg-gray-50 dark:bg-black md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)] overflow-hidden">
-          {xpToast && <XPToast key={xpToast.key} amount={xpToast.amount} />}
-          <main className="flex-1 overflow-y-auto">
-            {activeTab === Tab.Home && <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} onUpdateUser={handleUpdateUser} />}
-            {activeTab === Tab.Swipe && <SwipeScreen currentUser={currentUser} onNewMatch={handleNewMatch} onUpdateUser={handleUpdateUser}/>}
-            {activeTab === Tab.Chat && <ChatScreen currentUser={currentUser} activeChatPartnerId={activeChatPartnerId} onStartChat={handleStartChat} onCloseChat={() => setActiveChatPartnerId(null)} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} />}
-            {activeTab === Tab.Profile && <ProfileScreen currentUser={currentUser} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} theme={theme} setTheme={setTheme} />}
-          </main>
+      <I18nProvider language={currentUser.language || 'en'}>
+        <XpContext.Provider value={{ showXpToast }}>
+          <div className="relative w-screen h-screen max-w-md mx-auto flex flex-col bg-gray-50 dark:bg-black md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)] overflow-hidden">
+            {xpToast && <XPToast key={xpToast.key} amount={xpToast.amount} />}
+            <main className="flex-1 overflow-y-auto">
+              {activeTab === Tab.Home && <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} onUpdateUser={handleUpdateUser} />}
+              {activeTab === Tab.Swipe && <SwipeScreen currentUser={currentUser} onNewMatch={handleNewMatch} onUpdateUser={handleUpdateUser}/>}
+              {activeTab === Tab.Chat && <ChatScreen currentUser={currentUser} activeChatPartnerId={activeChatPartnerId} onStartChat={handleStartChat} onCloseChat={() => setActiveChatPartnerId(null)} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} />}
+              {activeTab === Tab.Profile && <ProfileScreen currentUser={currentUser} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} theme={theme} setTheme={setTheme} />}
+            </main>
 
-          <BottomNav 
-            activeTab={activeTab} 
-            setActiveTab={setActiveTab} 
-            onOpenCreate={() => setIsCreateOpen(true)} 
-            hasUnreadMessages={hasUnreadMessages}
-          />
+            <BottomNav 
+              activeTab={activeTab} 
+              setActiveTab={setActiveTab} 
+              onOpenCreate={() => setIsCreateOpen(true)} 
+              hasUnreadMessages={hasUnreadMessages}
+            />
 
-          {/* Modals and Overlays */}
-          {isCreateOpen && <CreateScreen user={currentUser} onClose={() => setIsCreateOpen(false)} />}
-          {viewingPostComments && <CommentScreen post={viewingPostComments} currentUser={currentUser} onClose={() => setViewingPostComments(null)} onViewProfile={handleViewProfile} />}
-          {isNotificationsOpen && <NotificationsScreen user={currentUser} onClose={() => setIsNotificationsOpen(false)} onShowMatch={handleShowMatch} onViewProfile={handleViewProfile} />}
-          {viewingUserId && <UserProfileScreen currentUserId={currentUser.id} viewingUserId={viewingUserId} onClose={() => setViewingUserId(null)} onStartChat={handleStartChat} />}
-          {matchNotification && authState.currentUser && (
-              <MatchModal 
-                  currentUser={authState.currentUser}
-                  matchedUser={{id: matchNotification.fromUser.id, name: matchNotification.fromUser.name, profilePhotos: [matchNotification.fromUser.profilePhoto]} as any}
-                  onSendMessage={handleSendMessageFromMatch}
-                  onClose={() => setMatchNotification(null)}
-              />
-          )}
-          {inAppNotification && (
-              <InAppNotification 
-                  notification={inAppNotification} 
-                  onReply={(partnerId) => {
-                      handleStartChat(partnerId);
-                      setInAppNotification(null);
-                  }} 
-                  onClose={() => setInAppNotification(null)}
-              />
-          )}
-        </div>
-      </XpContext.Provider>
+            {/* Modals and Overlays */}
+            {isCreateOpen && <CreateScreen user={currentUser} onClose={() => setIsCreateOpen(false)} />}
+            {viewingPostComments && <CommentScreen post={viewingPostComments} currentUser={currentUser} onClose={() => setViewingPostComments(null)} onViewProfile={handleViewProfile} />}
+            {isNotificationsOpen && <NotificationsScreen user={currentUser} onClose={() => setIsNotificationsOpen(false)} onShowMatch={handleShowMatch} onViewProfile={handleViewProfile} />}
+            {viewingUserId && <UserProfileScreen currentUserId={currentUser.id} viewingUserId={viewingUserId} onClose={() => setViewingUserId(null)} onStartChat={handleStartChat} />}
+            {matchNotification && authState.currentUser && (
+                <MatchModal 
+                    currentUser={authState.currentUser}
+                    matchedUser={{id: matchNotification.fromUser.id, name: matchNotification.fromUser.name, profilePhotos: [matchNotification.fromUser.profilePhoto]} as any}
+                    onSendMessage={handleSendMessageFromMatch}
+                    onClose={() => setMatchNotification(null)}
+                />
+            )}
+            {inAppNotification && (
+                <InAppNotification 
+                    notification={inAppNotification} 
+                    onReply={(partnerId) => {
+                        handleStartChat(partnerId);
+                        setInAppNotification(null);
+                    }} 
+                    onClose={() => setInAppNotification(null)}
+                />
+            )}
+          </div>
+        </XpContext.Provider>
+      </I18nProvider>
     );
   };
   
