@@ -10,25 +10,14 @@ import WifiOffIcon from '../components/icons/WifiOffIcon.tsx';
 import { hapticFeedback } from '../utils/haptics.ts';
 import { XpContext } from '../contexts/XpContext.ts';
 import { XpAction } from '../utils/xpUtils.ts';
+import { promiseWithTimeout } from '../utils/promiseUtils.ts';
+import { DEMO_USERS_FOR_UI } from '../constants.ts';
 
 interface SwipeScreenProps {
   currentUser: User;
   onNewMatch: (matchedUser: User) => void;
   onUpdateUser: (updatedUser: User) => void;
 }
-
-const promiseWithTimeout = <T,>(
-  promise: Promise<T>,
-  ms: number,
-  timeoutError = new Error('Promise timed out')
-): Promise<T> => {
-  const timeout = new Promise<never>((_, reject) => {
-    setTimeout(() => {
-      reject(timeoutError);
-    }, ms);
-  });
-  return Promise.race<T>([promise, timeout]);
-};
 
 const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; }> = ({ user, isVisible, animation }) => {
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
@@ -98,23 +87,19 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
     const { showXpToast } = useContext(XpContext);
 
     const fetchUsers = useCallback(async () => {
-        if (!db) {
-            setError("Database connection is not available.");
-            setIsLoading(false);
-            return;
-        }
         setIsLoading(true);
         setError(null);
+        
+        const swipedLeft = currentUser.swipedLeft ?? [];
+        const swipedRight = currentUser.swipedRight ?? [];
+        const seenUsers = [currentUser.id, ...swipedLeft, ...swipedRight];
+
         try {
-            const swipedLeft = currentUser.swipedLeft ?? [];
-            const swipedRight = currentUser.swipedRight ?? [];
-            const seenUsers = [currentUser.id, ...swipedLeft, ...swipedRight];
+            if (!db) throw new Error("Database connection not available.");
 
             const usersRef = collection(db, 'users');
-            // Fetch users, excluding the current user. Fetch a bit more to have a buffer for client-side filtering.
             const q = query(usersRef, where(documentId(), '!=', currentUser.id), limit(30));
             
-            // Fetch with an 8-second timeout to prevent infinite loading state.
             const querySnapshot = await promiseWithTimeout(
                 getDocs(q), 
                 8000, 
@@ -125,16 +110,19 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                 .map(doc => ({ id: doc.id, ...doc.data() } as User))
                 .filter(u => !seenUsers.includes(u.id));
 
-            setUsers(fetchedUsers);
-            setCurrentIndex(0);
-        } catch (err: any) {
-            console.error("Error fetching users for swiping:", err);
-            if (err.message.includes("too long")) {
-                setError("Profiles took too long to load. Please check your connection and try again.");
+            if (fetchedUsers.length > 0) {
+                setUsers(fetchedUsers);
             } else {
-                setError("Could not load new profiles. Please try again.");
+                console.log("No new users found in Firestore, loading demo users as fallback.");
+                const demoUsersFiltered = DEMO_USERS_FOR_UI.filter(u => u.id !== currentUser.id && !seenUsers.includes(u.id));
+                setUsers(demoUsersFiltered);
             }
+        } catch (err: any) {
+            console.error("Error fetching users from Firestore, falling back to demo users:", err);
+            const demoUsersFiltered = DEMO_USERS_FOR_UI.filter(u => u.id !== currentUser.id && !seenUsers.includes(u.id));
+            setUsers(demoUsersFiltered);
         } finally {
+            setCurrentIndex(0);
             setIsLoading(false);
         }
     }, [currentUser]);
@@ -163,6 +151,12 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
         }, 300);
 
         try {
+            // Do not attempt to write to Firestore for demo users
+            if (swipedUser.id.startsWith('demo-user-')) {
+                console.log(`Swiped on demo user ${swipedUser.name}, no database write.`);
+                return;
+            }
+
             const userRef = doc(db, 'users', currentUser.id);
             const batch = writeBatch(db);
 
@@ -173,13 +167,11 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                 batch.update(userRef, { xp: increment(XpAction.SWIPE_LIKE) });
                 showXpToast(XpAction.SWIPE_LIKE);
                 
-                // Check for a match
                 if (swipedUser.swipedRight?.includes(currentUser.id)) {
                     onNewMatch(swipedUser);
                     batch.update(userRef, { xp: increment(XpAction.MATCH) });
                     showXpToast(XpAction.MATCH);
                     
-                    // Create notification for the matched user
                     const notifRef = doc(collection(db, 'users', swipedUserId, 'notifications'));
                     batch.set(notifRef, {
                         type: NotificationType.Match,
@@ -191,7 +183,6 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
             }
             await batch.commit();
             
-            // Optimistically update the user object in the parent state
             const updatedSwipedList = [...(currentUser[fieldToUpdate] || []), swipedUserId];
             onUpdateUser({...currentUser, [fieldToUpdate]: updatedSwipedList});
 
@@ -214,7 +205,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                 </div>
             );
         }
-        if (currentIndex >= users.length) {
+        if (currentIndex >= users.length && users.length === 0) {
             return (
                 <div className="flex flex-col justify-center items-center h-full text-center p-4">
                     <h3 className="font-bold text-lg dark:text-gray-200">That's everyone for now!</h3>
@@ -234,6 +225,13 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                             animation={index === currentIndex ? animation : ''}
                         />
                     ))}
+                     {currentIndex >= users.length && users.length > 0 && (
+                         <div className="flex flex-col justify-center items-center h-full text-center p-4">
+                            <h3 className="font-bold text-lg dark:text-gray-200">That's everyone for now!</h3>
+                            <p className="text-gray-600 dark:text-gray-400">Check back later for new profiles.</p>
+                            <button onClick={fetchUsers} className="mt-4 px-4 py-2 bg-flame-orange text-white rounded-lg">Refresh</button>
+                        </div>
+                    )}
                 </div>
                 <div className="flex justify-around items-center w-full mt-4 flex-shrink-0">
                     <button onClick={() => handleSwipe('left')} className="w-16 h-16 bg-white dark:bg-zinc-800 rounded-full shadow-lg flex justify-center items-center text-gray-500 transform hover:scale-110 transition-transform">
