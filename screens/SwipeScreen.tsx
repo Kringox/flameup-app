@@ -92,7 +92,17 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
         
         const swipedLeft = currentUser.swipedLeft ?? [];
         const swipedRight = currentUser.swipedRight ?? [];
-        const seenUsers = [currentUser.id, ...swipedLeft, ...swipedRight];
+        const seenUsers = new Set([currentUser.id, ...swipedLeft, ...swipedRight]);
+
+        const validateAndFilterUsers = (userList: any[]): User[] => {
+            return userList
+                .filter(u => 
+                    u && // user object exists
+                    !seenUsers.has(u.id) && // not already seen
+                    typeof u.name === 'string' && u.name.trim() !== '' && // must have a non-empty name
+                    Array.isArray(u.profilePhotos) && u.profilePhotos.length > 0 // must have at least one photo
+                ) as User[];
+        };
 
         try {
             if (!db) throw new Error("Database connection not available.");
@@ -106,21 +116,24 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                 new Error("Fetching profiles took too long.")
             ) as QuerySnapshot;
             
-            const fetchedUsers = querySnapshot.docs
-                .map(doc => ({ id: doc.id, ...doc.data() } as User))
-                .filter(u => !seenUsers.includes(u.id));
-
-            if (fetchedUsers.length > 0) {
-                setUsers(fetchedUsers);
+            const firestoreDocs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            let finalUsers = validateAndFilterUsers(firestoreDocs);
+            
+            if (finalUsers.length === 0) {
+                console.log("No new valid users from Firestore, falling back to demo users.");
+                finalUsers = validateAndFilterUsers(DEMO_USERS_FOR_UI);
+                setUsers(finalUsers);
             } else {
-                console.log("No new users found in Firestore, loading demo users as fallback.");
-                const demoUsersFiltered = DEMO_USERS_FOR_UI.filter(u => u.id !== currentUser.id && !seenUsers.includes(u.id));
-                setUsers(demoUsersFiltered);
+                setUsers(finalUsers);
             }
+
         } catch (err: any) {
             console.error("Error fetching users from Firestore, falling back to demo users:", err);
-            const demoUsersFiltered = DEMO_USERS_FOR_UI.filter(u => u.id !== currentUser.id && !seenUsers.includes(u.id));
-            setUsers(demoUsersFiltered);
+            const demoUsers = validateAndFilterUsers(DEMO_USERS_FOR_UI);
+            setUsers(demoUsers);
+            if (err.message.includes("took too long")) {
+                setError("Could not load profiles. Please check your connection and try again.");
+            }
         } finally {
             setCurrentIndex(0);
             setIsLoading(false);
@@ -151,7 +164,6 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
         }, 300);
 
         try {
-            // Do not attempt to write to Firestore for demo users
             if (swipedUser.id.startsWith('demo-user-')) {
                 console.log(`Swiped on demo user ${swipedUser.name}, no database write.`);
                 return;
@@ -205,7 +217,8 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                 </div>
             );
         }
-        if (currentIndex >= users.length && users.length === 0) {
+
+        if (currentIndex >= users.length) {
             return (
                 <div className="flex flex-col justify-center items-center h-full text-center p-4">
                     <h3 className="font-bold text-lg dark:text-gray-200">That's everyone for now!</h3>
@@ -214,6 +227,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                 </div>
             );
         }
+
         return (
             <div className="flex-1 flex flex-col justify-between items-center p-4">
                 <div className="relative w-full h-full flex-1">
@@ -225,13 +239,6 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                             animation={index === currentIndex ? animation : ''}
                         />
                     ))}
-                     {currentIndex >= users.length && users.length > 0 && (
-                         <div className="flex flex-col justify-center items-center h-full text-center p-4">
-                            <h3 className="font-bold text-lg dark:text-gray-200">That's everyone for now!</h3>
-                            <p className="text-gray-600 dark:text-gray-400">Check back later for new profiles.</p>
-                            <button onClick={fetchUsers} className="mt-4 px-4 py-2 bg-flame-orange text-white rounded-lg">Refresh</button>
-                        </div>
-                    )}
                 </div>
                 <div className="flex justify-around items-center w-full mt-4 flex-shrink-0">
                     <button onClick={() => handleSwipe('left')} className="w-16 h-16 bg-white dark:bg-zinc-800 rounded-full shadow-lg flex justify-center items-center text-gray-500 transform hover:scale-110 transition-transform">
