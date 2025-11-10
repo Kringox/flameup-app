@@ -18,8 +18,9 @@ const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ user, onSetupCo
   const [gender, setGender] = useState<'Man' | 'Woman' | 'Other'>('Woman');
   const [photos, setPhotos] = useState<(File | null)[]>([null, null, null]);
   const [photoPreviews, setPhotoPreviews] = useState<(string | null)[]>([null, null, null]);
-  const [bio, setBio] = useState('');
-  const [interests, setInterests] = useState<string[]>([]);
+  const [aboutMe, setAboutMe] = useState('');
+  const [interests, setInterests] = useState('');
+  const [lifestyle, setLifestyle] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
@@ -54,8 +55,10 @@ const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ user, onSetupCo
         age,
         gender,
         profilePhotos: uploadedUrls,
-        bio,
+        aboutMe,
         interests,
+        lifestyle,
+        language: 'en',
         followers: [],
         following: [],
         swipedLeft: [],
@@ -111,24 +114,16 @@ const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ user, onSetupCo
               <option>Man</option>
               <option>Other</option>
             </select>
-             <textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="Bio" className="w-full mb-4 p-3 border rounded-lg" rows={3}/>
+             <textarea value={aboutMe} onChange={e => setAboutMe(e.target.value)} placeholder="About me..." className="w-full mb-4 p-3 border rounded-lg" rows={3}/>
             <button onClick={() => setStep(3)} className="w-full mt-6 py-3 bg-flame-orange text-white font-bold rounded-lg">Next</button>
           </div>
         );
-      case 3: // Interests & Finish
+      case 3: // Interests & Lifestyle & Finish
          return (
           <div>
-            <h2 className="text-2xl font-bold mb-4">Your Interests</h2>
-            <p className="text-gray-500 mb-4">Add up to 5 interests. Press Enter to add.</p>
-            <div className="flex flex-wrap gap-2 mb-4">
-              {interests.map(i => <div key={i} className="bg-flame-orange/20 text-flame-red font-semibold rounded-full px-3 py-1">{i}</div>)}
-            </div>
-            <input type="text" placeholder="Type an interest..." onKeyDown={(e) => {
-                 if (e.key === 'Enter' && e.currentTarget.value && interests.length < 5) {
-                     setInterests([...interests, e.currentTarget.value]);
-                     e.currentTarget.value = '';
-                 }
-             }} className="w-full p-3 border rounded-lg"/>
+            <h2 className="text-2xl font-bold mb-4">More Details</h2>
+            <textarea value={interests} onChange={e => setInterests(e.target.value)} placeholder="Your interests (e.g., hiking, coding...)" className="w-full mb-4 p-3 border rounded-lg" rows={3}/>
+            <textarea value={lifestyle} onChange={e => setLifestyle(e.target.value)} placeholder="Your lifestyle (e.g., non-smoker...)" className="w-full mb-4 p-3 border rounded-lg" rows={3}/>
             <button onClick={handleFinish} disabled={isLoading} className="w-full mt-6 py-3 bg-flame-orange text-white font-bold rounded-lg disabled:opacity-50">
                 {isLoading ? 'Finishing...' : 'Finish Setup'}
             </button>

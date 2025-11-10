@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 // FIX: Added file extension to types import
 import { User } from '../types.ts';
-import { auth } from '../firebaseConfig.ts';
+import { auth, db } from '../firebaseConfig.ts';
 // FIX: Added file extensions to screen imports
 import ManageSubscriptionScreen from './ManageSubscriptionScreen.tsx';
 import WalletScreen from './WalletScreen.tsx';
@@ -10,6 +10,7 @@ import AchievementsScreen from './AchievementsScreen.tsx';
 import DeleteAccountModal from '../components/DeleteAccountModal.tsx';
 import SecuritySettingsScreen from './SecuritySettingsScreen.tsx';
 import { signOut } from 'firebase/auth';
+import { doc, updateDoc } from 'firebase/firestore';
 import SunIcon from '../components/icons/SunIcon.tsx';
 import MoonIcon from '../components/icons/MoonIcon.tsx';
 import DesktopIcon from '../components/icons/DesktopIcon.tsx';
@@ -18,6 +19,7 @@ import ShieldCheckIcon from '../components/icons/ShieldCheckIcon.tsx';
 import UsersIcon from '../components/icons/UsersIcon.tsx';
 
 type Theme = 'light' | 'dark' | 'system';
+type Language = 'en' | 'de';
 
 interface SettingsScreenProps {
   user: User;
@@ -49,6 +51,17 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdate
         console.log("Account deletion initiated for user:", user.id);
         // Here you would call a backend function to delete user data
         handleLogout();
+    };
+
+    const handleLanguageChange = async (lang: Language) => {
+        if (!db) return;
+        try {
+            const userRef = doc(db, 'users', user.id);
+            await updateDoc(userRef, { language: lang });
+            onUpdateUser({ ...user, language: lang });
+        } catch (error) {
+            console.error("Error updating language:", error);
+        }
     };
 
     const renderSubScreen = () => {
@@ -101,6 +114,21 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdate
                                     {t === 'dark' && <MoonIcon className="w-4 h-4 mr-1.5" />}
                                     {t === 'system' && <DesktopIcon className="w-4 h-4 mr-1.5" />}
                                     {t}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    
+                    <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg shadow-sm">
+                        <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">Sprache / Language</h2>
+                        <div className="flex bg-gray-200 dark:bg-zinc-700 rounded-lg p-1">
+                            {(['de', 'en'] as Language[]).map(lang => (
+                                <button
+                                    key={lang}
+                                    onClick={() => handleLanguageChange(lang)}
+                                    className={`flex-1 py-2 text-sm font-semibold rounded-md capitalize flex items-center justify-center transition-colors ${(user.language || 'en') === lang ? 'bg-white dark:bg-zinc-900 shadow text-flame-orange' : 'text-gray-600 dark:text-gray-300'}`}
+                                >
+                                    {lang === 'de' ? 'Deutsch' : 'English'}
                                 </button>
                             ))}
                         </div>

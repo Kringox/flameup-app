@@ -21,8 +21,9 @@ const THEMES = [
 
 const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onClose }) => {
   const [name, setName] = useState(user.name);
-  const [bio, setBio] = useState(user.bio);
-  const [interests, setInterests] = useState([...user.interests]);
+  const [aboutMe, setAboutMe] = useState(user.aboutMe || '');
+  const [interests, setInterests] = useState(user.interests || '');
+  const [lifestyle, setLifestyle] = useState(user.lifestyle || '');
   const [photos, setPhotos] = useState<(string | File)[]>([...user.profilePhotos]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([...user.profilePhotos]);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,8 +58,9 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
 
       const updatedData = {
         name,
-        bio,
+        aboutMe,
         interests,
+        lifestyle,
         profilePhotos: finalPhotos,
         profileTheme,
       };
@@ -76,10 +78,6 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
     } finally {
       setIsLoading(false);
     }
-  };
-  
-  const removeInterest = (interestToRemove: string) => {
-    setInterests(interests.filter(i => i !== interestToRemove));
   };
 
   const handlePhotoClick = (index: number) => {
@@ -173,39 +171,48 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
           />
         </div>
 
-        {/* Bio */}
+        {/* About Me */}
         <div className="mt-6">
-          <label htmlFor="bio" className="text-md font-semibold text-gray-500 dark:text-gray-400 mb-2 block">Bio</label>
+          <label htmlFor="aboutMe" className="text-md font-semibold text-gray-500 dark:text-gray-400 mb-2 block">About Me</label>
           <textarea 
-            id="bio"
-            value={bio}
-            onChange={(e) => setBio(e.target.value)}
+            id="aboutMe"
+            value={aboutMe}
+            onChange={(e) => setAboutMe(e.target.value)}
             rows={4}
             className="w-full px-4 py-2 border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-dark-gray dark:text-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-flame-orange"
             maxLength={500}
           />
-           <p className="text-right text-sm text-gray-400 mt-1">{bio.length} / 500</p>
+           <p className="text-right text-sm text-gray-400 mt-1">{aboutMe.length} / 500</p>
         </div>
 
         {/* Interests */}
         <div className="mt-6">
-          <h2 className="text-md font-semibold text-gray-500 dark:text-gray-400 mb-2">Interests</h2>
-          <div className="flex flex-wrap gap-2">
-            {interests.map(interest => (
-              <div key={interest} className="flex items-center bg-flame-orange/20 text-flame-red font-semibold rounded-full px-3 py-1 text-sm">
-                <span>{interest}</span>
-                <button onClick={() => removeInterest(interest)} className="ml-2 text-flame-red/70 hover:text-flame-red">
-                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              </div>
-            ))}
-             <input type="text" placeholder="Add interest..." onKeyDown={(e) => {
-                 if (e.key === 'Enter' && e.currentTarget.value.trim() !== '' && interests.length < 10) {
-                     setInterests([...interests, e.currentTarget.value.trim()]);
-                     e.currentTarget.value = '';
-                 }
-             }} className="bg-gray-100 dark:bg-zinc-800 rounded-full px-3 py-1 text-sm flex-1 min-w-[100px] text-dark-gray dark:text-gray-200" />
-          </div>
+          <label htmlFor="interests" className="text-md font-semibold text-gray-500 dark:text-gray-400 mb-2 block">Interests</label>
+          <textarea 
+            id="interests"
+            value={interests}
+            onChange={(e) => setInterests(e.target.value)}
+            rows={3}
+            className="w-full px-4 py-2 border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-dark-gray dark:text-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-flame-orange"
+            placeholder="e.g. Hiking, Reading, Photography, Travel..."
+            maxLength={300}
+          />
+           <p className="text-right text-sm text-gray-400 mt-1">{interests.length} / 300</p>
+        </div>
+        
+        {/* Lifestyle */}
+        <div className="mt-6">
+          <label htmlFor="lifestyle" className="text-md font-semibold text-gray-500 dark:text-gray-400 mb-2 block">Lifestyle</label>
+          <textarea 
+            id="lifestyle"
+            value={lifestyle}
+            onChange={(e) => setLifestyle(e.target.value)}
+            rows={3}
+            className="w-full px-4 py-2 border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-dark-gray dark:text-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-flame-orange"
+            placeholder="e.g. Early bird, non-smoker, dog person..."
+            maxLength={300}
+          />
+           <p className="text-right text-sm text-gray-400 mt-1">{lifestyle.length} / 300</p>
         </div>
 
         {/* Profile Themes (Premium) */}

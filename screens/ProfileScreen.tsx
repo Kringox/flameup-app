@@ -11,6 +11,8 @@ import PostDetailView from '../components/PostDetailView.tsx';
 import LevelProgressBar from '../components/LevelProgressBar.tsx';
 import ImageViewer from '../components/ImageViewer.tsx';
 import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
+import WalletScreen from './WalletScreen.tsx';
+import FlameIcon from '../components/icons/FlameIcon.tsx';
 
 const THEME_CLASSES: { [key: string]: { bg: string; text: string; subtext: string; border: string; }} = {
     default: { bg: 'bg-white dark:bg-black', text: 'text-dark-gray dark:text-gray-200', subtext: 'text-gray-500 dark:text-gray-400', border: 'border-gray-200 dark:border-gray-800' },
@@ -32,6 +34,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
     const [posts, setPosts] = useState<Post[]>([]);
     const [isEditing, setIsEditing] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [isWalletOpen, setIsWalletOpen] = useState(false);
     const [viewingFollowList, setViewingFollowList] = useState<'followers' | 'following' | null>(null);
     const [viewingPost, setViewingPost] = useState<Post | null>(null);
     const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
@@ -80,6 +83,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
         <div className={`w-full h-full flex flex-col ${themeClasses.bg}`}>
             {isEditing && <EditProfileScreen user={currentUser} onSave={handleSaveProfile} onClose={() => setIsEditing(false)} />}
             {isSettingsOpen && <SettingsScreen user={currentUser} onClose={() => setIsSettingsOpen(false)} onUpdateUser={onUpdateUser} theme={theme} setTheme={setTheme} />}
+            {isWalletOpen && <WalletScreen user={currentUser} onClose={() => setIsWalletOpen(false)} onUpdateUser={onUpdateUser} />}
             {viewingFollowList && <FollowListScreen title={viewingFollowList === 'followers' ? 'Followers' : 'Following'} userIds={currentUser[viewingFollowList]} currentUser={currentUser} onClose={() => setViewingFollowList(null)} onViewProfile={onViewProfile} />}
             {viewingPost && <PostDetailView post={viewingPost} currentUser={currentUser} onClose={() => setViewingPost(null)} onPostDeleted={handlePostDeleted} onPostUpdated={handlePostUpdated} onOpenComments={() => {}} />}
             {isImageViewerOpen && <ImageViewer images={currentUser.profilePhotos} onClose={() => setIsImageViewerOpen(false)} />}
@@ -118,12 +122,45 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
 
                 <div className="mt-4">
                     <p className={`font-semibold ${themeClasses.text}`}>{currentUser.name}</p>
-                    <p className={`${themeClasses.text} whitespace-pre-wrap`}>{currentUser.bio}</p>
+                    <div className="mt-2 space-y-4">
+                        {currentUser.aboutMe && (
+                            <div>
+                                <h3 className={`font-bold text-sm uppercase ${themeClasses.subtext} mb-1`}>About Me</h3>
+                                <p className={`${themeClasses.text} whitespace-pre-wrap`}>{currentUser.aboutMe}</p>
+                            </div>
+                        )}
+                        {currentUser.interests && (
+                            <div>
+                                <h3 className={`font-bold text-sm uppercase ${themeClasses.subtext} mb-1`}>Interests</h3>
+                                <p className={`${themeClasses.text} whitespace-pre-wrap`}>{currentUser.interests}</p>
+                            </div>
+                        )}
+                        {currentUser.lifestyle && (
+                            <div>
+                                <h3 className={`font-bold text-sm uppercase ${themeClasses.subtext} mb-1`}>Lifestyle</h3>
+                                <p className={`${themeClasses.text} whitespace-pre-wrap`}>{currentUser.lifestyle}</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
                 
                  <div className="my-4">
                     <LevelProgressBar xp={currentUser.xp} />
                 </div>
+
+                <button 
+                    onClick={() => setIsWalletOpen(true)} 
+                    className={`w-full flex items-center justify-between p-3 mb-4 ${themeClasses.bg} border ${themeClasses.border} rounded-lg shadow-sm transition-transform hover:scale-105`}
+                >
+                    <div>
+                        <p className={`font-semibold ${themeClasses.text}`}>Wallet</p>
+                        <p className={`text-sm ${themeClasses.subtext}`}>View your balance</p>
+                    </div>
+                    <div className="flex items-center font-bold text-lg">
+                        <FlameIcon isGradient className="w-5 h-5 mr-2" />
+                        <span className={`${themeClasses.text}`}>{currentUser.coins}</span>
+                    </div>
+                </button>
 
                 <button onClick={() => setIsEditing(true)} className={`w-full py-2 ${themeClasses.border} border rounded-lg font-semibold ${themeClasses.text}`}>
                     Edit Profile

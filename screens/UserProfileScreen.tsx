@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 // FIX: Added file extension to types import
 import { User, Post, NotificationType } from '../types.ts';
-import { db } from '../firebaseConfig';
+import { db } from '../firebaseConfig.ts';
 import { doc, getDoc, collection, query, where, orderBy, onSnapshot, updateDoc, arrayUnion, arrayRemove, addDoc, serverTimestamp } from 'firebase/firestore';
 // FIX: Added missing component imports
 import LevelProgressBar from '../components/LevelProgressBar.tsx';
 import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
+import ImageViewer from '../components/ImageViewer.tsx';
 
 interface UserProfileScreenProps {
   currentUserId: string;
@@ -20,6 +21,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
     const [isLoading, setIsLoading] = useState(true);
     const [isFollowing, setIsFollowing] = useState(false);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
 
     useEffect(() => {
         if (!db) return;
@@ -124,6 +126,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
 
     return (
         <div className={`absolute inset-0 ${themeClass.bg} z-[70] flex flex-col animate-slide-in`}>
+            {isImageViewerOpen && <ImageViewer images={user.profilePhotos} onClose={() => setIsImageViewerOpen(false)} />}
             <style>{`.animate-slide-in { animation: slideInFromRight 0.3s ease-out; } @keyframes slideInFromRight { from { transform: translateX(100%); } to { transform: translateX(0); } }`}</style>
             <header className="flex items-center p-4 border-b">
                  <button onClick={onClose} className="w-8">
@@ -135,7 +138,9 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
 
             <div className="flex-1 overflow-y-auto p-4">
                 <div className="flex items-center">
-                    <img src={user.profilePhotos[0]} alt={user.name} className="w-24 h-24 rounded-full object-cover border-4 border-flame-orange" />
+                    <button onClick={() => setIsImageViewerOpen(true)}>
+                        <img src={user.profilePhotos[0]} alt={user.name} className="w-24 h-24 rounded-full object-cover border-4 border-flame-orange" />
+                    </button>
                     <div className="flex-1 ml-6 flex justify-around text-center">
                         <div><p className="text-xl font-bold">{posts.length}</p><p>Posts</p></div>
                         <div><p className="text-xl font-bold">{user.followers.length}</p><p>Followers</p></div>
@@ -145,7 +150,26 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
 
                 <div className="mt-4">
                     <p className="font-semibold flex items-center">{user.name} {user.isPremium && <VerifiedIcon className="ml-1" />}</p>
-                    <p>{user.bio}</p>
+                    <div className="mt-2 space-y-4">
+                        {user.aboutMe && (
+                            <div>
+                                <h3 className={`font-bold text-sm uppercase ${themeClass.subtext} mb-1`}>About Me</h3>
+                                <p className={`${themeClass.text} whitespace-pre-wrap`}>{user.aboutMe}</p>
+                            </div>
+                        )}
+                        {user.interests && (
+                            <div>
+                                <h3 className={`font-bold text-sm uppercase ${themeClass.subtext} mb-1`}>Interests</h3>
+                                <p className={`${themeClass.text} whitespace-pre-wrap`}>{user.interests}</p>
+                            </div>
+                        )}
+                        {user.lifestyle && (
+                            <div>
+                                <h3 className={`font-bold text-sm uppercase ${themeClass.subtext} mb-1`}>Lifestyle</h3>
+                                <p className={`${themeClass.text} whitespace-pre-wrap`}>{user.lifestyle}</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <div className="my-4">

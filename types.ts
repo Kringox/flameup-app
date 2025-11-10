@@ -22,8 +22,10 @@ export interface User {
   age: number;
   gender: 'Man' | 'Woman' | 'Other';
   profilePhotos: string[];
-  bio: string;
-  interests: string[];
+  aboutMe?: string;
+  interests?: string;
+  lifestyle?: string;
+  language?: 'en' | 'de';
   followers: string[]; // array of user IDs
   following: string[]; // array of user IDs
   coins: number;
