@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useContext } from 'react';
 import { db } from '../firebaseConfig.ts';
 import { collection, query, getDocs, limit, doc, updateDoc, arrayUnion, writeBatch, serverTimestamp, increment } from 'firebase/firestore';
@@ -11,6 +10,7 @@ import WifiOffIcon from '../components/icons/WifiOffIcon.tsx';
 import { hapticFeedback } from '../utils/haptics.ts';
 import { XpContext } from '../contexts/XpContext.ts';
 import { XpAction } from '../utils/xpUtils.ts';
+import { DEMO_USERS_FOR_UI } from '../constants.ts';
 
 interface SwipeScreenProps {
   currentUser: User;
@@ -85,37 +85,28 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
     const [animation, setAnimation] = useState('');
     const { showXpToast } = useContext(XpContext);
 
+    // CRITICAL DEBUGGING STEP: Use static demo data to isolate the crash source.
     const fetchUsers = useCallback(async () => {
-        if (!db) {
-            setError("Database connection not available.");
-            setIsLoading(false);
-            return;
-        }
         setIsLoading(true);
         setError(null);
         try {
-            // THE CRITICAL FIX: Default to empty arrays to prevent crash if properties are missing.
-            const swipedLeft = currentUser.swipedLeft || [];
-            const swipedRight = currentUser.swipedRight || [];
-            const blockedUsers = currentUser.blockedUsers || [];
-            const seenUsers = [currentUser.id, ...swipedLeft, ...swipedRight, ...blockedUsers];
-
-            const q = query(collection(db, 'users'), limit(50));
-            const querySnapshot = await getDocs(q);
-
-            const fetchedUsers = querySnapshot.docs
-                .map(doc => ({ id: doc.id, ...doc.data() } as User))
-                .filter(u => !seenUsers.includes(u.id));
+            // This replaces the Firestore query with static data.
+            // If the app loads, the problem is with the Firestore call or rules.
+            // If it still crashes, the problem is in the rendering logic.
+            const demoUsers = DEMO_USERS_FOR_UI.filter(u => u.id !== currentUser.id);
             
-            setUsers(fetchedUsers);
+            // Simulate network delay for a better loading experience
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            setUsers(demoUsers);
             setCurrentIndex(0);
         } catch (err: any) {
-            console.error("Error fetching users for swiping:", err);
-            setError("Could not load profiles. Please check your connection and try again.");
+            console.error("Error setting up demo users for swiping:", err);
+            setError("Could not load profiles due to an internal error.");
         } finally {
             setIsLoading(false);
         }
-    }, [currentUser]);
+    }, [currentUser.id]);
 
     useEffect(() => {
         fetchUsers();
@@ -139,6 +130,14 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
             setCurrentIndex(prev => prev + 1);
             setAnimation('');
         }, 300);
+
+        // Prevent Firestore writes for demo data to avoid errors during debugging
+        if (swipedUserId.startsWith('demo-user-')) {
+             if (direction === 'right' || direction === 'super') {
+                showXpToast(XpAction.SWIPE_LIKE);
+            }
+            return;
+        }
 
         if (!db) return;
         try {
