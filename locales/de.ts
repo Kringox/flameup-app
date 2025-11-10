@@ -69,23 +69,4 @@ export const de = {
   searchChats: 'Chats suchen...',
   noMessagesYet: 'Noch keine Nachrichten',
   noConversations: 'Noch keine Unterhaltungen. Fang an zu swipen!',
-
-  // New Chat Interaction Keys
-  reply: 'Antworten',
-  replyingTo: 'Antwort an',
-  react: 'Reagieren',
-  recall: 'Zurückrufen',
-  recallMessageConfirmation: 'Möchtest du diese Nachricht wirklich zurückrufen?',
-  messageRecalled: 'Nachricht zurückgerufen',
-  pinChat: 'Chat anpinnen',
-  unpinChat: 'Pin entfernen',
-  deleteChat: 'Chat löschen',
-  deleteChatConfirmation: 'Möchtest du diesen Chat wirklich löschen? Er wird nur für dich entfernt.',
-
-  // New Privacy Settings Keys
-  privacySettingsTitle: 'Datenschutzeinstellungen',
-  showTypingIndicator: 'Tipp-Indikator anzeigen',
-  sendReadReceipts: 'Lesebestätigungen senden',
-  showLastOnline: '"Zuletzt online" anzeigen',
-  premiumFeature: 'Premium-Funktion',
 };
