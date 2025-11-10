@@ -114,22 +114,27 @@ const App: React.FC = () => {
 
           // Listen for unread messages
           const chatsRef = collection(db, 'chats');
-          // FIX: Corrected the query for deleted chats. Firestore does not support 'not-array-contains' or 'not-in' on array fields.
-          // The query now fetches all user's chats and filters them on the client.
           const q = query(
               chatsRef, 
               where('userIds', 'array-contains', userData.id)
           );
-          unsubscribeChats = onSnapshot(q, (chatSnapshot) => {
-            // Client-side filter to exclude chats the user has deleted.
-            const anyUnread = chatSnapshot.docs
-              .filter(doc => !doc.data().deletedFor?.includes(userData.id))
-              .some(doc => {
-                const chatData = doc.data() as Chat;
-                return (chatData.unreadCount?.[userData.id] || 0) > 0;
-            });
-            setHasUnreadMessages(anyUnread);
-          });
+          unsubscribeChats = onSnapshot(q, 
+            (chatSnapshot) => {
+                // Client-side filter to exclude chats the user has deleted.
+                const anyUnread = chatSnapshot.docs
+                  .filter(doc => !doc.data().deletedFor?.includes(userData.id))
+                  .some(doc => {
+                    const chatData = doc.data() as Chat;
+                    return (chatData.unreadCount?.[userData.id] || 0) > 0;
+                });
+                setHasUnreadMessages(anyUnread);
+            },
+            (error) => {
+                console.error("Firestore permission error fetching chats for unread status:", error);
+                // Gracefully handle the error, e.g., by assuming no unread messages, to prevent a crash.
+                setHasUnreadMessages(false);
+            }
+          );
 
         } else {
           setAuthState(prev => ({ ...prev, currentUser: 'not_found', isLoading: false }));
