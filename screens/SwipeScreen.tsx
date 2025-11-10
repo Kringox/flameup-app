@@ -56,7 +56,7 @@ const SwipeCard: React.FC<{ user: User }> = ({ user }) => {
   return (
     <div className="absolute inset-0 w-full h-full bg-gray-200 rounded-2xl overflow-hidden shadow-2xl">
       {photos.length > 0 ? (
-        <img src={photos[activePhotoIndex]} alt={user.name} className="w-full h-full object-cover" />
+        <img src={photos[activePhotoIndex]} alt={user.name || 'Profile photo'} className="w-full h-full object-cover" />
       ) : (
         <div className="w-full h-full bg-gray-300 flex items-center justify-center">
             <span className="text-gray-500">No Photo</span>
