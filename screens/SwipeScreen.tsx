@@ -6,7 +6,6 @@ import { db } from '../firebaseConfig.ts';
 import {
   collection,
   query,
-  where,
   getDocs,
   doc,
   arrayUnion,
@@ -81,8 +80,8 @@ const SwipeCard: React.FC<{ user: User }> = ({ user }) => {
         <h2 className="text-white text-3xl font-bold">{user.name || 'User'}{user.age ? `, ${user.age}` : ''}</h2>
         <p className="text-white mt-1 line-clamp-2">{user.aboutMe || ''}</p>
         <div className="flex flex-wrap gap-2 mt-2">
-          {(user.interests || '').split(',').slice(0, 4).map((interest) => (
-            <span key={interest.trim()} className="bg-white/20 text-white text-xs font-semibold px-2 py-1 rounded-full">{interest.trim()}</span>
+          {(user.interests || '').split(',').map((interest) => (
+            interest.trim() && <span key={interest.trim()} className="bg-white/20 text-white text-xs font-semibold px-2 py-1 rounded-full">{interest.trim()}</span>
           ))}
         </div>
       </div>
@@ -96,11 +95,13 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch }) =>
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  // Filters are kept in state for the modal, but the fetch logic will ignore them for now.
   const [filters, setFilters] = useState({ ageRange: [18, 40], distance: 50 });
   const [swipeAnimation, setSwipeAnimation] = useState<'left' | 'right' | null>(null);
 
   const { showXpToast } = useContext(XpContext);
 
+  // Reverted to a simplified fetch logic to isolate the crash source.
   const fetchUsers = useCallback(async () => {
     if (!db) {
       setError('Database connection not available.');
@@ -110,29 +111,27 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch }) =>
     setIsLoading(true);
     setError(null);
     try {
-      const seenUsers = new Set([...(currentUser.swipedLeft || []), ...(currentUser.swipedRight || []), currentUser.id]);
-      
-      const q = query(
-        collection(db, 'users'), 
-        where('age', '>=', filters.ageRange[0]),
-        where('age', '<=', filters.ageRange[1]),
-        limit(50) // Fetch a larger batch to filter from
-      );
+      // This is a barebones query to fetch users. It ignores filters and swipe history.
+      const q = query(collection(db, 'users'), limit(20));
 
       const querySnapshot = await getDocs(q);
       const fetchedUsers = querySnapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as User))
-        .filter(u => !seenUsers.has(u.id));
+        .filter(u => u.id !== currentUser.id); // Don't show the current user to themselves.
+
+      if (fetchedUsers.length === 0) {
+        console.warn("Fetched 0 users. This might be because the database only contains the current user.");
+      }
 
       setUsers(fetchedUsers);
       setCurrentIndex(0);
     } catch (err) {
       console.error('Error fetching users for swiping:', err);
-      setError('Could not load profiles. Please try again later.');
+      setError('Could not load profiles. Please check your connection and try again.');
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser, filters]);
+  }, [currentUser.id]); // Only depends on currentUser.id to run once.
 
   useEffect(() => {
     fetchUsers();
@@ -224,7 +223,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch }) =>
       return (
         <div className="flex flex-col justify-center items-center h-full text-center p-4">
           <h3 className="font-bold text-lg dark:text-gray-200">That's everyone for now!</h3>
-          <p className="text-gray-600 dark:text-gray-400">Check back later for new profiles or try adjusting your filters.</p>
+          <p className="text-gray-600 dark:text-gray-400">Check back later for new profiles.</p>
           <button onClick={fetchUsers} className="mt-4 px-4 py-2 bg-flame-orange text-white rounded-lg">Refresh</button>
         </div>
       );
