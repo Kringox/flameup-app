@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useContext } from 'react';
 // FIX: Add file extension to firebaseConfig import
 import { db } from '../firebaseConfig.ts';
@@ -36,35 +37,36 @@ interface SwipeScreenProps {
 
 const SwipeCard: React.FC<{ user: User }> = ({ user }) => {
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+  const photos = user.profilePhotos || [];
 
   const nextPhoto = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (user.profilePhotos.length > 1) {
-      setActivePhotoIndex((p) => (p + 1) % user.profilePhotos.length);
+    if (photos.length > 1) {
+      setActivePhotoIndex((p) => (p + 1) % photos.length);
     }
   };
 
   const prevPhoto = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (user.profilePhotos.length > 1) {
-      setActivePhotoIndex((p) => (p - 1 + user.profilePhotos.length) % user.profilePhotos.length);
+    if (photos.length > 1) {
+      setActivePhotoIndex((p) => (p - 1 + photos.length) % photos.length);
     }
   };
 
   return (
     <div className="absolute inset-0 w-full h-full bg-gray-200 rounded-2xl overflow-hidden shadow-2xl">
-      {user.profilePhotos && user.profilePhotos.length > 0 ? (
-        <img src={user.profilePhotos[activePhotoIndex]} alt={user.name} className="w-full h-full object-cover" />
+      {photos.length > 0 ? (
+        <img src={photos[activePhotoIndex]} alt={user.name} className="w-full h-full object-cover" />
       ) : (
         <div className="w-full h-full bg-gray-300 flex items-center justify-center">
             <span className="text-gray-500">No Photo</span>
         </div>
       )}
 
-      {user.profilePhotos && user.profilePhotos.length > 1 && (
+      {photos.length > 1 && (
         <>
           <div className="absolute top-0 left-0 right-0 flex p-2 space-x-1 z-10">
-            {user.profilePhotos.map((_, index) => (
+            {photos.map((_, index) => (
               <div key={index} className={`h-1 flex-1 rounded-full ${index === activePhotoIndex ? 'bg-white' : 'bg-white/50'}`} />
             ))}
           </div>
@@ -169,9 +171,11 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch }) =>
                     updateData.xp = increment(XpAction.SWIPE_LIKE + XpAction.MATCH);
                     
                     const targetNotifRef = doc(collection(db, 'users', targetUser.id, 'notifications'));
+                    const userProfilePhoto = currentUser.profilePhotos?.[0] || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
+                    
                     transaction.set(targetNotifRef, {
                         type: NotificationType.Match,
-                        fromUser: { id: currentUser.id, name: currentUser.name, profilePhoto: currentUser.profilePhotos[0] },
+                        fromUser: { id: currentUser.id, name: currentUser.name, profilePhoto: userProfilePhoto },
                         read: false,
                         timestamp: Timestamp.now(),
                     });
