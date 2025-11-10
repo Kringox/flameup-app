@@ -12,13 +12,13 @@ import { useI18n } from '../contexts/I18nContext.ts';
 
 const REACTION_EMOJIS = ['🔥', '❤️', '😂', '😮', '👍', '😢'];
 
-const ReplyPreview: React.FC<{ message: Message, onCancel: () => void }> = ({ message, onCancel }) => {
+const ReplyPreview: React.FC<{ messageText: string, senderName: string, onCancel: () => void }> = ({ messageText, senderName, onCancel }) => {
     const { t } = useI18n();
     return (
         <div className="p-2 border-b border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 flex justify-between items-center">
-            <div className="text-xs text-gray-600 dark:text-gray-400">
-                <p className="font-semibold">{t('replyingTo')} {message.senderName}</p>
-                <p className="italic truncate">{message.text}</p>
+            <div className="text-xs text-gray-600 dark:text-gray-400 overflow-hidden">
+                <p className="font-semibold">{t('replyingTo')} {senderName}</p>
+                <p className="italic truncate">{messageText}</p>
             </div>
             <button onClick={onCancel} className="p-1">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -47,8 +47,10 @@ const MessageBubble: React.FC<{ message: Message, isOwnMessage: boolean, onLongP
         )
     }
     
-    // FIX: Add Array.isArray check to safely access `length` on `userIds`, which is inferred as `unknown`. This resolves the error on line 50.
-    const reactions = message.reactions && Object.entries(message.reactions).filter(([, userIds]) => Array.isArray(userIds) && userIds.length > 0);
+    // FIX: Use a type guard with filter to correctly type the 'reactions' array, ensuring 'userIds' is recognized as a string array in subsequent operations.
+    const reactions = message.reactions && Object.entries(message.reactions).filter(
+        (entry): entry is [string, string[]] => Array.isArray(entry[1]) && entry[1].length > 0
+    );
     
     return (
         <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'}`}>
@@ -66,8 +68,7 @@ const MessageBubble: React.FC<{ message: Message, isOwnMessage: boolean, onLongP
                     {reactions.map(([emoji, userIds]) => (
                         <div key={emoji} className="px-2 py-0.5 bg-white dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 rounded-full flex items-center shadow-sm">
                             <span className="text-sm">{emoji}</span>
-                            {/* FIX: Add type assertion for `userIds` to fix `length` access on `unknown` type, resolving the error on line 68. */}
-                            <span className="text-xs ml-1 font-semibold text-gray-700 dark:text-gray-300">{(userIds as string[]).length}</span>
+                            <span className="text-xs ml-1 font-semibold text-gray-700 dark:text-gray-300">{userIds.length}</span>
                         </div>
                     ))}
                 </div>
@@ -204,7 +205,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         if (newMessage.trim() === '' || !db || !partner || isSending) return;
         setIsSending(true);
         const text = newMessage.trim();
-        const replyContext = replyingTo ? { messageId: replyingTo.id, senderName: partner.id === replyingTo.senderId ? partner.name : currentUser.name, text: replyingTo.text } : null;
+        const replyContext = replyingTo ? { messageId: replyingTo.id, senderName: replyingTo.senderId === currentUser.id ? currentUser.name : partner.name, text: replyingTo.text } : null;
         setNewMessage('');
         setReplyingTo(null);
 
@@ -342,8 +343,10 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     }
 
     if (!partner) {
-        return <div className="absolute inset-0 bg-white z-50 flex justify-center items-center"><FlameLoader /></div>;
+        return <div className="absolute inset-0 bg-white dark:bg-black z-50 flex justify-center items-center"><FlameLoader /></div>;
     }
+
+    const replySenderName = replyingTo ? (replyingTo.senderId === currentUser.id ? currentUser.name : partner.name) : '';
 
     return (
         <div className="absolute inset-0 bg-white dark:bg-black z-50 flex flex-col animate-slide-in-right">
@@ -365,12 +368,12 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             </header>
 
             <div className="flex-1 overflow-y-auto p-4 flex flex-col space-y-4">
-                {messages.map(msg => <MessageBubble key={msg.id} message={{...msg, senderName: msg.senderId === currentUser.id ? currentUser.name : partner.name}} isOwnMessage={msg.senderId === currentUser.id} onLongPress={handleLongPress} />)}
+                {messages.map(msg => <MessageBubble key={msg.id} message={msg} isOwnMessage={msg.senderId === currentUser.id} onLongPress={handleLongPress} />)}
                 <div ref={messagesEndRef} />
             </div>
             
             <div>
-                 {replyingTo && <ReplyPreview message={{...replyingTo, senderName: replyingTo.senderId === currentUser.id ? currentUser.name : partner.name}} onCancel={() => setReplyingTo(null)} />}
+                 {replyingTo && <ReplyPreview messageText={replyingTo.text} senderName={replySenderName} onCancel={() => setReplyingTo(null)} />}
                 <div className="p-2 border-t border-gray-200 dark:border-zinc-800 flex items-center space-x-2 bg-white dark:bg-zinc-900">
                     <button onClick={() => setIsGiftModalOpen(true)} className="p-2 text-gray-500 dark:text-gray-400">
                         <GiftIcon className="w-6 h-6" />
