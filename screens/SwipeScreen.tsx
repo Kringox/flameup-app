@@ -23,14 +23,18 @@ const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; }
   try {
     const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
-    // Defensive checks for rendering
+    // Get user data with safe fallbacks to prevent crashes
+    const name = String(user?.name || 'User');
+    const age = user?.age;
+    const aboutMe = String(user?.aboutMe || '');
+    const interests = user?.interests; // Keep it raw to check type later
     const photos = user?.profilePhotos;
     const hasValidPhotos = Array.isArray(photos) && photos.length > 0 && photos.every(p => typeof p === 'string' && p.trim() !== '');
 
     if (!isVisible) return null;
 
     if (!hasValidPhotos) {
-      console.error("SwipeCard rendering fallback due to invalid photos for user:", user);
+      // This is a controlled error for bad photo data, not a crash.
       return (
           <div className={`absolute inset-0 w-full h-full bg-gray-300 dark:bg-zinc-700 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center p-4 text-center ${animation}`}>
               <div className="text-red-500">
@@ -40,6 +44,14 @@ const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; }
           </div>
       );
     }
+    
+    // Safely handle interests whether it's an array or a comma-separated string
+    const interestsArray = (
+        Array.isArray(interests) 
+            ? interests 
+            : String(interests || '').split(',')
+    ).filter(interest => typeof interest === 'string' && interest.trim() !== '');
+
 
     const nextPhoto = (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -53,7 +65,7 @@ const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; }
 
     return (
       <div className={`absolute inset-0 w-full h-full bg-gray-200 rounded-2xl overflow-hidden shadow-2xl transition-transform duration-500 ${animation}`}>
-        <img src={photos[activePhotoIndex]} alt={user.name} className="w-full h-full object-cover" />
+        <img src={photos[activePhotoIndex]} alt={name} className="w-full h-full object-cover" />
 
         {photos.length > 1 && (
           <>
@@ -70,10 +82,10 @@ const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; }
         )}
 
         <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
-          <h2 className="text-white text-3xl font-bold">{user.name}{user.age ? `, ${user.age}` : ''}</h2>
-          <p className="text-white mt-1 line-clamp-2">{user.aboutMe || ''}</p>
+          <h2 className="text-white text-3xl font-bold">{name}{age ? `, ${age}` : ''}</h2>
+          <p className="text-white mt-1 line-clamp-2">{aboutMe}</p>
           <div className="flex flex-wrap gap-2 mt-2">
-            {(user.interests || '').split(',').map((interest) => (
+            {interestsArray.map((interest) => (
               interest.trim() && <span key={interest.trim()} className="bg-white/20 text-white text-xs font-semibold px-2 py-1 rounded-full">{interest.trim()}</span>
             ))}
           </div>
