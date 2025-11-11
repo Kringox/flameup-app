@@ -10,6 +10,7 @@ import LoadingScreen from '../components/LoadingScreen.tsx';
 import PostCard from '../components/PostCard.tsx';
 import { promiseWithTimeout } from '../utils/promiseUtils.ts';
 import WifiOffIcon from '../components/icons/WifiOffIcon.tsx';
+import SearchIcon from '../components/icons/SearchIcon.tsx';
 
 
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
@@ -46,9 +47,10 @@ interface HomeScreenProps {
     onOpenNotifications: () => void;
     onViewProfile: (userId: string) => void;
     onUpdateUser: (user: User) => void;
+    onOpenSearch: () => void;
 }
 
-const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, onOpenNotifications, onViewProfile, onUpdateUser }) => {
+const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, onOpenNotifications, onViewProfile, onUpdateUser, onOpenSearch }) => {
   const [stories, setStories] = useState<Story[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -183,12 +185,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
   ];
 
   const renderHeader = () => (
-     <header className="relative flex justify-center items-center p-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-black sticky top-0 z-10">
-        <button onClick={onOpenNotifications} className="absolute left-4">
+     <header className="relative flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-black sticky top-0 z-10">
+        <button onClick={onOpenNotifications} className="w-8">
             <BellIcon hasNotification={hasNotifications} />
         </button>
         <button onClick={handleLogoClick}>
             <img src="/assets/logo-text.png" alt="FlameUp" className="h-8 dark:invert" />
+        </button>
+        <button onClick={onOpenSearch} className="w-8">
+            <SearchIcon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
         </button>
     </header>
   );

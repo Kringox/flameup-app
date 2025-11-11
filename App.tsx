@@ -26,6 +26,7 @@ import MatchModal from './components/MatchModal.tsx';
 import InAppNotification from './components/InAppNotification.tsx';
 import XPToast from './components/XPToast.tsx';
 import { XpContext } from './contexts/XpContext.ts';
+import SearchScreen from './screens/SearchScreen.tsx';
 
 
 type Theme = 'light' | 'dark' | 'system';
@@ -52,6 +53,7 @@ const App: React.FC = () => {
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
   const [theme, setTheme] = useState<Theme>((localStorage.getItem('theme') as Theme) || 'system');
   const [xpToast, setXpToast] = useState<{ amount: number; key: number } | null>(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
 
   const showXpToast = (amount: number) => {
@@ -225,7 +227,7 @@ const App: React.FC = () => {
           <div className="relative w-screen h-screen max-w-md mx-auto flex flex-col bg-gray-50 dark:bg-black md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)] overflow-hidden">
             {xpToast && <XPToast key={xpToast.key} amount={xpToast.amount} />}
             <main className="flex-1 overflow-y-auto">
-              {activeTab === Tab.Home && <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} onUpdateUser={handleUpdateUser} />}
+              {activeTab === Tab.Home && <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} onUpdateUser={handleUpdateUser} onOpenSearch={() => setIsSearchOpen(true)} />}
               {activeTab === Tab.Swipe && <SwipeScreen currentUser={currentUser} onNewMatch={handleNewMatch} onUpdateUser={handleUpdateUser}/>}
               {activeTab === Tab.Chat && <ChatScreen currentUser={currentUser} activeChatPartnerId={activeChatPartnerId} onStartChat={handleStartChat} onCloseChat={() => setActiveChatPartnerId(null)} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} />}
               {activeTab === Tab.Profile && <ProfileScreen currentUser={currentUser} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} theme={theme} setTheme={setTheme} />}
@@ -242,6 +244,19 @@ const App: React.FC = () => {
             {isCreateOpen && <CreateScreen user={currentUser} onClose={() => setIsCreateOpen(false)} />}
             {viewingPostComments && <CommentScreen post={viewingPostComments} currentUser={currentUser} onClose={() => setViewingPostComments(null)} onViewProfile={handleViewProfile} />}
             {isNotificationsOpen && <NotificationsScreen user={currentUser} onClose={() => setIsNotificationsOpen(false)} onShowMatch={handleShowMatch} onViewProfile={handleViewProfile} />}
+            {isSearchOpen && <SearchScreen 
+                currentUser={currentUser} 
+                onClose={() => setIsSearchOpen(false)}
+                onViewProfile={(userId) => {
+                    setIsSearchOpen(false); // Close search before opening profile
+                    handleViewProfile(userId);
+                }}
+                onOpenComments={(post) => {
+                    setIsSearchOpen(false); // Close search before opening comments
+                    setViewingPostComments(post);
+                }}
+                onUpdateUser={handleUpdateUser}
+            />}
             {viewingUserId && <UserProfileScreen currentUserId={currentUser.id} viewingUserId={viewingUserId} onClose={() => setViewingUserId(null)} onStartChat={handleStartChat} />}
             {matchNotification && authState.currentUser && (
                 <MatchModal 
