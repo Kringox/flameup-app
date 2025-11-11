@@ -1,9 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig.ts';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { User, Post } from '../types.ts';
 import SearchIcon from '../components/icons/SearchIcon.tsx';
-import PostCard from '../components/PostCard.tsx';
 import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
 
 // A simple hook for debouncing
@@ -40,14 +40,14 @@ interface SearchScreenProps {
   onViewProfile: (userId: string) => void;
   onOpenComments: (post: Post) => void;
   onUpdateUser: (user: User) => void;
+  onViewPostGrid: (posts: Post[], startIndex: number) => void;
 }
 
-const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onViewProfile, onOpenComments, onUpdateUser }) => {
+const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onViewProfile, onOpenComments, onUpdateUser, onViewPostGrid }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchType, setSearchType] = useState<'users' | 'posts'>('users');
     const [results, setResults] = useState<(User | Post)[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [hasSearched, setHasSearched] = useState(false);
     const [postsCache, setPostsCache] = useState<Post[] | null>(null);
 
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
@@ -66,11 +66,10 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
                     return;
                 }
                 try {
-                    const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'), limit(200));
+                    const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'), limit(100));
                     const snapshot = await getDocs(postsQuery);
                     const allPosts = snapshot.docs.map(doc => {
                         const data = doc.data();
-                        // CRITICAL FIX: Normalize post data to prevent crashes from legacy data structures.
                         const postUser = data.user || {
                             id: data.userId,
                             name: data.userName,
@@ -102,20 +101,40 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
 
     useEffect(() => {
         const performSearch = async () => {
-            if (!debouncedSearchTerm.trim()) {
-                setResults([]);
+            if (!db) return;
+            
+            const term = debouncedSearchTerm.trim();
+
+            if (searchType === 'posts') {
+                setIsLoading(postsCache === null); // Show loading only if cache is not ready
+                if (postsCache === null) return; // Wait for cache to be loaded
+                
+                if (term === '') {
+                    // Show recommended posts if search is empty
+                    setResults(postsCache.slice(0, 24)); // Show first 24 as recommendations
+                } else {
+                    const lowercasedTerm = term.toLowerCase();
+                    const postsFound = postsCache.filter(post => 
+                        (post.caption || '').toLowerCase().includes(lowercasedTerm)
+                    );
+                    setResults(postsFound);
+                }
                 setIsLoading(false);
-                setHasSearched(false);
                 return;
             }
-            if (!db) return;
+
+            // User Search Logic
+            if (term === '') {
+                setResults([]);
+                setIsLoading(false);
+                return;
+            }
 
             setIsLoading(true);
-            setHasSearched(true);
 
             try {
                 if (searchType === 'users') {
-                    const normalizedTerm = debouncedSearchTerm.charAt(0).toUpperCase() + debouncedSearchTerm.slice(1).toLowerCase();
+                    const normalizedTerm = term.charAt(0).toUpperCase() + term.slice(1).toLowerCase();
                     const q = query(
                         collection(db, 'users'), 
                         where('name', '>=', normalizedTerm),
@@ -125,18 +144,6 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
                     const querySnapshot = await getDocs(q);
                     const usersFound = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User)).filter(u => u.id !== currentUser.id);
                     setResults(usersFound);
-
-                } else if (searchType === 'posts') {
-                    if (postsCache === null) {
-                        // The cache is still warming up, isLoading is already true
-                        return;
-                    }
-                    const lowercasedTerm = debouncedSearchTerm.toLowerCase();
-                    // Safeguard against posts with null or undefined captions to prevent crashes
-                    const postsFound = postsCache.filter(post => 
-                        (post.caption || '').toLowerCase().includes(lowercasedTerm)
-                    );
-                    setResults(postsFound);
                 }
             } catch (error) {
                 console.error("Error during search:", error);
@@ -149,9 +156,6 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
         performSearch();
     }, [debouncedSearchTerm, searchType, currentUser.id, postsCache]);
 
-    const handlePostDeleted = (postId: string) => {
-        setResults(currentResults => currentResults.filter(p => p.id !== postId));
-    };
 
     return (
         <div className="absolute inset-0 bg-gray-50 dark:bg-black z-[70] flex flex-col animate-slide-in-right">
@@ -175,13 +179,13 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
             <div className="p-2 flex-shrink-0 border-b dark:border-zinc-800">
                 <div className="flex bg-gray-200 dark:bg-zinc-800 rounded-lg p-1">
                     <button
-                        onClick={() => setSearchType('users')}
+                        onClick={() => { setSearchTerm(''); setResults([]); setSearchType('users'); }}
                         className={`flex-1 py-1.5 text-sm font-semibold rounded-md ${searchType === 'users' ? 'bg-white dark:bg-zinc-900 shadow text-flame-orange' : 'text-gray-600 dark:text-gray-300'}`}
                     >
                         Users
                     </button>
                      <button
-                        onClick={() => setSearchType('posts')}
+                        onClick={() => { setSearchTerm(''); setResults([]); setSearchType('posts'); }}
                         className={`flex-1 py-1.5 text-sm font-semibold rounded-md ${searchType === 'posts' ? 'bg-white dark:bg-zinc-900 shadow text-flame-orange' : 'text-gray-600 dark:text-gray-300'}`}
                     >
                         Posts
@@ -192,27 +196,30 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
             <main className="flex-1 overflow-y-auto">
                 {isLoading ? (
                     <div className="flex justify-center items-center h-full p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-200"></div></div>
-                ) : hasSearched && results.length === 0 ? (
+                ) : results.length === 0 ? (
                     <div className="text-center p-8 text-gray-500">
-                        <h3 className="font-semibold">No results found</h3>
-                        <p className="text-sm">Try a different search term.</p>
-                    </div>
-                ) : !hasSearched ? (
-                    <div className="text-center p-8 text-gray-500">
-                        <h3 className="font-semibold">Search for users or posts</h3>
-                        <p className="text-sm">Find new people to follow or see what's trending.</p>
+                        <h3 className="font-semibold">{searchTerm ? 'No results found' : 'Search for users or posts'}</h3>
+                        <p className="text-sm">{searchTerm ? 'Try a different search term.' : 'Find new people or see what\'s trending.'}</p>
                     </div>
                 ) : (
-                    <div className={searchType === 'posts' ? 'p-2 md:p-4' : ''}>
-                        {results.map(item => {
-                            if (searchType === 'users' && 'profilePhotos' in item) {
-                                return <UserResultRow key={item.id} user={item as User} onViewProfile={onViewProfile} />
-                            }
-                            if (searchType === 'posts' && 'mediaUrls' in item) {
-                                return <PostCard key={item.id} post={item as Post} currentUser={currentUser} onPostDeleted={handlePostDeleted} onOpenComments={onOpenComments} onViewProfile={onViewProfile} onUpdateUser={onUpdateUser} />
-                            }
-                            return null;
-                        })}
+                    <div>
+                        {searchType === 'users' && results.map(item => (
+                            <UserResultRow key={item.id} user={item as User} onViewProfile={onViewProfile} />
+                        ))}
+
+                        {searchType === 'posts' && (
+                            <div className="grid grid-cols-3 gap-0.5">
+                                {(results as Post[]).map((post, index) => (
+                                    <button 
+                                        key={post.id} 
+                                        className="aspect-square bg-gray-200 dark:bg-zinc-800"
+                                        onClick={() => onViewPostGrid(results as Post[], index)}
+                                    >
+                                        <img src={post.mediaUrls[0]} alt={post.caption} className="w-full h-full object-cover" />
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
             </main>

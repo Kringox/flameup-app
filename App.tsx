@@ -1,3 +1,5 @@
+
+// FIX: Corrected import statement for React and its hooks.
 import React, { useState, useEffect } from 'react';
 // FIX: Added file extension to firebaseConfig import
 import { auth, db, firebaseInitializationError } from './firebaseConfig.ts';
@@ -27,6 +29,7 @@ import InAppNotification from './components/InAppNotification.tsx';
 import XPToast from './components/XPToast.tsx';
 import { XpContext } from './contexts/XpContext.ts';
 import SearchScreen from './screens/SearchScreen.tsx';
+import PostGridViewer from './components/PostGridViewer.tsx';
 
 
 type Theme = 'light' | 'dark' | 'system';
@@ -54,6 +57,7 @@ const App: React.FC = () => {
   const [theme, setTheme] = useState<Theme>((localStorage.getItem('theme') as Theme) || 'system');
   const [xpToast, setXpToast] = useState<{ amount: number; key: number } | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [viewingPostGrid, setViewingPostGrid] = useState<{ posts: Post[], startIndex: number } | null>(null);
 
 
   const showXpToast = (amount: number) => {
@@ -255,6 +259,19 @@ const App: React.FC = () => {
                     setIsSearchOpen(false); // Close search before opening comments
                     setViewingPostComments(post);
                 }}
+                onViewPostGrid={(posts, startIndex) => {
+                    setIsSearchOpen(false);
+                    setViewingPostGrid({ posts, startIndex });
+                }}
+                onUpdateUser={handleUpdateUser}
+            />}
+            {viewingPostGrid && <PostGridViewer 
+                posts={viewingPostGrid.posts}
+                startIndex={viewingPostGrid.startIndex}
+                currentUser={currentUser}
+                onClose={() => setViewingPostGrid(null)}
+                onOpenComments={setViewingPostComments}
+                onViewProfile={handleViewProfile}
                 onUpdateUser={handleUpdateUser}
             />}
             {viewingUserId && <UserProfileScreen currentUserId={currentUser.id} viewingUserId={viewingUserId} onClose={() => setViewingUserId(null)} onStartChat={handleStartChat} />}
