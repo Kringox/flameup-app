@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, Timestamp, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 // FIX: Added file extension to types import
 import { Chat, User } from '../types.ts';
 // FIX: Add file extension to ConversationScreen import to resolve module not found error.
@@ -23,7 +23,7 @@ const formatTimestamp = (timestamp: Timestamp | undefined): string => {
     return date.toLocaleDateString();
 };
 
-const ChatListItem: React.FC<{ chat: Chat; currentUser: User; onSelect: (partnerId: string) => void }> = ({ chat, currentUser, onSelect }) => {
+const ChatListItem: React.FC<{ chat: Chat; currentUser: User; onSelect: (partnerId: string) => void; onPinToggle: (chatId: string) => void; isPinned: boolean; }> = ({ chat, currentUser, onSelect, onPinToggle, isPinned }) => {
   const { t } = useI18n();
   const partnerId = chat.userIds.find(id => id !== currentUser.id);
   if (!partnerId) return null;
@@ -34,8 +34,13 @@ const ChatListItem: React.FC<{ chat: Chat; currentUser: User; onSelect: (partner
   const unreadCount = chat.unreadCount?.[currentUser.id] || 0;
   const isUnread = unreadCount > 0;
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+      e.preventDefault();
+      onPinToggle(chat.id);
+  };
+
   return (
-    <button onClick={() => onSelect(partnerId)} className="w-full flex items-center p-4 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer transition-colors text-left">
+    <button onClick={() => onSelect(partnerId)} onContextMenu={handleContextMenu} className="w-full flex items-center p-4 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer transition-colors text-left">
       <div className="relative">
         <img className="w-14 h-14 rounded-full object-cover" src={partner.profilePhoto} alt={partner.name} />
       </div>
@@ -45,17 +50,20 @@ const ChatListItem: React.FC<{ chat: Chat; currentUser: User; onSelect: (partner
           <span className="text-xs text-gray-500 dark:text-gray-400">{formatTimestamp(chat.lastMessage?.timestamp)}</span>
         </div>
         <div className="flex justify-between items-center mt-1">
-          <p className={`text-sm truncate w-11/12 transition-all ${isUnread ? 'font-semibold text-dark-gray dark:text-gray-200' : 'text-gray-600 dark:text-gray-400'}`}>{chat.lastMessage?.text || t('noMessagesYet')}</p>
-          {isUnread && (
-             <span className="w-2.5 h-2.5 bg-flame-red rounded-full flex-shrink-0" aria-label="Unread message"></span>
-          )}
+          <p className={`text-sm truncate w-10/12 transition-all ${isUnread ? 'font-semibold text-dark-gray dark:text-gray-200' : 'text-gray-600 dark:text-gray-400'}`}>{chat.lastMessage?.text || t('noMessagesYet')}</p>
+          <div className="flex items-center space-x-2">
+            {isPinned && <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.05 3.05a7 7 0 119.9 9.9L10 18.9l-4.95-5.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg>}
+            {isUnread && (
+               <span className="w-2.5 h-2.5 bg-flame-red rounded-full flex-shrink-0" aria-label="Unread message"></span>
+            )}
+          </div>
         </div>
       </div>
     </button>
   );
 };
 
-const ChatList: React.FC<{ currentUser: User, onStartChat: (partnerId: string) => void }> = ({ currentUser, onStartChat }) => {
+const ChatList: React.FC<{ currentUser: User, onStartChat: (partnerId: string) => void, onUpdateUser: (user: User) => void }> = ({ currentUser, onStartChat, onUpdateUser }) => {
     const [chats, setChats] = useState<Chat[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { t } = useI18n();
@@ -69,15 +77,26 @@ const ChatList: React.FC<{ currentUser: User, onStartChat: (partnerId: string) =
         const chatsRef = collection(db, 'chats');
         const q = query(
             chatsRef,
-            where('userIds', 'array-contains', currentUser.id),
-            orderBy('lastMessage.timestamp', 'desc')
+            where('userIds', 'array-contains', currentUser.id)
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const chatList = snapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() } as Chat))
-                .filter(chat => !chat.deletedFor?.includes(currentUser.id)); // Filter deleted chats
-            setChats(chatList);
+                .filter(chat => !chat.deletedFor?.includes(currentUser.id)); 
+            
+            // Sort by pinned and then by timestamp
+            const sorted = chatList.sort((a, b) => {
+                const aIsPinned = currentUser.pinnedChats?.includes(a.id);
+                const bIsPinned = currentUser.pinnedChats?.includes(b.id);
+                if (aIsPinned && !bIsPinned) return -1;
+                if (!aIsPinned && bIsPinned) return 1;
+                const aTime = a.lastMessage?.timestamp?.toMillis() || 0;
+                const bTime = b.lastMessage?.timestamp?.toMillis() || 0;
+                return bTime - aTime;
+            });
+
+            setChats(sorted);
             setIsLoading(false);
         }, (error) => {
             console.error("Error fetching chats: ", error);
@@ -85,7 +104,26 @@ const ChatList: React.FC<{ currentUser: User, onStartChat: (partnerId: string) =
         });
 
         return () => unsubscribe();
-    }, [currentUser.id]);
+    }, [currentUser.id, currentUser.pinnedChats]);
+
+    const handlePinToggle = async (chatId: string) => {
+        if (!db) return;
+        const userRef = doc(db, 'users', currentUser.id);
+        const isPinned = currentUser.pinnedChats?.includes(chatId);
+        
+        try {
+            await updateDoc(userRef, {
+                pinnedChats: isPinned ? arrayRemove(chatId) : arrayUnion(chatId)
+            });
+            // Optimistically update user state to re-render list
+            const newPinnedChats = isPinned 
+                ? (currentUser.pinnedChats || []).filter(id => id !== chatId)
+                : [...(currentUser.pinnedChats || []), chatId];
+            onUpdateUser({...currentUser, pinnedChats: newPinnedChats });
+        } catch (error) {
+            console.error("Error pinning chat:", error);
+        }
+    };
 
     if (isLoading) {
         return <div className="flex justify-center items-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-200"></div></div>;
@@ -98,7 +136,14 @@ const ChatList: React.FC<{ currentUser: User, onStartChat: (partnerId: string) =
     return (
          <div>
             {chats.map(chat => (
-                <ChatListItem key={chat.id} chat={chat} currentUser={currentUser} onSelect={onStartChat} />
+                <ChatListItem 
+                    key={chat.id} 
+                    chat={chat} 
+                    currentUser={currentUser} 
+                    onSelect={onStartChat} 
+                    onPinToggle={handlePinToggle}
+                    isPinned={currentUser.pinnedChats?.includes(chat.id) || false}
+                />
             ))}
         </div>
     );
@@ -132,7 +177,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ currentUser, activeChatPartnerI
         </div>
 
         <div className="flex-1 overflow-y-auto">
-            <ChatList currentUser={currentUser} onStartChat={onStartChat} />
+            <ChatList currentUser={currentUser} onStartChat={onStartChat} onUpdateUser={onUpdateUser} />
         </div>
     </div>
   );
