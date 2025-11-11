@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig.ts';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { User, Post } from '../types.ts';
@@ -48,6 +48,7 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
     const [results, setResults] = useState<(User | Post)[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
+    const [postsCache, setPostsCache] = useState<Post[] | null>(null);
 
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
@@ -56,14 +57,29 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
         posts: 'Search posts by keyword, #hashtag...',
     };
     
-    // Cache all posts for client-side search to avoid re-fetching on every keystroke
-    const allPostsCache = useMemo(async () => {
-        if (!db) return [];
-        const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'), limit(200)); // Increased limit for better search
-        const snapshot = await getDocs(postsQuery);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
-    }, []);
+    // Pre-warm the posts cache for searching after the screen has animated in
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            const fetchAllPosts = async () => {
+                if (!db) {
+                    setPostsCache([]);
+                    return;
+                }
+                try {
+                    const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'), limit(200));
+                    const snapshot = await getDocs(postsQuery);
+                    const allPosts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
+                    setPostsCache(allPosts);
+                } catch (error) {
+                    console.error("Error pre-fetching posts for search:", error);
+                    setPostsCache([]); // Set to empty array on error to stop loading
+                }
+            };
+            fetchAllPosts();
+        }, 350); // Delay should be slightly longer than the slide-in animation (300ms)
 
+        return () => clearTimeout(timer);
+    }, []); // Run only on mount
 
     useEffect(() => {
         const performSearch = async () => {
@@ -92,10 +108,14 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
                     setResults(usersFound);
 
                 } else if (searchType === 'posts') {
-                    const allPosts = await allPostsCache;
+                    if (postsCache === null) {
+                        // The cache is still warming up, isLoading is already true
+                        return;
+                    }
                     const lowercasedTerm = debouncedSearchTerm.toLowerCase();
-                    const postsFound = allPosts.filter(post => 
-                        post.caption.toLowerCase().includes(lowercasedTerm)
+                    // FIX: Safeguard against posts with null or undefined captions to prevent crashes
+                    const postsFound = postsCache.filter(post => 
+                        (post.caption || '').toLowerCase().includes(lowercasedTerm)
                     );
                     setResults(postsFound);
                 }
@@ -108,7 +128,7 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
         };
 
         performSearch();
-    }, [debouncedSearchTerm, searchType, currentUser.id, allPostsCache]);
+    }, [debouncedSearchTerm, searchType, currentUser.id, postsCache]);
 
     const handlePostDeleted = (postId: string) => {
         setResults(currentResults => currentResults.filter(p => p.id !== postId));
