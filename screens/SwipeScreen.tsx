@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { db } from '../firebaseConfig.ts';
-import { collection, query, getDocs, limit, doc, updateDoc, arrayUnion, writeBatch, serverTimestamp, increment, where, documentId, QuerySnapshot } from 'firebase/firestore';
+import { collection, query, getDocs, limit, doc, updateDoc, arrayUnion, writeBatch, serverTimestamp, increment, QuerySnapshot } from 'firebase/firestore';
 import { User, NotificationType } from '../types.ts';
 import XIcon from '../components/icons/XIcon.tsx';
 import HeartIcon from '../components/icons/HeartIcon.tsx';
@@ -20,69 +20,77 @@ interface SwipeScreenProps {
 }
 
 const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; }> = ({ user, isVisible, animation }) => {
-  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+  try {
+    const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
-  // Crash-proofing: Add defensive checks here to prevent render errors from malformed data.
-  const photos = user?.profilePhotos;
-  const hasValidPhotos = Array.isArray(photos) && photos.length > 0 && photos.every(p => typeof p === 'string' && p.trim() !== '');
+    // Defensive checks for rendering
+    const photos = user?.profilePhotos;
+    const hasValidPhotos = Array.isArray(photos) && photos.length > 0 && photos.every(p => typeof p === 'string' && p.trim() !== '');
 
-  if (!isVisible) return null;
+    if (!isVisible) return null;
 
-  if (!hasValidPhotos) {
-    console.error("SwipeCard rendering fallback due to invalid photos for user:", user);
+    if (!hasValidPhotos) {
+      console.error("SwipeCard rendering fallback due to invalid photos for user:", user);
+      return (
+          <div className={`absolute inset-0 w-full h-full bg-gray-300 dark:bg-zinc-700 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center p-4 text-center ${animation}`}>
+              <div className="text-red-500">
+                  <p className="font-bold">Profile Error</p>
+                  <p className="text-sm">This profile could not be loaded due to an image error.</p>
+              </div>
+          </div>
+      );
+    }
+
+    const nextPhoto = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setActivePhotoIndex(p => (p + 1) % photos.length);
+    };
+
+    const prevPhoto = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setActivePhotoIndex(p => (p - 1 + photos.length) % photos.length);
+    };
+
     return (
-        <div className={`absolute inset-0 w-full h-full bg-gray-300 dark:bg-zinc-700 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center p-4 text-center ${animation}`}>
-            <div className="text-red-500">
-                <p className="font-bold">Profile Error</p>
-                <p className="text-sm">This profile could not be loaded due to an image error.</p>
+      <div className={`absolute inset-0 w-full h-full bg-gray-200 rounded-2xl overflow-hidden shadow-2xl transition-transform duration-500 ${animation}`}>
+        <img src={photos[activePhotoIndex]} alt={user.name} className="w-full h-full object-cover" />
+
+        {photos.length > 1 && (
+          <>
+            <div className="absolute top-0 left-0 right-0 flex p-2 space-x-1 z-10">
+              {photos.map((_, index) => (
+                <div key={index} className={`h-1 flex-1 rounded-full ${index === activePhotoIndex ? 'bg-white' : 'bg-white/50'}`} />
+              ))}
+            </div>
+            <div className="absolute inset-0 flex">
+              <div className="w-1/2 h-full" onClick={prevPhoto} />
+              <div className="w-1/2 h-full" onClick={nextPhoto} />
+            </div>
+          </>
+        )}
+
+        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
+          <h2 className="text-white text-3xl font-bold">{user.name}{user.age ? `, ${user.age}` : ''}</h2>
+          <p className="text-white mt-1 line-clamp-2">{user.aboutMe || ''}</p>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {(user.interests || '').split(',').map((interest) => (
+              interest.trim() && <span key={interest.trim()} className="bg-white/20 text-white text-xs font-semibold px-2 py-1 rounded-full">{interest.trim()}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  } catch (error) {
+    console.error("CRITICAL: SwipeCard crashed while rendering user:", user, error);
+    return (
+        <div className="absolute inset-0 w-full h-full bg-red-100 border-2 border-red-500 rounded-2xl flex items-center justify-center p-4 text-center">
+            <div className="text-red-700">
+                <p className="font-bold">Render Error</p>
+                <p className="text-sm">This profile caused a critical error and could not be displayed.</p>
             </div>
         </div>
     );
   }
-
-  const nextPhoto = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (photos.length > 1) {
-      setActivePhotoIndex(p => (p + 1) % photos.length);
-    }
-  };
-
-  const prevPhoto = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (photos.length > 1) {
-      setActivePhotoIndex(p => (p - 1 + photos.length) % photos.length);
-    }
-  };
-
-  return (
-    <div className={`absolute inset-0 w-full h-full bg-gray-200 rounded-2xl overflow-hidden shadow-2xl transition-transform duration-500 ${animation}`}>
-       <img src={photos[activePhotoIndex]} alt={user.name} className="w-full h-full object-cover" />
-
-      {photos.length > 1 && (
-        <>
-          <div className="absolute top-0 left-0 right-0 flex p-2 space-x-1 z-10">
-            {photos.map((_, index) => (
-              <div key={index} className={`h-1 flex-1 rounded-full ${index === activePhotoIndex ? 'bg-white' : 'bg-white/50'}`} />
-            ))}
-          </div>
-          <div className="absolute inset-0 flex">
-            <div className="w-1/2 h-full" onClick={prevPhoto} />
-            <div className="w-1/2 h-full" onClick={nextPhoto} />
-          </div>
-        </>
-      )}
-
-      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
-        <h2 className="text-white text-3xl font-bold">{user.name}{user.age ? `, ${user.age}` : ''}</h2>
-        <p className="text-white mt-1 line-clamp-2">{user.aboutMe || ''}</p>
-        <div className="flex flex-wrap gap-2 mt-2">
-          {(user.interests || '').split(',').map((interest) => (
-            interest.trim() && <span key={interest.trim()} className="bg-white/20 text-white text-xs font-semibold px-2 py-1 rounded-full">{interest.trim()}</span>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
 };
 
 
@@ -99,7 +107,6 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
         setError(null);
         
         try {
-            // All data processing is now inside the try...catch block to prevent unhandled exceptions.
             if (!db) throw new Error("Database connection not available.");
             if (!currentUser || !currentUser.id) throw new Error("Current user data is invalid.");
 
@@ -107,17 +114,16 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
             const swipedRight = Array.isArray(currentUser.swipedRight) ? currentUser.swipedRight : [];
             const seenUsers = new Set([currentUser.id, ...swipedLeft, ...swipedRight]);
 
-            // Crash-proof validation function
             const validateUser = (u: any): u is User => {
-                if (!u || !u.id || typeof u.id !== 'string') return false;
+                if (!u || typeof u !== 'object' || u === null) return false;
+                if (typeof u.id !== 'string' || !u.id) return false;
                 if (seenUsers.has(u.id)) return false;
                 if (typeof u.name !== 'string' || u.name.trim() === '') return false;
                 
                 const photos = u.profilePhotos;
                 if (!Array.isArray(photos) || photos.length === 0) return false;
                 
-                // This check is safer and won't crash if an element is not a string.
-                if (photos.some(p => !(typeof p === 'string' && p.trim() !== ''))) {
+                if (photos.some(p => !(typeof p === 'string' && p.trim().startsWith('http')))) {
                     console.warn(`Filtering out user ${u.id} due to invalid item in profilePhotos array.`);
                     return false;
                 }
@@ -125,15 +131,9 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
             };
 
             const usersRef = collection(db, 'users');
-            // FIX: Removed invalid `where(documentId(), '!=', ...)` clause.
-            // The existing `validateUser` function already filters out the current user and swiped profiles.
-            const q = query(usersRef, limit(30));
+            const q = query(usersRef, limit(50)); // Fetch a larger batch to increase chances of finding valid users
             
-            const querySnapshot = await promiseWithTimeout(
-                getDocs(q), 
-                8000, 
-                new Error("Fetching profiles took too long.")
-            ) as QuerySnapshot;
+            const querySnapshot = await promiseWithTimeout(getDocs(q), 8000, new Error("Fetching profiles took too long.")) as QuerySnapshot;
             
             const firestoreDocs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             const fetchedUsers = firestoreDocs.filter(validateUser);
@@ -148,7 +148,6 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
             
         } catch (err: any) {
             console.error("Fatal error fetching users:", err);
-            // This comprehensive catch ensures a user-facing error is always shown.
             setError("Could not load profiles. Please check your connection and try again.");
         } finally {
             setCurrentIndex(0);
@@ -157,14 +156,19 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
     }, [currentUser]);
 
     useEffect(() => {
-        fetchUsers();
-    }, [fetchUsers]);
+        // Ensure currentUser is fully loaded before fetching other users
+        if (currentUser && currentUser.id) {
+            fetchUsers();
+        }
+    }, [fetchUsers, currentUser]);
 
     const handleSwipe = async (direction: 'left' | 'right' | 'super') => {
         if (currentIndex >= users.length || !db) return;
 
-        const swipedUserId = users[currentIndex].id;
         const swipedUser = users[currentIndex];
+        if (!swipedUser || !swipedUser.id) return; // Extra safety check
+
+        const swipedUserId = swipedUser.id;
 
         if (direction === 'left') {
             setAnimation('animate-swipe-out-left');
@@ -180,7 +184,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
         }, 300);
 
         try {
-            if (swipedUser.id.startsWith('demo-user-')) {
+            if (swipedUserId.startsWith('demo-user-')) {
                 console.log(`Swiped on demo user ${swipedUser.name}, no database write.`);
                 return;
             }
@@ -200,10 +204,9 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                     batch.update(userRef, { xp: increment(XpAction.MATCH) });
                     showXpToast(XpAction.MATCH);
                     
-                    // CRITICAL FIX: Ensure currentUser has a valid photo before creating a notification to prevent a crash.
                     const currentUserProfilePhoto = (Array.isArray(currentUser.profilePhotos) && currentUser.profilePhotos.length > 0)
                         ? currentUser.profilePhotos[0]
-                        : `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==`; // Fallback photo
+                        : `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==`;
 
                     const notifRef = doc(collection(db, 'users', swipedUserId, 'notifications'));
                     batch.set(notifRef, {
@@ -252,14 +255,24 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
         return (
             <div className="flex-1 flex flex-col justify-between items-center p-4">
                 <div className="relative w-full h-full flex-1">
-                    {users.map((user, index) => (
-                        <SwipeCard 
-                            key={user.id}
-                            user={user}
-                            isVisible={index === currentIndex}
-                            animation={index === currentIndex ? animation : ''}
+                    {/* Render the next card underneath */}
+                    {users[currentIndex + 1] && (
+                        <SwipeCard
+                            key={users[currentIndex + 1].id}
+                            user={users[currentIndex + 1]}
+                            isVisible={true}
+                            animation="transform scale-95 opacity-80" // Style for the card underneath
                         />
-                    ))}
+                    )}
+                     {/* Render the current card on top */}
+                    {users[currentIndex] && (
+                        <SwipeCard
+                            key={users[currentIndex].id}
+                            user={users[currentIndex]}
+                            isVisible={true}
+                            animation={animation}
+                        />
+                    )}
                 </div>
                 <div className="flex justify-around items-center w-full mt-4 flex-shrink-0">
                     <button onClick={() => handleSwipe('left')} className="w-16 h-16 bg-white dark:bg-zinc-800 rounded-full shadow-lg flex justify-center items-center text-gray-500 transform hover:scale-110 transition-transform">
