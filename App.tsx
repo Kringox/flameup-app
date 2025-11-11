@@ -260,7 +260,6 @@ const App: React.FC = () => {
                     setViewingPostComments(post);
                 }}
                 onViewPostGrid={(posts, startIndex) => {
-                    setIsSearchOpen(false);
                     setViewingPostGrid({ posts, startIndex });
                 }}
                 onUpdateUser={handleUpdateUser}
