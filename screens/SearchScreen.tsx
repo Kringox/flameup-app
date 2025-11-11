@@ -68,7 +68,26 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
                 try {
                     const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'), limit(200));
                     const snapshot = await getDocs(postsQuery);
-                    const allPosts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
+                    const allPosts = snapshot.docs.map(doc => {
+                        const data = doc.data();
+                        // CRITICAL FIX: Normalize post data to prevent crashes from legacy data structures.
+                        const postUser = data.user || {
+                            id: data.userId,
+                            name: data.userName,
+                            profilePhoto: data.userProfilePhoto,
+                            isPremium: data.isPremium || false,
+                        };
+                        return {
+                            id: doc.id,
+                            userId: data.userId,
+                            mediaUrls: data.mediaUrls || [],
+                            caption: data.caption,
+                            likedBy: data.likedBy || [],
+                            commentCount: data.commentCount || 0,
+                            timestamp: data.timestamp,
+                            user: postUser,
+                        } as Post;
+                    });
                     setPostsCache(allPosts);
                 } catch (error) {
                     console.error("Error pre-fetching posts for search:", error);
@@ -113,7 +132,7 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
                         return;
                     }
                     const lowercasedTerm = debouncedSearchTerm.toLowerCase();
-                    // FIX: Safeguard against posts with null or undefined captions to prevent crashes
+                    // Safeguard against posts with null or undefined captions to prevent crashes
                     const postsFound = postsCache.filter(post => 
                         (post.caption || '').toLowerCase().includes(lowercasedTerm)
                     );
