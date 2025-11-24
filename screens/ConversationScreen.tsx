@@ -402,10 +402,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 // If the last message is being deleted, update the Chat document so the list view updates in real-time
                 if (lastMessageDeleted) {
                      const chatRef = doc(db, 'chats', cId);
-                     // We can't remove the text entirely because the other user might not have read it.
-                     // Instead, we add the current user ID to a 'deletedFor' array on the lastMessage object in the Chat doc.
-                     // The ChatList item component will check this array.
-                     // Note: Firestore map updates can be tricky with dot notation if fields are dynamic, but here it's standard.
                      batch.update(chatRef, { "lastMessage.deletedFor": arrayUnion(uId) });
                 }
 
@@ -428,25 +424,36 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
     useEffect(() => {
         if (!db) return;
-        const userIds = [currentUser.id, partnerId].sort();
+        
+        // Robust Chat Lookup:
+        // Instead of looking for exact array match (which fails if sorting differs),
+        // we look for chats that contain the current user, then filter for the partner.
         const chatsRef = collection(db, 'chats');
-        const q = query(chatsRef, where('userIds', '==', userIds));
+        const q = query(chatsRef, where('userIds', 'array-contains', currentUser.id));
         
         const unsubscribe = onSnapshot(q, async (snapshot) => {
-            if (!snapshot.empty) {
-                const chatDoc = snapshot.docs[0];
-                setChatId(chatDoc.id);
-                const data = chatDoc.data() as Chat;
+            const foundChatDoc = snapshot.docs.find(doc => {
+                const data = doc.data();
+                const uIds = data.userIds;
+                return Array.isArray(uIds) && uIds.length === 2 && uIds.includes(partnerId);
+            });
+
+            if (foundChatDoc) {
+                setChatId(foundChatDoc.id);
+                const data = foundChatDoc.data() as Chat;
                 if (data.retentionPolicy) setRetentionPolicy(data.retentionPolicy);
                 
                 if ((data.unreadCount?.[currentUser.id] || 0) > 0) {
-                    updateDoc(doc(db, 'chats', chatDoc.id), {
+                    updateDoc(doc(db, 'chats', foundChatDoc.id), {
                         [`unreadCount.${currentUser.id}`]: 0
                     });
                 }
             } else {
+                // No chat found
                 setChatId(null);
             }
+        }, (error) => {
+            console.error("Error fetching chat:", error);
         });
         return () => unsubscribe();
     }, [currentUser.id, partnerId]);
@@ -473,7 +480,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         // Messages that are "expired" according to policy but NOT yet deleted (because user is still in session) 
         // should REMAIN VISIBLE until the user leaves.
         const validMessages = messages.filter(msg => {
-            if (msg.deletedFor?.includes(currentUser.id)) return false;
+            const isDeleted = msg.deletedFor && Array.isArray(msg.deletedFor) && msg.deletedFor.includes(currentUser.id);
+            if (isDeleted) return false;
             return true;
         });
         
@@ -485,7 +493,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             if (msg.senderId !== currentUser.id && !msg.viewedAt) {
                 messagesToMarkViewed.push(msg.id);
             }
-            // Even if I am the sender, if it's not viewed, it stays. 
         });
         
         if (messagesToMarkViewed.length > 0 && chatId && db) {
@@ -517,16 +524,26 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
     const getOrCreateChat = async (): Promise<string> => {
         if (chatId) return chatId;
+        // We still use sort here to try and maintain a standard order, 
+        // but the reading logic is now robust enough to handle any order.
         const userIds = [currentUser.id, partnerId].sort();
+        
+        // Try to find existing chat first using the robust method
         const chatsRef = collection(db, 'chats');
-        const q = query(chatsRef, where('userIds', '==', userIds), limit(1));
-        const existingChatSnapshot = await getDocs(q);
-        if (!existingChatSnapshot.empty) {
-            const existingChatId = existingChatSnapshot.docs[0].id;
-            setChatId(existingChatId);
-            return existingChatId;
+        const q = query(chatsRef, where('userIds', 'array-contains', currentUser.id));
+        const snapshot = await getDocs(q);
+        const existingChat = snapshot.docs.find(doc => {
+             const uIds = doc.data().userIds;
+             return Array.isArray(uIds) && uIds.length === 2 && uIds.includes(partnerId);
+        });
+
+        if (existingChat) {
+            setChatId(existingChat.id);
+            return existingChat.id;
         }
+
         if (!partner) throw new Error("Partner data not available");
+        
         const newChatData: any = {
             userIds,
             users: {
