@@ -14,7 +14,35 @@ import WalletScreen from './WalletScreen.tsx';
 import FlameIcon from '../components/icons/FlameIcon.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
 import HotnessDisplay from '../components/HotnessDisplay.tsx';
-import ReceiptIcon from '../components/icons/ReceiptIcon.tsx';
+
+// --- Profile Skeleton ---
+const ProfileSkeleton = () => (
+    <div className="animate-pulse p-4">
+        <div className="flex items-center mb-6">
+            <div className="w-24 h-24 bg-gray-200 dark:bg-zinc-800 rounded-full"></div>
+            <div className="flex-1 ml-6 flex justify-around">
+                <div className="h-12 w-12 bg-gray-200 dark:bg-zinc-800 rounded"></div>
+                <div className="h-12 w-12 bg-gray-200 dark:bg-zinc-800 rounded"></div>
+                <div className="h-12 w-12 bg-gray-200 dark:bg-zinc-800 rounded"></div>
+            </div>
+        </div>
+        <div className="space-y-3 mb-8">
+            <div className="h-6 w-48 bg-gray-200 dark:bg-zinc-800 rounded"></div>
+            <div className="h-4 w-full bg-gray-200 dark:bg-zinc-800 rounded"></div>
+            <div className="h-4 w-2/3 bg-gray-200 dark:bg-zinc-800 rounded"></div>
+        </div>
+        <div className="flex gap-4 mb-6">
+            <div className="h-12 flex-1 bg-gray-200 dark:bg-zinc-800 rounded-2xl"></div>
+            <div className="h-12 flex-1 bg-gray-200 dark:bg-zinc-800 rounded-2xl"></div>
+        </div>
+        <div className="grid grid-cols-3 gap-1">
+            {Array.from({ length: 9 }).map((_, i) => (
+                <div key={i} className="aspect-square bg-gray-200 dark:bg-zinc-800"></div>
+            ))}
+        </div>
+    </div>
+);
+// --- End Skeleton ---
 
 const THEME_CLASSES: { [key: string]: { bg: string; text: string; subtext: string; border: string; }} = {
     default: { bg: 'bg-white dark:bg-black', text: 'text-dark-gray dark:text-gray-200', subtext: 'text-gray-500 dark:text-gray-400', border: 'border-gray-200 dark:border-gray-800' },
@@ -36,7 +64,6 @@ interface ProfileScreenProps {
   setLocalTint: (tint: AppTint) => void;
 }
 
-// Helper to assign icons based on keywords
 const getIconForKeyword = (keyword: string): string => {
     const lower = keyword.toLowerCase();
     if (lower.includes('sport') || lower.includes('fitness') || lower.includes('gym') || lower.includes('workout')) return '🏋️';
@@ -59,7 +86,6 @@ const getIconForKeyword = (keyword: string): string => {
 const ChipList: React.FC<{ items: string, themeClasses: any }> = ({ items, themeClasses }) => {
     if (!items) return null;
     const list = items.split(',').map(i => i.trim()).filter(i => i.length > 0);
-    
     if (list.length === 0) return null;
 
     return (
@@ -85,10 +111,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
     const [viewingFollowList, setViewingFollowList] = useState<'followers' | 'following' | null>(null);
     const [viewingPost, setViewingPost] = useState<Post | null>(null);
     const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const { t } = useI18n();
 
     useEffect(() => {
         if (!db) return;
+        setIsLoading(true);
         const q = query(collection(db, 'posts'), where('userId', '==', currentUser.id), orderBy('timestamp', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const userPosts = snapshot.docs.map(doc => {
@@ -106,6 +134,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                 } as Post;
             });
             setPosts(userPosts);
+            setIsLoading(false);
         });
         return () => unsubscribe();
     }, [currentUser.id]);
@@ -147,101 +176,104 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                 </button>
             </header>
             
-            <div className="flex-1 overflow-y-auto p-4 pb-20">
-                <div className="flex items-center">
-                    <button onClick={() => setIsImageViewerOpen(true)} className="flex-shrink-0">
-                        <img src={currentUser.profilePhotos[0]} alt={currentUser.name} className="w-24 h-24 rounded-full object-cover border-4 border-flame-orange shadow-md" />
-                    </button>
-                    <div className="flex-1 ml-6 flex justify-around text-center">
-                        <div>
-                            <p className={`text-xl font-bold ${themeClasses.text}`}>{posts.length}</p>
-                            <p className={`${themeClasses.subtext}`}>{t('posts')}</p>
+            <div className="flex-1 overflow-y-auto pb-32"> {/* Bottom padding for floating nav */}
+                {isLoading ? <ProfileSkeleton /> : (
+                    <div className="p-4">
+                        <div className="flex items-center">
+                            <button onClick={() => setIsImageViewerOpen(true)} className="flex-shrink-0">
+                                <img src={currentUser.profilePhotos[0]} alt={currentUser.name} className="w-24 h-24 rounded-full object-cover border-4 border-flame-orange shadow-md" />
+                            </button>
+                            <div className="flex-1 ml-6 flex justify-around text-center">
+                                <div>
+                                    <p className={`text-xl font-bold ${themeClasses.text}`}>{posts.length}</p>
+                                    <p className={`${themeClasses.subtext}`}>{t('posts')}</p>
+                                </div>
+                                <button onClick={() => setViewingFollowList('followers')}>
+                                    <p className={`text-xl font-bold ${themeClasses.text}`}>{currentUser.followers.length}</p>
+                                    <p className={`${themeClasses.subtext}`}>{t('followers')}</p>
+                                </button>
+                                <button onClick={() => setViewingFollowList('following')}>
+                                    <p className={`text-xl font-bold ${themeClasses.text}`}>{currentUser.following.length}</p>
+                                    <p className={`${themeClasses.subtext}`}>{t('following')}</p>
+                                </button>
+                            </div>
                         </div>
-                        <button onClick={() => setViewingFollowList('followers')}>
-                            <p className={`text-xl font-bold ${themeClasses.text}`}>{currentUser.followers.length}</p>
-                            <p className={`${themeClasses.subtext}`}>{t('followers')}</p>
-                        </button>
-                        <button onClick={() => setViewingFollowList('following')}>
-                            <p className={`text-xl font-bold ${themeClasses.text}`}>{currentUser.following.length}</p>
-                            <p className={`${themeClasses.subtext}`}>{t('following')}</p>
-                        </button>
-                    </div>
-                </div>
 
-                <div className="mt-6 space-y-6">
-                    <div>
-                        <div className="flex justify-between items-start">
-                            <p className={`font-semibold text-xl ${themeClasses.text} flex items-center`}>
-                                {currentUser.name}, {currentUser.age}
-                                {currentUser.isPremium && <VerifiedIcon className="ml-1.5 w-5 h-5" />}
-                            </p>
-                            <HotnessDisplay score={currentUser.hotnessScore || 0} />
-                        </div>
-                         {currentUser.aboutMe && (
-                            <p className={`${themeClasses.text} whitespace-pre-wrap mt-2 text-sm leading-relaxed`}>{currentUser.aboutMe}</p>
-                        )}
-                    </div>
+                        <div className="mt-6 space-y-6">
+                            <div>
+                                <div className="flex justify-between items-start">
+                                    <p className={`font-semibold text-xl ${themeClasses.text} flex items-center`}>
+                                        {currentUser.name}, {currentUser.age}
+                                        {currentUser.isPremium && <VerifiedIcon className="ml-1.5 w-5 h-5" />}
+                                    </p>
+                                    <HotnessDisplay score={currentUser.hotnessScore || 0} />
+                                </div>
+                                {currentUser.aboutMe && (
+                                    <p className={`${themeClasses.text} whitespace-pre-wrap mt-2 text-sm leading-relaxed`}>{currentUser.aboutMe}</p>
+                                )}
+                            </div>
 
-                    {currentUser.interests && (
-                        <div>
-                            <h3 className={`font-bold text-xs uppercase tracking-wider ${themeClasses.subtext} mb-2`}>{t('interests')}</h3>
-                            <ChipList items={currentUser.interests} themeClasses={themeClasses} />
-                        </div>
-                    )}
-                    
-                    {currentUser.lifestyle && (
-                        <div>
-                            <h3 className={`font-bold text-xs uppercase tracking-wider ${themeClasses.subtext} mb-2`}>{t('lifestyle')}</h3>
-                            <ChipList items={currentUser.lifestyle} themeClasses={themeClasses} />
-                        </div>
-                    )}
-                </div>
-
-                {/* UPDATED BUTTON LAYOUT: Symmetrical, High Quality Buttons */}
-                <div className="flex gap-4 mt-8 mb-6">
-                    <button 
-                         onClick={() => setIsEditing(true)}
-                         className="flex-1 py-3 px-4 rounded-2xl font-bold text-base
-                                    bg-white dark:bg-zinc-800 
-                                    text-gray-800 dark:text-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.1)]
-                                    border border-gray-100 dark:border-zinc-700
-                                    active:scale-95 transition-all duration-200 flex items-center justify-center gap-2"
-                    >
-                        <span>✏️</span> {t('editProfile')}
-                    </button>
-                    
-                    <button 
-                        onClick={() => setIsWalletOpen(true)} 
-                        className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl 
-                                   bg-gradient-to-r from-gray-900 to-black dark:from-white dark:to-gray-200 
-                                   text-white dark:text-black shadow-[0_4px_12px_rgba(0,0,0,0.2)]
-                                   active:scale-95 transition-all duration-200"
-                    >
-                         <span className="font-bold">{t('wallet')}</span>
-                         <div className="flex items-center text-flame-orange font-extrabold bg-white dark:bg-black px-2 py-0.5 rounded-full text-sm">
-                             <FlameIcon isGradient className="w-3.5 h-3.5 mr-1" />
-                             <span>{Number(currentUser.coins) || 0}</span>
-                        </div>
-                    </button>
-                </div>
-                
-                <div className="grid grid-cols-3 gap-1">
-                    {posts.map(post => (
-                        <button key={post.id} onClick={() => setViewingPost(post)} className="aspect-square relative group overflow-hidden bg-gray-100 dark:bg-zinc-800">
-                            <img 
-                                src={post.mediaUrls[0]} 
-                                alt="post" 
-                                className={`w-full h-full object-cover transition-all duration-300 ${post.isPaid ? 'border-2 border-flame-orange/50' : ''}`} 
-                            />
-                            {post.isPaid && (
-                                <div className="absolute top-1 right-1 bg-flame-orange text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm">
-                                    PAID
+                            {currentUser.interests && (
+                                <div>
+                                    <h3 className={`font-bold text-xs uppercase tracking-wider ${themeClasses.subtext} mb-2`}>{t('interests')}</h3>
+                                    <ChipList items={currentUser.interests} themeClasses={themeClasses} />
                                 </div>
                             )}
-                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </button>
-                    ))}
-                </div>
+                            
+                            {currentUser.lifestyle && (
+                                <div>
+                                    <h3 className={`font-bold text-xs uppercase tracking-wider ${themeClasses.subtext} mb-2`}>{t('lifestyle')}</h3>
+                                    <ChipList items={currentUser.lifestyle} themeClasses={themeClasses} />
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex gap-4 mt-8 mb-6">
+                            <button 
+                                onClick={() => setIsEditing(true)}
+                                className="flex-1 py-3 px-4 rounded-2xl font-bold text-base
+                                            bg-white dark:bg-zinc-800 
+                                            text-gray-800 dark:text-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.1)]
+                                            border border-gray-100 dark:border-zinc-700
+                                            active:scale-95 transition-all duration-200 flex items-center justify-center gap-2"
+                            >
+                                <span>✏️</span> {t('editProfile')}
+                            </button>
+                            
+                            <button 
+                                onClick={() => setIsWalletOpen(true)} 
+                                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl 
+                                        bg-gradient-to-r from-gray-900 to-black dark:from-white dark:to-gray-200 
+                                        text-white dark:text-black shadow-[0_4px_12px_rgba(0,0,0,0.2)]
+                                        active:scale-95 transition-all duration-200"
+                            >
+                                <span className="font-bold">{t('wallet')}</span>
+                                <div className="flex items-center text-flame-orange font-extrabold bg-white dark:bg-black px-2 py-0.5 rounded-full text-sm">
+                                    <FlameIcon isGradient className="w-3.5 h-3.5 mr-1" />
+                                    <span>{Number(currentUser.coins) || 0}</span>
+                                </div>
+                            </button>
+                        </div>
+                        
+                        <div className="grid grid-cols-3 gap-1 rounded-xl overflow-hidden">
+                            {posts.map(post => (
+                                <button key={post.id} onClick={() => setViewingPost(post)} className="aspect-square relative group overflow-hidden bg-gray-100 dark:bg-zinc-800">
+                                    <img 
+                                        src={post.mediaUrls[0]} 
+                                        alt="post" 
+                                        className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-110 ${post.isPaid ? 'border-2 border-flame-orange/50' : ''}`} 
+                                    />
+                                    {post.isPaid && (
+                                        <div className="absolute top-1 right-1 bg-flame-orange text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm">
+                                            PAID
+                                        </div>
+                                    )}
+                                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

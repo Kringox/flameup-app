@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 // FIX: Added file extension to firebaseConfig import
 import { auth, db, firebaseInitializationError } from './firebaseConfig.ts';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, onSnapshot, getDoc, collection, query, where, Timestamp } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, collection, query, where, Timestamp, updateDoc } from 'firebase/firestore';
 
 // FIX: Added file extension to types import
 import { User, Tab, Post, Notification, Chat, NotificationType } from './types.ts';
@@ -124,6 +124,41 @@ const App: React.FC = () => {
         if (snapshot.exists()) {
           const userData = { id: snapshot.id, ...snapshot.data() } as User;
           setAuthState(prev => ({ ...prev, currentUser: userData, isLoading: false }));
+
+          // Request Location Permission on Load
+          if ('geolocation' in navigator) {
+              navigator.geolocation.getCurrentPosition(
+                  async (position) => {
+                      // Check if we need to update location (simple check to avoid write loops)
+                      const currentLat = userData.location?.latitude;
+                      const currentLng = userData.location?.longitude;
+                      const newLat = position.coords.latitude;
+                      const newLng = position.coords.longitude;
+                      
+                      const dist = Math.sqrt(Math.pow((newLat - (currentLat || 0)), 2) + Math.pow((newLng - (currentLng || 0)), 2));
+                      
+                      // Update only if moved significantly (~100m approx in deg) or first time
+                      if (!userData.location || dist > 0.001) {
+                          try {
+                              await updateDoc(userRef, {
+                                  location: {
+                                      latitude: newLat,
+                                      longitude: newLng,
+                                      // Simple reverse geo-coding simulation or placeholder
+                                      // For a real app, use an API like Google Maps or OpenCage here
+                                      cityName: userData.location?.cityName || "Unknown" 
+                                  }
+                              });
+                          } catch (e) {
+                              console.error("Error updating location", e);
+                          }
+                      }
+                  },
+                  (error) => {
+                      console.log("Location permission denied or error:", error);
+                  }
+              );
+          }
 
           // Listen for unread messages
           const chatsRef = collection(db, 'chats');

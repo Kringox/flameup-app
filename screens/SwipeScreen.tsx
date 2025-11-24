@@ -2,10 +2,11 @@
 import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { db } from '../firebaseConfig.ts';
 import { collection, query, getDocs, limit, doc, updateDoc, arrayUnion, writeBatch, serverTimestamp, increment, QuerySnapshot } from 'firebase/firestore';
-import { User, NotificationType } from '../types.ts';
+import { User, NotificationType, SwipeFilters } from '../types.ts';
 import XIcon from '../components/icons/XIcon.tsx';
 import HeartIcon from '../components/icons/HeartIcon.tsx';
 import StarIcon from '../components/icons/StarIcon.tsx';
+import FilterIcon from '../components/icons/FilterIcon.tsx';
 import FlameLoader from '../components/FlameLoader.tsx';
 import WifiOffIcon from '../components/icons/WifiOffIcon.tsx';
 import { hapticFeedback } from '../utils/haptics.ts';
@@ -13,6 +14,8 @@ import { XpContext } from '../contexts/XpContext.ts';
 import { promiseWithTimeout } from '../utils/promiseUtils.ts';
 import { DEMO_USERS_FOR_UI } from '../constants.ts';
 import HotnessDisplay from '../components/HotnessDisplay.tsx';
+import FilterModal from '../components/FilterModal.tsx';
+import MapPinIcon from '../components/icons/MapPinIcon.tsx';
 
 interface SwipeScreenProps {
   currentUser: User;
@@ -20,7 +23,7 @@ interface SwipeScreenProps {
   onUpdateUser: (updatedUser: User) => void;
 }
 
-const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; }> = ({ user, isVisible, animation }) => {
+const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; distance?: number }> = ({ user, isVisible, animation, distance }) => {
   try {
     const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
@@ -70,6 +73,14 @@ const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; }
         <div className="absolute top-4 right-4 z-20">
             <HotnessDisplay score={user.hotnessScore || 0} size="sm" />
         </div>
+        
+        {/* Distance Badge */}
+        {distance !== undefined && (
+            <div className="absolute top-4 left-4 z-20 bg-black/40 backdrop-blur-sm rounded-full px-3 py-1 flex items-center text-white text-xs font-bold">
+                <MapPinIcon className="w-3 h-3 mr-1" />
+                {distance < 1 ? '< 1 km' : `${Math.round(distance)} km`}
+            </div>
+        )}
 
         {photos.length > 1 && (
           <>
@@ -109,31 +120,84 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [animation, setAnimation] = useState('');
+    const [isFilterOpen, setIsFilterOpen] = useState(false);
+    
+    // Default Filters
+    const [filters, setFilters] = useState<SwipeFilters>({
+        useMyLocation: true,
+        maxDistance: 50, // 50km default
+        ageRange: [18, 99],
+        requiredInterests: [],
+    });
+
     const { showXpToast } = useContext(XpContext);
 
-    // --- Smart Swipe Algorithm ---
-    const calculateRelevanceScore = (candidate: User, current: User): number => {
-        let score = 0;
+    // --- Helper: Haversine Distance Calculation ---
+    const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+        const R = 6371; // Radius of the earth in km
+        const dLat = (lat2 - lat1) * (Math.PI / 180);
+        const dLon = (lon2 - lon1) * (Math.PI / 180);
+        const a = 
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c; // Distance in km
+    };
 
-        // 1. Hotness Boost (Impact: 10% of raw hotness)
+    // --- Smart Swipe Algorithm with Location & Filters ---
+    const calculateScoreAndFilter = (candidate: User, current: User): { score: number, valid: boolean, distance?: number } => {
+        let score = 0;
+        let valid = true;
+        let distance: number | undefined = undefined;
+
+        // 1. Age Filter
+        if (candidate.age < filters.ageRange[0] || candidate.age > filters.ageRange[1]) {
+            return { score: 0, valid: false };
+        }
+
+        // 2. Location Logic
+        if (filters.useMyLocation && current.location && candidate.location) {
+            distance = calculateDistance(
+                current.location.latitude, current.location.longitude,
+                candidate.location.latitude, candidate.location.longitude
+            );
+            
+            // Filter by Radius
+            if (distance > filters.maxDistance) {
+                return { score: 0, valid: false };
+            }
+            
+            // Closer is better (add massive score for proximity)
+            score += (filters.maxDistance - distance) * 10; 
+
+        } else if (!filters.useMyLocation && filters.manualLocation) {
+            // Manual Location Match (Simple string check)
+            const city = candidate.location?.cityName || '';
+            if (!city.toLowerCase().includes(filters.manualLocation.toLowerCase())) {
+                // Relaxed check: also check bio if city not found
+                if (!candidate.aboutMe?.toLowerCase().includes(filters.manualLocation.toLowerCase())) {
+                     return { score: 0, valid: false };
+                }
+            }
+        }
+
+        // 3. Hotness Boost (Impact: 10% of raw hotness)
         score += (candidate.hotnessScore || 0) * 0.1;
 
-        // 2. Interest Matching
-        if (candidate.interests && current.interests) {
-            const myInterests = (typeof current.interests === 'string' ? current.interests.split(',') : current.interests || []).map(i => i.trim().toLowerCase());
-            const theirInterests = (typeof candidate.interests === 'string' ? candidate.interests.split(',') : candidate.interests || []).map(i => i.trim().toLowerCase());
-            
-            const common = theirInterests.filter(i => myInterests.includes(i));
-            score += common.length * 15; // 15 points per common interest
+        // 4. Interest Matching
+        const myInterests = (typeof current.interests === 'string' ? current.interests.split(',') : current.interests || []).map(i => i.trim().toLowerCase());
+        const theirInterests = (typeof candidate.interests === 'string' ? candidate.interests.split(',') : candidate.interests || []).map(i => i.trim().toLowerCase());
+        const common = theirInterests.filter(i => myInterests.includes(i));
+        score += common.length * 15; 
+
+        // 5. Specific Filter Interests
+        if (filters.requiredInterests.length > 0) {
+            const hasRequired = filters.requiredInterests.some(req => theirInterests.some(their => their.includes(req.toLowerCase())));
+            if (!hasRequired) return { score: 0, valid: false };
         }
 
-        // 3. Location Mock (Simulated "Local" priority)
-        // In a real app, calculate GeoHash distance. Here we give a random "local" boost to make it feel dynamic.
-        if (Math.random() > 0.7) {
-            score += 40; 
-        }
-
-        return score;
+        return { score, valid, distance };
     };
 
     const fetchUsers = useCallback(async () => {
@@ -156,9 +220,14 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
             const querySnapshot = await promiseWithTimeout(getDocs(q), 8000, new Error("Fetching profiles took too long.")) as QuerySnapshot;
             
             let fetchedUsers = querySnapshot.docs
-                .map(doc => ({ id: doc.id, ...doc.data() } as User))
-                // 2. Client-Side Filtering (Strict)
+                .map(doc => {
+                    const u = { id: doc.id, ...doc.data() } as User;
+                    // Augment with temporary calculation data
+                    const meta = calculateScoreAndFilter(u, currentUser);
+                    return { ...u, _score: meta.score, _valid: meta.valid, _distance: meta.distance };
+                })
                 .filter(u => !seenUsers.has(u.id))
+                .filter(u => u._valid) // Apply filters
                 .filter(u => {
                      // Basic validation
                      const photos = u.profilePhotos;
@@ -166,16 +235,17 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                      return photos.every(p => typeof p === 'string' && p.trim().startsWith('http'));
                 });
 
-            // 3. Smart Sorting (Relevance Algorithm)
-            fetchedUsers = fetchedUsers.sort((a, b) => {
-                const scoreA = calculateRelevanceScore(a, currentUser);
-                const scoreB = calculateRelevanceScore(b, currentUser);
-                return scoreB - scoreA; // Descending order
-            });
+            // 3. Sort by Score (which includes Distance preference)
+            fetchedUsers = fetchedUsers.sort((a, b) => (b._score || 0) - (a._score || 0));
             
             if (fetchedUsers.length === 0) {
                 // If firestore empty/filtered, use demo data strictly for UI testing if not swiped
-                const demoUsersToShow = DEMO_USERS_FOR_UI.filter(u => !seenUsers.has(u.id));
+                // Apply simple filters to demo data too
+                const demoUsersToShow = DEMO_USERS_FOR_UI
+                    .filter(u => !seenUsers.has(u.id))
+                    .map(u => ({...u, _score: 0, _distance: undefined})) // Default demo meta
+                    .filter(u => u.age >= filters.ageRange[0] && u.age <= filters.ageRange[1]); // Basic demo filter
+                
                 setUsers(demoUsersToShow);
             } else {
                 setUsers(fetchedUsers);
@@ -188,7 +258,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
             setCurrentIndex(0);
             setIsLoading(false);
         }
-    }, [currentUser]);
+    }, [currentUser, filters]); // Refetch when filters change
 
     useEffect(() => {
         if (currentUser && currentUser.id) {
@@ -276,9 +346,12 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
         if (currentIndex >= users.length) {
             return (
                 <div className="flex flex-col justify-center items-center h-full text-center p-4">
-                    <h3 className="font-bold text-lg dark:text-gray-200">That's everyone for now!</h3>
-                    <p className="text-gray-600 dark:text-gray-400">Expand your search or check back later.</p>
-                    <button onClick={fetchUsers} className="mt-4 px-4 py-2 bg-flame-orange text-white rounded-lg">Refresh</button>
+                    <h3 className="font-bold text-lg dark:text-gray-200">No more profiles</h3>
+                    <p className="text-gray-600 dark:text-gray-400 mb-4">Try adjusting your filters to see more people.</p>
+                    <button onClick={() => setIsFilterOpen(true)} className="flex items-center px-6 py-3 bg-white dark:bg-zinc-800 shadow-md rounded-full font-bold text-flame-orange">
+                        <FilterIcon className="w-5 h-5 mr-2" /> Adjust Filters
+                    </button>
+                    <button onClick={fetchUsers} className="mt-4 text-sm text-gray-500 underline">Refresh</button>
                 </div>
             );
         }
@@ -292,6 +365,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                             user={users[currentIndex + 1]}
                             isVisible={true}
                             animation="transform scale-95 opacity-80"
+                            distance={(users[currentIndex + 1] as any)._distance}
                         />
                     )}
                     {users[currentIndex] && (
@@ -300,6 +374,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                             user={users[currentIndex]}
                             isVisible={true}
                             animation={animation}
+                            distance={(users[currentIndex] as any)._distance}
                         />
                     )}
                 </div>
@@ -321,8 +396,23 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
 
     return (
         <div className="w-full h-full flex flex-col bg-gray-100 dark:bg-black">
-            <header className="flex justify-center items-center p-4 flex-shrink-0">
+            {isFilterOpen && (
+                <FilterModal 
+                    onClose={() => setIsFilterOpen(false)} 
+                    onApply={(newFilters) => setFilters(newFilters)}
+                    currentFilters={filters}
+                />
+            )}
+            
+            <header className="flex justify-between items-center px-4 py-3 flex-shrink-0">
+                <div className="w-8"></div> {/* Spacer */}
                 <img src="/assets/logo-icon.png" alt="FlameUp" className="h-8 dark:invert" />
+                <button 
+                    onClick={() => setIsFilterOpen(true)} 
+                    className="w-8 flex justify-center items-center text-gray-600 dark:text-gray-300"
+                >
+                    <FilterIcon className="w-6 h-6" />
+                </button>
             </header>
             {renderContent()}
         </div>

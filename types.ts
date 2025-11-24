@@ -20,6 +20,12 @@ export enum NotificationType {
 
 export type RetentionPolicy = 'forever' | '5min' | 'read';
 
+export interface UserLocation {
+    latitude: number;
+    longitude: number;
+    cityName?: string;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -34,6 +40,9 @@ export interface User {
   followers: string[]; // array of user IDs
   following: string[]; // array of user IDs
   coins?: number;
+  
+  // Location Data
+  location?: UserLocation;
   
   // New System
   hotnessScore?: number;
@@ -62,6 +71,14 @@ export interface User {
     sendReadReceipts: boolean;
     showLastOnline: boolean;
   };
+}
+
+export interface SwipeFilters {
+    useMyLocation: boolean;
+    manualLocation?: string;
+    maxDistance: number; // in km
+    ageRange: [number, number];
+    requiredInterests: string[];
 }
 
 export interface Post {

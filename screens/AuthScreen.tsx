@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { auth } from '../firebaseConfig';
 import { 
@@ -5,6 +6,7 @@ import {
   signInWithEmailAndPassword,
   AuthError
 } from 'firebase/auth';
+import FlameIcon from '../components/icons/FlameIcon.tsx';
 
 interface AuthScreenProps {
   preloadedError?: string;
@@ -19,37 +21,31 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleFirebaseError = (err: AuthError) => {
-    console.error("Firebase Auth Error:", err); // Keep detailed log for developers
+    console.error("Firebase Auth Error:", err);
     switch (err.code) {
       case 'auth/user-not-found':
       case 'auth/wrong-password':
       case 'auth/invalid-credential':
-        setError('Invalid email or password. Please check your credentials and try again.');
+        setError('Invalid email or password.');
         break;
       case 'auth/invalid-email':
-        setError('The email address is not valid. Please enter a correct email.');
+        setError('Invalid email address.');
         break;
       case 'auth/email-already-in-use':
-        setError('An account with this email already exists. Please try to log in.');
+        setError('Account already exists. Try logging in.');
         break;
       case 'auth/weak-password':
-        setError('Password is too weak. It should be at least 6 characters long.');
-        break;
-      case 'auth/operation-not-allowed':
-        setError('Email/Password sign-in is not enabled. Please enable it in your Firebase project console.');
-        break;
-      case 'auth/api-key-not-valid':
-        setError('Configuration error: The Firebase API key is invalid. Please ensure the API_KEY environment variable is set correctly.');
+        setError('Password should be at least 6 characters.');
         break;
       default:
-        setError(`An unexpected error occurred: ${err.code}. Please try again.`);
+        setError('An error occurred. Please try again.');
         break;
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (preloadedError) return; // Don't submit if there's an init error
+    if (preloadedError) return;
 
     setError('');
     setIsLoading(true);
@@ -61,7 +57,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
     }
 
     if (!auth) {
-        setError(preloadedError || 'Firebase is not configured correctly.');
+        setError(preloadedError || 'Firebase not configured.');
         setIsLoading(false);
         return;
     }
@@ -72,7 +68,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
       } else {
         await createUserWithEmailAndPassword(auth, email, password);
       }
-      // On success, the onAuthStateChanged listener in App.tsx will handle navigation.
     } catch (err) {
       handleFirebaseError(err as AuthError);
     } finally {
@@ -81,36 +76,46 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col justify-center items-center bg-gray-100 p-4">
-      <div className="w-full max-w-sm mx-auto">
-        <div className="flex flex-col items-center mb-8">
-          <img src="/assets/logo-complete.png" alt="FlameUp Logo" className="w-48 h-auto" />
-          <p className="text-gray-500 mt-1">Find your spark.</p>
+    <div className="h-screen w-screen flex flex-col justify-center items-center bg-gradient-to-br from-gray-900 via-black to-gray-800 relative overflow-hidden">
+      
+      {/* Ambient Background Glows */}
+      <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-flame-orange/20 rounded-full blur-[120px] pointer-events-none opacity-60 animate-pulse"></div>
+      <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-flame-red/20 rounded-full blur-[120px] pointer-events-none opacity-60 animate-pulse" style={{ animationDelay: '2s' }}></div>
+
+      <div className="w-full max-w-sm mx-auto z-10 p-4">
+        <div className="flex flex-col items-center mb-8 animate-fade-in">
+          <div className="relative w-24 h-24 mb-4 flex items-center justify-center">
+             <div className="absolute inset-0 bg-flame-orange/30 rounded-full blur-xl animate-pulse"></div>
+             <FlameIcon isGradient className="w-20 h-20 drop-shadow-[0_0_15px_rgba(255,107,53,0.6)]" />
+          </div>
+          <h1 className="text-4xl font-black text-white tracking-tight mb-1">FLAMEUP</h1>
+          <p className="text-gray-400 font-medium tracking-wide text-sm">Find your spark.</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl p-6">
-          <div className="flex border-b mb-6">
+        <div className="bg-white/10 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl p-8 animate-slide-in-right">
+          <div className="flex p-1 bg-black/20 rounded-xl mb-6">
             <button 
               onClick={() => { if (!preloadedError) { setIsLogin(true); setError(''); } }} 
-              className={`flex-1 py-2 text-center font-semibold transition-colors ${isLogin ? 'text-flame-orange border-b-2 border-flame-orange' : 'text-gray-500'} ${preloadedError ? 'cursor-not-allowed' : ''}`}
+              className={`flex-1 py-2.5 text-center text-sm font-bold rounded-lg transition-all duration-300 ${isLogin ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-white'}`}
             >
               Login
             </button>
             <button 
               onClick={() => { if (!preloadedError) { setIsLogin(false); setError(''); } }} 
-              className={`flex-1 py-2 text-center font-semibold transition-colors ${!isLogin ? 'text-flame-orange border-b-2 border-flame-orange' : 'text-gray-500'} ${preloadedError ? 'cursor-not-allowed' : ''}`}
+              className={`flex-1 py-2.5 text-center text-sm font-bold rounded-lg transition-all duration-300 ${!isLogin ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-white'}`}
             >
               Sign Up
             </button>
           </div>
 
-          <form onSubmit={handleSubmit}>
-            {error && <p className="text-error-red text-sm text-center mb-4">{error}</p>}
-            <div className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && <div className="bg-red-500/20 border border-red-500/50 text-red-200 text-xs p-3 rounded-lg text-center font-medium">{error}</div>}
+            
+            <div className="space-y-3">
               <input 
                 type="email" 
-                placeholder="Email Address" 
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-flame-orange disabled:bg-gray-200" 
+                placeholder="Email" 
+                className="w-full px-4 py-3.5 bg-black/20 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-flame-orange/50 focus:border-transparent transition-all"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -119,7 +124,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
               <input 
                 type="password" 
                 placeholder="Password" 
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-flame-orange disabled:bg-gray-200" 
+                className="w-full px-4 py-3.5 bg-black/20 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-flame-orange/50 focus:border-transparent transition-all"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -129,7 +134,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
                 <input 
                   type="password" 
                   placeholder="Confirm Password" 
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-flame-orange disabled:bg-gray-200"
+                  className="w-full px-4 py-3.5 bg-black/20 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-flame-orange/50 focus:border-transparent transition-all"
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -141,40 +146,30 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
             <button 
               type="submit"
               disabled={isLoading || !!preloadedError}
-              className="w-full mt-6 py-3 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold rounded-lg shadow-lg transform hover:scale-105 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full mt-6 py-3.5 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold text-lg rounded-xl shadow-[0_10px_20px_-10px_rgba(255,107,53,0.5)] hover:shadow-[0_15px_25px_-10px_rgba(255,107,53,0.6)] transform hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? 'Processing...' : (isLogin ? 'Log In' : 'Create Account')}
+              {isLoading ? (
+                  <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Processing...
+                  </span>
+              ) : (isLogin ? 'Log In' : 'Create Account')}
             </button>
 
             {isLogin && (
-              <a href="#" className={`block text-center text-sm text-gray-500 mt-4 hover:text-flame-orange ${preloadedError ? 'pointer-events-none' : ''}`}>
+              <button type="button" className="w-full text-center text-xs text-gray-400 mt-4 hover:text-white transition-colors">
                 Forgot Password?
-              </a>
+              </button>
             )}
           </form>
-
-          <div className="flex items-center my-6">
-            <div className="flex-grow border-t border-gray-300"></div>
-            <span className="flex-shrink mx-4 text-gray-400 text-sm">OR</span>
-            <div className="flex-grow border-t border-gray-300"></div>
-          </div>
-
-          <div className="space-y-3">
-            <button disabled={!!preloadedError} className="w-full flex items-center justify-center py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-              <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" className="w-5 h-5 mr-3" alt="Google" />
-              <span className="font-semibold text-gray-700">Continue with Google</span>
-            </button>
-             <button disabled={!!preloadedError} className="w-full flex items-center justify-center py-3 border bg-[#1877F2] text-white rounded-lg hover:bg-[#166eeb] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8.049c0-4.446-3.582-8.05-8-8.05C3.58 0 0 3.603 0 8.05c0 4.017 2.926 7.347 6.75 7.951v-5.625h-2.03V8.05H6.75V6.275c0-2.017 1.195-3.131 3.022-3.131.876 0 1.791.157 1.791.157v1.98h-1.009c-.993 0-1.303.621-1.303 1.258v1.51h2.218l-.354 2.326H9.25V16c3.824-.604 6.75-3.934 6.75-7.951z"/></svg>
-              <span className="font-semibold">Continue with Facebook</span>
-            </button>
-          </div>
         </div>
         
-        <p className="text-center text-xs text-gray-400 mt-6">
-          By continuing, you agree to our <a href="#" className="underline">Terms of Service</a> and <a href="#" className="underline">Privacy Policy</a>.
+        <p className="text-center text-[10px] text-gray-600 mt-8 font-medium uppercase tracking-widest">
+          FlameUp © 2024
         </p>
-        <p className="text-center text-xs text-gray-400 mt-2">v2.0 - Match & Gifting Update</p>
       </div>
     </div>
   );
