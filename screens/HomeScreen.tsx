@@ -167,9 +167,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
   };
   
   const handleOwnStoryClick = () => {
-      const hasStory = stories.some(s => s.user.id === currentUser.id);
-      if (hasStory) {
-          openStoryViewer(0); // Own story is always index 0 in the UI list
+      // Check if there are any own stories
+      const hasOwnStories = stories.some(s => s.user.id === currentUser.id);
+      if (hasOwnStories) {
+          openStoryViewer(0); // Own story is always injected at index 0 in UI list
       } else {
           onCreateStory();
       }
@@ -181,14 +182,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
 
   const ownStories = stories.filter(s => s.user.id === currentUser.id);
   const otherStories = stories.filter(s => s.user.id !== currentUser.id);
-  const hasUnviewedOwnStory = ownStories.some(s => !s.viewed);
-
+  // Simple check for unviewed own stories. In real app, check if ALL are viewed.
+  const hasUnviewedOwnStory = ownStories.length > 0 && ownStories.some(s => !s.viewed);
+  
+  // If no own stories, we show a "Add Story" placeholder. If yes, we show the first own story.
   const storyListForUI: Story[] = [
     {
         id: 'currentUserStory',
         user: { id: currentUser.id, name: 'Your Story', profilePhoto: currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR },
         mediaUrl: ownStories.length > 0 ? ownStories[0].mediaUrl : '',
-        viewed: !hasUnviewedOwnStory, // If empty, it shows viewed (grey ring) or we handle special style
+        viewed: !hasUnviewedOwnStory, 
         timestamp: null,
     },
     ...otherStories

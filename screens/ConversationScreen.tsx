@@ -37,6 +37,7 @@ const AudioPlayer: React.FC<{ src: string, duration?: number, isOwnMessage: bool
     const [isPlaying, setIsPlaying] = useState(false);
     const audioRef = useRef<HTMLAudioElement>(null);
     const [currentTime, setCurrentTime] = useState(0);
+    const [loadedDuration, setLoadedDuration] = useState(duration || 0);
 
     useEffect(() => {
         const audio = audioRef.current;
@@ -47,14 +48,21 @@ const AudioPlayer: React.FC<{ src: string, duration?: number, isOwnMessage: bool
             setIsPlaying(false);
             setCurrentTime(0);
         };
+        const handleMetadata = () => {
+            if (!duration && audio.duration !== Infinity) {
+                setLoadedDuration(audio.duration);
+            }
+        };
 
         audio.addEventListener('timeupdate', updateTime);
         audio.addEventListener('ended', handleEnded);
+        audio.addEventListener('loadedmetadata', handleMetadata);
         return () => {
             audio.removeEventListener('timeupdate', updateTime);
             audio.removeEventListener('ended', handleEnded);
+            audio.removeEventListener('loadedmetadata', handleMetadata);
         };
-    }, []);
+    }, [duration]);
 
     const togglePlay = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -76,14 +84,15 @@ const AudioPlayer: React.FC<{ src: string, duration?: number, isOwnMessage: bool
     }
 
     // Use prop duration if available, otherwise fallback to currentTime/metadata
-    const displayTime = isPlaying ? formatTime(currentTime) : formatTime(duration || 0);
+    const finalDuration = duration || loadedDuration;
+    const displayTime = isPlaying ? formatTime(currentTime) : formatTime(finalDuration);
 
     return (
         <div className="min-w-[150px] p-2 flex items-center space-x-3">
             <audio ref={audioRef} src={src} className="hidden" preload="metadata" />
             <button 
                 onClick={togglePlay}
-                className={`w-8 h-8 rounded-full flex items-center justify-center ${isOwnMessage ? 'bg-white/20 text-white' : 'bg-flame-orange/10 text-flame-orange'}`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isOwnMessage ? 'bg-white/20 text-white' : 'bg-flame-orange/10 text-flame-orange'}`}
             >
                 {isPlaying ? (
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
@@ -91,15 +100,15 @@ const AudioPlayer: React.FC<{ src: string, duration?: number, isOwnMessage: bool
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
                 )}
             </button>
-            <div className="flex-1 flex flex-col justify-center">
+            <div className="flex-1 flex flex-col justify-center min-w-[80px]">
                 <div className={`h-1 w-full rounded-full overflow-hidden ${isOwnMessage ? 'bg-white/30' : 'bg-gray-200'}`}>
                      <div 
                         className={`h-full ${isOwnMessage ? 'bg-white' : 'bg-flame-orange'}`} 
-                        style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+                        style={{ width: `${finalDuration ? (currentTime / finalDuration) * 100 : 0}%` }}
                      />
                 </div>
             </div>
-            <span className={`text-xs font-medium ${isOwnMessage ? 'text-white/80' : 'text-gray-500'}`}>
+            <span className={`text-xs font-medium whitespace-nowrap ${isOwnMessage ? 'text-white/80' : 'text-gray-500'}`}>
                 {displayTime}
             </span>
         </div>
@@ -490,7 +499,10 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     };
 
     const startRecording = async (e: React.MouseEvent | React.TouchEvent) => {
-        e.preventDefault(); // PREVENT SCROLL/SELECTION
+        // Prevent default to stop text selection and other UI glitches on mobile
+        e.preventDefault();
+        if(isRecording) return;
+
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const recorder = new MediaRecorder(stream);
@@ -518,8 +530,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const stopRecording = (e: React.MouseEvent | React.TouchEvent) => {
         e.preventDefault();
         if (mediaRecorderRef.current && isRecording) {
-            // Capture the final duration at moment of stop
-            const finalDuration = recordingDuration; 
+            const finalDuration = recordingDuration; // Capture current duration
             
             mediaRecorderRef.current.onstop = () => {
                 const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/mp4' });
@@ -528,14 +539,17 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 // Stop tracks
                 mediaRecorderRef.current?.stream.getTracks().forEach(track => track.stop());
                 
-                // Send
+                // Send only if duration > 0
                 if (finalDuration > 0) {
                    handleSendMessage('', audioFile, 'audio', false, finalDuration);
                 }
             };
             mediaRecorderRef.current.stop();
             setIsRecording(false);
-            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+            if (timerIntervalRef.current) {
+                clearInterval(timerIntervalRef.current);
+                timerIntervalRef.current = null;
+            }
             setRecordingDuration(0);
         }
     };

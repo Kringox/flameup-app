@@ -126,14 +126,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdate
                     
                     <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg shadow-sm">
                         <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3 flex items-center">
-                            <DesktopIcon className="w-4 h-4 mr-1" /> App Design (Local Only)
+                            <DesktopIcon className="w-4 h-4 mr-1" /> App Design (Nur für dich)
                         </h2>
                         <div className="grid grid-cols-4 gap-2">
                             {(['default', 'ocean', 'rose', 'dusk'] as AppTint[]).map(tint => (
                                 <button
                                     key={tint}
                                     onClick={() => setLocalTint(tint)}
-                                    className={`py-2 rounded-lg border-2 text-xs font-bold capitalize ${localTint === tint ? 'border-flame-orange bg-gray-100 dark:bg-zinc-700' : 'border-transparent bg-gray-50 dark:bg-zinc-900'}`}
+                                    className={`py-2 rounded-lg border-2 text-xs font-bold capitalize ${localTint === tint ? 'border-flame-orange bg-gray-100 dark:bg-zinc-700' : 'border-transparent bg-gray-50 dark:bg-zinc-900 dark:text-white text-gray-700'}`}
                                 >
                                     {tint}
                                 </button>

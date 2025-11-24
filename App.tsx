@@ -91,10 +91,9 @@ const App: React.FC = () => {
     return () => systemTheme.removeEventListener('change', handleSystemThemeChange);
 }, [theme]);
 
-  // Handle Local Tint Application (Applying classes to body/root or context)
+  // Handle Local Tint Application
   useEffect(() => {
       localStorage.setItem('appTint', localTint);
-      // We'll pass this down via props or context, but for now, let's use it in ProfileScreen directly
   }, [localTint]);
 
 
@@ -145,7 +144,6 @@ const App: React.FC = () => {
             },
             (error) => {
                 console.error("Firestore permission error fetching chats for unread status:", error);
-                // Gracefully handle the error, e.g., by assuming no unread messages, to prevent a crash.
                 setHasUnreadMessages(false);
             }
           );
@@ -194,7 +192,6 @@ const App: React.FC = () => {
   };
 
   const handleNewMatch = (matchedUser: User) => {
-    // This function is called from SwipeScreen to show the match modal immediately
     if (!authState.currentUser) return;
     const pseudoNotification: Notification = {
       id: `match-${matchedUser.id}-${Date.now()}`,
@@ -232,7 +229,7 @@ const App: React.FC = () => {
     }
     
     if (!authState.currentUser) {
-        return <LoadingScreen />; // Should be brief
+        return <LoadingScreen />;
     }
     
     const { currentUser } = authState;
@@ -264,11 +261,11 @@ const App: React.FC = () => {
                 currentUser={currentUser} 
                 onClose={() => setIsSearchOpen(false)}
                 onViewProfile={(userId) => {
-                    setIsSearchOpen(false); // Close search before opening profile
+                    setIsSearchOpen(false); 
                     handleViewProfile(userId);
                 }}
                 onOpenComments={(post) => {
-                    setIsSearchOpen(false); // Close search before opening comments
+                    setIsSearchOpen(false);
                     setViewingPostComments(post);
                 }}
                 onViewPostGrid={(posts, startIndex) => {
