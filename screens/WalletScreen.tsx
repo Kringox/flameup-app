@@ -1,11 +1,8 @@
+
 import React, { useState } from 'react';
-// FIX: Added file extension to types import
 import { User } from '../types.ts';
-// FIX: Added file extensions to component imports
 import FlameIcon from '../components/icons/FlameIcon.tsx';
 import BuyCoinsModal from '../components/BuyCoinsModal.tsx';
-import DailyBonusModal from '../components/DailyBonusModal.tsx';
-import { Timestamp } from 'firebase/firestore';
 import { useI18n } from '../contexts/I18nContext.ts';
 
 interface WalletScreenProps {
@@ -16,24 +13,11 @@ interface WalletScreenProps {
 
 const WalletScreen: React.FC<WalletScreenProps> = ({ user, onClose, onUpdateUser }) => {
     const [isBuyModalOpen, setIsBuyModalOpen] = useState(false);
-    const [isBonusModalOpen, setIsBonusModalOpen] = useState(false);
     const { t } = useI18n();
     
-    const canClaimBonus = () => {
-        if (!user.lastDailyBonus) return true;
-        const lastBonusDate = user.lastDailyBonus.toDate();
-        const now = new Date();
-        return now.getTime() - lastBonusDate.getTime() > 24 * 60 * 60 * 1000;
-    };
-    
-    const handleClaimBonus = () => {
-        setIsBonusModalOpen(true);
-    };
-
     return (
         <>
         {isBuyModalOpen && <BuyCoinsModal onClose={() => setIsBuyModalOpen(false)} currentUser={user} onUpdateUser={onUpdateUser} />}
-        {isBonusModalOpen && <DailyBonusModal onClose={() => setIsBonusModalOpen(false)} currentUser={user} onUpdateUser={onUpdateUser} />}
         <div className="absolute inset-0 bg-gray-100 dark:bg-black z-[80] flex flex-col">
             <header className="flex items-center p-4 border-b dark:border-gray-800 bg-white dark:bg-zinc-900">
                  <button onClick={onClose} className="w-8 text-dark-gray dark:text-gray-200">
@@ -52,9 +36,7 @@ const WalletScreen: React.FC<WalletScreenProps> = ({ user, onClose, onUpdateUser
                 </div>
 
                 <div className="mt-6">
-                    <button onClick={handleClaimBonus} disabled={!canClaimBonus()} className="w-full p-4 bg-green-500 text-white rounded-lg font-bold text-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
-                        {canClaimBonus() ? t('claimDailyBonus') : t('bonusClaimed')}
-                    </button>
+                    {/* Daily Bonus removed from economy */}
                     <button onClick={() => setIsBuyModalOpen(true)} className="w-full mt-4 p-4 bg-flame-orange text-white rounded-lg font-bold text-lg">
                         {t('buyMoreCoins')}
                     </button>

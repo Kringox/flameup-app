@@ -1,11 +1,9 @@
+
 import React, { useState, useRef, useContext } from 'react';
-// FIX: Added file extension to types import
 import { User } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
 import { collection, addDoc, serverTimestamp, doc, updateDoc, increment } from 'firebase/firestore';
-// FIX: Added file extension to photoUploader import
 import { uploadPhotos } from '../utils/photoUploader.ts';
-import { XpAction } from '../utils/xpUtils.ts';
 import { XpContext } from '../contexts/XpContext.ts';
 
 interface CreatePostScreenProps {
@@ -50,10 +48,8 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ user, onClose }) =>
                 timestamp: serverTimestamp(),
             });
 
-            // Grant XP for posting
-            const userRef = doc(db, 'users', user.id);
-            await updateDoc(userRef, { xp: increment(XpAction.CREATE_POST) });
-            showXpToast(XpAction.CREATE_POST);
+            // Small self-action boost or just visual feedback
+            showXpToast(10); 
             
             onClose();
         } catch (error) {

@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect } from 'react';
-// FIX: Added file extension to types and other component/screen imports
 import { User, Post } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
@@ -9,12 +8,12 @@ import EditProfileScreen from './EditProfileScreen.tsx';
 import SettingsScreen from './SettingsScreen.tsx';
 import FollowListScreen from './FollowListScreen.tsx';
 import PostDetailView from '../components/PostDetailView.tsx';
-import LevelProgressBar from '../components/LevelProgressBar.tsx';
 import ImageViewer from '../components/ImageViewer.tsx';
 import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
 import WalletScreen from './WalletScreen.tsx';
 import FlameIcon from '../components/icons/FlameIcon.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
+import HotnessDisplay from '../components/HotnessDisplay.tsx';
 
 const THEME_CLASSES: { [key: string]: { bg: string; text: string; subtext: string; border: string; }} = {
     default: { bg: 'bg-white dark:bg-black', text: 'text-dark-gray dark:text-gray-200', subtext: 'text-gray-500 dark:text-gray-400', border: 'border-gray-200 dark:border-gray-800' },
@@ -170,10 +169,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
 
                 <div className="mt-6 space-y-6">
                     <div>
-                        <p className={`font-semibold text-lg ${themeClasses.text} flex items-center`}>
-                            {currentUser.name}, {currentUser.age}
-                            {currentUser.isPremium && <VerifiedIcon className="ml-1.5 w-5 h-5" />}
-                        </p>
+                        <div className="flex justify-between items-start">
+                            <p className={`font-semibold text-lg ${themeClasses.text} flex items-center`}>
+                                {currentUser.name}, {currentUser.age}
+                                {currentUser.isPremium && <VerifiedIcon className="ml-1.5 w-5 h-5" />}
+                            </p>
+                            {/* Hotness Display instead of Level */}
+                            <HotnessDisplay score={currentUser.hotnessScore || 0} />
+                        </div>
                          {currentUser.aboutMe && (
                             <p className={`${themeClasses.text} whitespace-pre-wrap mt-1 text-sm leading-relaxed`}>{currentUser.aboutMe}</p>
                         )}
@@ -193,14 +196,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                         </div>
                     )}
                 </div>
-                
-                 <div className="my-6">
-                    <LevelProgressBar xp={currentUser.xp} />
-                </div>
 
                 <button 
                     onClick={() => setIsWalletOpen(true)} 
-                    className={`w-full flex items-center justify-between p-3 mb-4 ${themeClasses.bg} border ${themeClasses.border} rounded-xl shadow-sm transition-transform hover:scale-102 active:scale-98`}
+                    className={`w-full flex items-center justify-between p-3 mt-6 mb-4 ${themeClasses.bg} border ${themeClasses.border} rounded-xl shadow-sm transition-transform hover:scale-102 active:scale-98`}
                 >
                     <div>
                         <p className={`font-semibold ${themeClasses.text}`}>{t('wallet')}</p>

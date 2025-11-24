@@ -2,12 +2,10 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, increment, writeBatch } from 'firebase/firestore';
-// FIX: Added file extension to types import
 import { Post, User, Comment, NotificationType } from '../types.ts';
-// FIX: Added file extension to VerifiedIcon import
 import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
-import { XpAction } from '../utils/xpUtils.ts';
 import { XpContext } from '../contexts/XpContext.ts';
+import { HotnessWeight } from '../utils/hotnessUtils.ts';
 
 
 const CommentRow: React.FC<{ comment: Comment; onViewProfile: (userId: string) => void; }> = ({ comment, onViewProfile }) => {
@@ -107,14 +105,14 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
             const postRef = doc(db, 'posts', post.id);
             batch.update(postRef, { commentCount: increment(1) });
             
-            // 3. Award XP for commenting
-            const userRef = doc(db, 'users', currentUser.id);
-            batch.update(userRef, { xp: increment(XpAction.RECEIVE_COMMENT) });
+            // 3. Update Hotness for Post Owner
+            const ownerRef = doc(db, 'users', post.userId);
+            batch.update(ownerRef, { hotnessScore: increment(HotnessWeight.COMMENT) });
 
             // Commit all writes at once
             await batch.commit();
 
-            showXpToast(XpAction.RECEIVE_COMMENT);
+            showXpToast(20); // Visual flair only
             
             // 4. Create notification after the comment is successfully posted
             await createNotification(commentText);

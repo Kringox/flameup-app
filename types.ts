@@ -32,8 +32,14 @@ export interface User {
   followers: string[]; // array of user IDs
   following: string[]; // array of user IDs
   coins?: number;
+  
+  // New System
+  hotnessScore?: number;
+
+  // Legacy (kept for type safety during migration, but effectively unused logic-wise)
   xp: number;
   level: number;
+  
   createdAt: Timestamp;
   isPremium?: boolean;
   profileTheme?: 'default' | 'dusk' | 'rose';

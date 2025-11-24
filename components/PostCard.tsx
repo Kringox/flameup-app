@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Post, User, NotificationType } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
-import { doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, addDoc, collection, serverTimestamp, increment } from 'firebase/firestore';
 
 import HeartIcon from './icons/HeartIcon.tsx';
 import CommentIcon from './icons/CommentIcon.tsx';
@@ -12,6 +12,7 @@ import EditPostModal from './EditPostModal.tsx';
 import VerifiedIcon from './icons/VerifiedIcon.tsx';
 import UserPlusIcon from './icons/UserPlusIcon.tsx';
 import { hapticFeedback } from '../utils/haptics.ts';
+import { HotnessWeight } from '../utils/hotnessUtils.ts';
 
 const formatTimestamp = (timestamp: any): string => {
     if (!timestamp || !timestamp.toDate) {
@@ -89,10 +90,16 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
     hapticFeedback('selection');
 
     const currentUserRef = doc(db, 'users', currentUser.id);
+    const targetUserRef = doc(db, 'users', post.user.id);
 
     try {
         await updateDoc(currentUserRef, {
             following: arrayUnion(post.user.id)
+        });
+
+        // Increase Hotness of the person being followed
+        await updateDoc(targetUserRef, {
+            hotnessScore: increment(HotnessWeight.FOLLOW)
         });
 
         const notificationsRef = collection(db, 'users', post.user.id, 'notifications');
@@ -126,6 +133,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
     }
 
     const postRef = doc(db, 'posts', post.id);
+    const targetUserRef = doc(db, 'users', post.userId);
     
     const newLikedState = !isLiked;
     const newLikeCount = newLikedState ? likeCount + 1 : likeCount - 1;
@@ -136,6 +144,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
       await updateDoc(postRef, {
         likedBy: newLikedState ? arrayUnion(currentUser.id) : arrayRemove(currentUser.id)
       });
+      
+      // Update Hotness of the post owner
+      await updateDoc(targetUserRef, {
+          hotnessScore: increment(newLikedState ? HotnessWeight.LIKE : -HotnessWeight.LIKE)
+      });
+
       if (newLikedState) {
           createNotification(NotificationType.Like);
       }

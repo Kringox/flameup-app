@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { db } from '../firebaseConfig.ts';
 import { collection, query, getDocs, limit, doc, updateDoc, arrayUnion, writeBatch, serverTimestamp, increment, QuerySnapshot } from 'firebase/firestore';
@@ -9,9 +10,9 @@ import FlameLoader from '../components/FlameLoader.tsx';
 import WifiOffIcon from '../components/icons/WifiOffIcon.tsx';
 import { hapticFeedback } from '../utils/haptics.ts';
 import { XpContext } from '../contexts/XpContext.ts';
-import { XpAction } from '../utils/xpUtils.ts';
 import { promiseWithTimeout } from '../utils/promiseUtils.ts';
 import { DEMO_USERS_FOR_UI } from '../constants.ts';
+import HotnessDisplay from '../components/HotnessDisplay.tsx';
 
 interface SwipeScreenProps {
   currentUser: User;
@@ -23,18 +24,17 @@ const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; }
   try {
     const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
-    // Get user data with safe fallbacks to prevent crashes
+    // Get user data with safe fallbacks
     const name = String(user?.name || 'User');
     const age = user?.age;
     const aboutMe = String(user?.aboutMe || '');
-    const interests = user?.interests; // Keep it raw to check type later
+    const interests = user?.interests; 
     const photos = user?.profilePhotos;
     const hasValidPhotos = Array.isArray(photos) && photos.length > 0 && photos.every(p => typeof p === 'string' && p.trim() !== '');
 
     if (!isVisible) return null;
 
     if (!hasValidPhotos) {
-      // This is a controlled error for bad photo data, not a crash.
       return (
           <div className={`absolute inset-0 w-full h-full bg-gray-300 dark:bg-zinc-700 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center p-4 text-center ${animation}`}>
               <div className="text-red-500">
@@ -45,7 +45,6 @@ const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; }
       );
     }
     
-    // Safely handle interests whether it's an array or a comma-separated string
     const interestsArray = (
         Array.isArray(interests) 
             ? interests 
@@ -66,6 +65,11 @@ const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; }
     return (
       <div className={`absolute inset-0 w-full h-full bg-gray-200 rounded-2xl overflow-hidden shadow-2xl transition-transform duration-500 ${animation}`}>
         <img src={photos[activePhotoIndex]} alt={name} className="w-full h-full object-cover" />
+
+        {/* Hotness Badge Overlay */}
+        <div className="absolute top-4 right-4 z-20">
+            <HotnessDisplay score={user.hotnessScore || 0} size="sm" />
+        </div>
 
         {photos.length > 1 && (
           <>
@@ -94,14 +98,7 @@ const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; }
     );
   } catch (error) {
     console.error("CRITICAL: SwipeCard crashed while rendering user:", user, error);
-    return (
-        <div className="absolute inset-0 w-full h-full bg-red-100 border-2 border-red-500 rounded-2xl flex items-center justify-center p-4 text-center">
-            <div className="text-red-700">
-                <p className="font-bold">Render Error</p>
-                <p className="text-sm">This profile caused a critical error and could not be displayed.</p>
-            </div>
-        </div>
-    );
+    return null;
   }
 };
 
@@ -114,6 +111,31 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
     const [animation, setAnimation] = useState('');
     const { showXpToast } = useContext(XpContext);
 
+    // --- Smart Swipe Algorithm ---
+    const calculateRelevanceScore = (candidate: User, current: User): number => {
+        let score = 0;
+
+        // 1. Hotness Boost (Impact: 10% of raw hotness)
+        score += (candidate.hotnessScore || 0) * 0.1;
+
+        // 2. Interest Matching
+        if (candidate.interests && current.interests) {
+            const myInterests = (typeof current.interests === 'string' ? current.interests.split(',') : current.interests || []).map(i => i.trim().toLowerCase());
+            const theirInterests = (typeof candidate.interests === 'string' ? candidate.interests.split(',') : candidate.interests || []).map(i => i.trim().toLowerCase());
+            
+            const common = theirInterests.filter(i => myInterests.includes(i));
+            score += common.length * 15; // 15 points per common interest
+        }
+
+        // 3. Location Mock (Simulated "Local" priority)
+        // In a real app, calculate GeoHash distance. Here we give a random "local" boost to make it feel dynamic.
+        if (Math.random() > 0.7) {
+            score += 40; 
+        }
+
+        return score;
+    };
+
     const fetchUsers = useCallback(async () => {
         setIsLoading(true);
         setError(null);
@@ -122,37 +144,38 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
             if (!db) throw new Error("Database connection not available.");
             if (!currentUser || !currentUser.id) throw new Error("Current user data is invalid.");
 
+            // 1. Strict Exclusion Lists
             const swipedLeft = Array.isArray(currentUser.swipedLeft) ? currentUser.swipedLeft : [];
             const swipedRight = Array.isArray(currentUser.swipedRight) ? currentUser.swipedRight : [];
             const seenUsers = new Set([currentUser.id, ...swipedLeft, ...swipedRight]);
 
-            const validateUser = (u: any): u is User => {
-                if (!u || typeof u !== 'object' || u === null) return false;
-                if (typeof u.id !== 'string' || !u.id) return false;
-                if (seenUsers.has(u.id)) return false;
-                if (typeof u.name !== 'string' || u.name.trim() === '') return false;
-                
-                const photos = u.profilePhotos;
-                if (!Array.isArray(photos) || photos.length === 0) return false;
-                
-                if (photos.some(p => !(typeof p === 'string' && p.trim().startsWith('http')))) {
-                    console.warn(`Filtering out user ${u.id} due to invalid item in profilePhotos array.`);
-                    return false;
-                }
-                return true;
-            };
-
             const usersRef = collection(db, 'users');
-            const q = query(usersRef, limit(50)); // Fetch a larger batch to increase chances of finding valid users
+            // Fetch a larger batch to filter client-side
+            const q = query(usersRef, limit(100)); 
             
             const querySnapshot = await promiseWithTimeout(getDocs(q), 8000, new Error("Fetching profiles took too long.")) as QuerySnapshot;
             
-            const firestoreDocs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            const fetchedUsers = firestoreDocs.filter(validateUser);
+            let fetchedUsers = querySnapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() } as User))
+                // 2. Client-Side Filtering (Strict)
+                .filter(u => !seenUsers.has(u.id))
+                .filter(u => {
+                     // Basic validation
+                     const photos = u.profilePhotos;
+                     if (!Array.isArray(photos) || photos.length === 0) return false;
+                     return photos.every(p => typeof p === 'string' && p.trim().startsWith('http'));
+                });
+
+            // 3. Smart Sorting (Relevance Algorithm)
+            fetchedUsers = fetchedUsers.sort((a, b) => {
+                const scoreA = calculateRelevanceScore(a, currentUser);
+                const scoreB = calculateRelevanceScore(b, currentUser);
+                return scoreB - scoreA; // Descending order
+            });
             
             if (fetchedUsers.length === 0) {
-                console.log("No valid users from Firestore. Falling back to demo users.");
-                const demoUsersToShow = DEMO_USERS_FOR_UI.filter(validateUser);
+                // If firestore empty/filtered, use demo data strictly for UI testing if not swiped
+                const demoUsersToShow = DEMO_USERS_FOR_UI.filter(u => !seenUsers.has(u.id));
                 setUsers(demoUsersToShow);
             } else {
                 setUsers(fetchedUsers);
@@ -168,7 +191,6 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
     }, [currentUser]);
 
     useEffect(() => {
-        // Ensure currentUser is fully loaded before fetching other users
         if (currentUser && currentUser.id) {
             fetchUsers();
         }
@@ -178,7 +200,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
         if (currentIndex >= users.length || !db) return;
 
         const swipedUser = users[currentIndex];
-        if (!swipedUser || !swipedUser.id) return; // Extra safety check
+        if (!swipedUser || !swipedUser.id) return;
 
         const swipedUserId = swipedUser.id;
 
@@ -196,10 +218,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
         }, 300);
 
         try {
-            if (swipedUserId.startsWith('demo-user-')) {
-                console.log(`Swiped on demo user ${swipedUser.name}, no database write.`);
-                return;
-            }
+            if (swipedUserId.startsWith('demo-user-')) return;
 
             const userRef = doc(db, 'users', currentUser.id);
             const batch = writeBatch(db);
@@ -208,13 +227,13 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
             batch.update(userRef, { [fieldToUpdate]: arrayUnion(swipedUserId) });
 
             if (direction === 'right' || direction === 'super') {
-                batch.update(userRef, { xp: increment(XpAction.SWIPE_LIKE) });
-                showXpToast(XpAction.SWIPE_LIKE);
-                
+                // IMPORTANT: Increment the Hotness Score of the person being LIKED
+                const targetUserRef = doc(db, 'users', swipedUserId);
+                batch.update(targetUserRef, { hotnessScore: increment(2) }); // +2 Hotness for a like
+
                 if (Array.isArray(swipedUser.swipedRight) && swipedUser.swipedRight.includes(currentUser.id)) {
                     onNewMatch(swipedUser);
-                    batch.update(userRef, { xp: increment(XpAction.MATCH) });
-                    showXpToast(XpAction.MATCH);
+                    showXpToast(50); // Just visual feedback, no actual XP/Coins
                     
                     const currentUserProfilePhoto = (Array.isArray(currentUser.profilePhotos) && currentUser.profilePhotos.length > 0)
                         ? currentUser.profilePhotos[0]
@@ -258,7 +277,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
             return (
                 <div className="flex flex-col justify-center items-center h-full text-center p-4">
                     <h3 className="font-bold text-lg dark:text-gray-200">That's everyone for now!</h3>
-                    <p className="text-gray-600 dark:text-gray-400">Check back later for new profiles.</p>
+                    <p className="text-gray-600 dark:text-gray-400">Expand your search or check back later.</p>
                     <button onClick={fetchUsers} className="mt-4 px-4 py-2 bg-flame-orange text-white rounded-lg">Refresh</button>
                 </div>
             );
@@ -267,16 +286,14 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
         return (
             <div className="flex-1 flex flex-col justify-between items-center p-4">
                 <div className="relative w-full h-full flex-1">
-                    {/* Render the next card underneath */}
                     {users[currentIndex + 1] && (
                         <SwipeCard
                             key={users[currentIndex + 1].id}
                             user={users[currentIndex + 1]}
                             isVisible={true}
-                            animation="transform scale-95 opacity-80" // Style for the card underneath
+                            animation="transform scale-95 opacity-80"
                         />
                     )}
-                     {/* Render the current card on top */}
                     {users[currentIndex] && (
                         <SwipeCard
                             key={users[currentIndex].id}
@@ -290,6 +307,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                     <button onClick={() => handleSwipe('left')} className="w-16 h-16 bg-white dark:bg-zinc-800 rounded-full shadow-lg flex justify-center items-center text-gray-500 transform hover:scale-110 transition-transform">
                         <XIcon className="w-8 h-8" />
                     </button>
+                    {/* Super like kept as interaction but no coin cost logic needed for MVP */}
                     <button onClick={() => handleSwipe('super')} className="w-14 h-14 bg-white dark:bg-zinc-800 rounded-full shadow-lg flex justify-center items-center text-blue-500 transform hover:scale-110 transition-transform">
                         <StarIcon className="w-7 h-7" />
                     </button>
