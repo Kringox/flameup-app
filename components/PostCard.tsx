@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Post, User, NotificationType } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
-import { doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, addDoc, collection, serverTimestamp, increment } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, addDoc, collection, serverTimestamp, increment, getDoc, runTransaction } from 'firebase/firestore';
 
 import HeartIcon from './icons/HeartIcon.tsx';
 import CommentIcon from './icons/CommentIcon.tsx';
@@ -11,6 +11,7 @@ import MoreHorizontalIcon from './icons/MoreHorizontalIcon.tsx';
 import EditPostModal from './EditPostModal.tsx';
 import VerifiedIcon from './icons/VerifiedIcon.tsx';
 import UserPlusIcon from './icons/UserPlusIcon.tsx';
+import FlameIcon from './icons/FlameIcon.tsx';
 import { hapticFeedback } from '../utils/haptics.ts';
 import { HotnessWeight } from '../utils/hotnessUtils.ts';
 
@@ -49,6 +50,16 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
   const [isAnimatingLike, setIsAnimatingLike] = useState(false);
   const [isFollowing, setIsFollowing] = useState(currentUser.following.includes(post.user.id));
   const [isFollowLoading, setIsFollowLoading] = useState(false);
+  
+  // Economy States
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [posterSubscriptionPrice, setPosterSubscriptionPrice] = useState<number | null>(null);
+  const [isProcessingTransaction, setIsProcessingTransaction] = useState(false);
+
+  const isOwnPost = post.userId === currentUser.id;
+  const isSubscribed = currentUser.subscriptions?.includes(post.userId);
+  const hasPurchased = post.unlockedBy?.includes(currentUser.id);
+  const isLocked = post.isPaid && !isOwnPost && !hasPurchased && !isSubscribed && !isUnlocked;
 
   useEffect(() => {
     setIsLiked(post.likedBy.includes(currentUser.id));
@@ -58,9 +69,20 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
   useEffect(() => {
     setIsFollowing(currentUser.following.includes(post.user.id));
   }, [currentUser.following, post.user.id]);
+
+  // Fetch subscription price of the poster if post is paid and locked
+  useEffect(() => {
+      if (post.isPaid && isLocked && posterSubscriptionPrice === null) {
+          getDoc(doc(db, 'users', post.userId)).then(snap => {
+              if (snap.exists()) {
+                  setPosterSubscriptionPrice(snap.data().subscriptionPrice || 0);
+              }
+          });
+      }
+  }, [post.isPaid, isLocked, post.userId, posterSubscriptionPrice]);
   
-  const createNotification = async (type: NotificationType) => {
-      if (!db || post.userId === currentUser.id) return; // Don't notify yourself
+  const createNotification = async (type: NotificationType, coins?: number) => {
+      if (!db || post.userId === currentUser.id) return; 
 
       try {
           const notificationsRef = collection(db, 'users', post.userId, 'notifications');
@@ -76,6 +98,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
                   mediaUrl: post.mediaUrls[0],
               },
               read: false,
+              coinsSpent: coins,
               timestamp: serverTimestamp(),
           });
       } catch (error) {
@@ -84,7 +107,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
   };
   
   const handleFollow = async (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent navigating to profile
+    e.stopPropagation(); 
     if (!db || isFollowLoading) return;
     setIsFollowLoading(true);
     hapticFeedback('selection');
@@ -96,8 +119,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
         await updateDoc(currentUserRef, {
             following: arrayUnion(post.user.id)
         });
-
-        // Increase Hotness of the person being followed
         await updateDoc(targetUserRef, {
             hotnessScore: increment(HotnessWeight.FOLLOW)
         });
@@ -145,7 +166,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
         likedBy: newLikedState ? arrayUnion(currentUser.id) : arrayRemove(currentUser.id)
       });
       
-      // Update Hotness of the post owner
       await updateDoc(targetUserRef, {
           hotnessScore: increment(newLikedState ? HotnessWeight.LIKE : -HotnessWeight.LIKE)
       });
@@ -160,6 +180,88 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
       alert("Could not update like. Please try again.");
     }
   };
+
+  const handleUnlockPost = async () => {
+      if (!db || isProcessingTransaction || !post.price) return;
+      
+      const currentCoins = Number(currentUser.coins) || 0;
+      if (currentCoins < post.price) {
+          alert("Not enough coins! Go to your wallet to buy more.");
+          return;
+      }
+
+      if (!window.confirm(`Unlock this post for ${post.price} coins?`)) return;
+
+      setIsProcessingTransaction(true);
+
+      try {
+          // Atomic Transaction
+          await runTransaction(db, async (transaction) => {
+             const userRef = doc(db, 'users', currentUser.id);
+             const posterRef = doc(db, 'users', post.userId);
+             const postRef = doc(db, 'posts', post.id);
+
+             transaction.update(userRef, { coins: increment(-post.price!) });
+             transaction.update(posterRef, { 
+                 coins: increment(post.price!), 
+                 hotnessScore: increment(HotnessWeight.PAID_UNLOCK) 
+             });
+             transaction.update(postRef, { unlockedBy: arrayUnion(currentUser.id) });
+          });
+
+          // Optimistic UI updates
+          setIsUnlocked(true);
+          onUpdateUser({ ...currentUser, coins: currentCoins - post.price });
+          createNotification(NotificationType.Purchase, post.price);
+
+      } catch (e) {
+          console.error("Unlock failed", e);
+          alert("Transaction failed. Please try again.");
+      } finally {
+          setIsProcessingTransaction(false);
+      }
+  };
+
+  const handleSubscribe = async () => {
+      if (!db || isProcessingTransaction || !posterSubscriptionPrice) return;
+      
+      const currentCoins = Number(currentUser.coins) || 0;
+      if (currentCoins < posterSubscriptionPrice) {
+          alert("Not enough coins for subscription!");
+          return;
+      }
+
+      if (!window.confirm(`Subscribe to ${post.user.name} for ${posterSubscriptionPrice} coins/month? You will unlock ALL their posts.`)) return;
+      
+      setIsProcessingTransaction(true);
+
+      try {
+           await runTransaction(db, async (transaction) => {
+             const userRef = doc(db, 'users', currentUser.id);
+             const posterRef = doc(db, 'users', post.userId);
+
+             transaction.update(userRef, { 
+                 coins: increment(-posterSubscriptionPrice),
+                 subscriptions: arrayUnion(post.userId)
+             });
+             transaction.update(posterRef, { 
+                 coins: increment(posterSubscriptionPrice),
+                 hotnessScore: increment(HotnessWeight.SUBSCRIBE) 
+             });
+          });
+
+          // Optimistic
+          const newSubs = [...(currentUser.subscriptions || []), post.userId];
+          onUpdateUser({ ...currentUser, coins: currentCoins - posterSubscriptionPrice, subscriptions: newSubs });
+          createNotification(NotificationType.Subscribe, posterSubscriptionPrice);
+
+      } catch (e) {
+          console.error("Subscription failed", e);
+          alert("Subscription failed.");
+      } finally {
+          setIsProcessingTransaction(false);
+      }
+  }
 
   const handleDelete = async () => {
     if (!db) return;
@@ -189,8 +291,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
     }
   };
 
-  const isOwnPost = post.userId === currentUser.id;
-
   return (
     <>
     {isEditing && (
@@ -200,7 +300,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
             onSave={handleUpdateCaption}
         />
     )}
-    <div className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden mb-4 shadow-sm">
+    <div className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden mb-4 shadow-sm relative">
       <div className="flex items-center justify-between p-3">
         {/* User Info Header */}
         <div className="flex items-center flex-1 min-w-0">
@@ -262,7 +362,50 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
         )}
       </div>
 
-      <img className="w-full h-auto object-cover" src={post.mediaUrls[0]} alt="Post content" />
+      <div className="relative">
+          <img 
+            className={`w-full h-auto object-cover transition-all duration-500 ${isLocked ? 'blur-xl scale-105 contrast-50' : ''}`} 
+            src={post.mediaUrls[0]} 
+            alt="Post content" 
+          />
+          
+          {isLocked && (
+              <div className="absolute inset-0 z-10 flex flex-col justify-center items-center p-6 bg-black/20">
+                  <div className="bg-white/90 dark:bg-black/80 backdrop-blur-md p-6 rounded-2xl shadow-2xl text-center w-full max-w-sm border border-white/20">
+                      <div className="w-12 h-12 bg-flame-orange rounded-full flex items-center justify-center mx-auto mb-3 text-white shadow-lg shadow-flame-orange/40">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                            <path fillRule="evenodd" d="M12 1.5a5.25 5.25 0 00-5.25 5.25v3a3 3 0 00-3 3v6.75a3 3 0 003 3h10.5a3 3 0 003-3v-6.75a3 3 0 00-3-3v-3c0-2.9-2.35-5.25-5.25-5.25zm3.75 8.25v-3a3.75 3.75 0 10-7.5 0v3h7.5z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <h3 className="text-xl font-bold dark:text-white mb-1">Flame Post</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
+                          This content is exclusive. Unlock it now to see what's hidden.
+                      </p>
+
+                      <button 
+                        onClick={handleUnlockPost}
+                        disabled={isProcessingTransaction}
+                        className="w-full py-3 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold rounded-xl shadow-lg transform hover:scale-105 transition-transform flex justify-center items-center"
+                      >
+                          {isProcessingTransaction ? 'Processing...' : `Unlock for ${post.price} Coins`}
+                      </button>
+
+                      {posterSubscriptionPrice && posterSubscriptionPrice > 0 && (
+                          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                              <p className="text-xs text-gray-500 mb-2">OR</p>
+                              <button 
+                                onClick={handleSubscribe}
+                                disabled={isProcessingTransaction}
+                                className="w-full py-2 bg-gray-800 dark:bg-white text-white dark:text-black font-bold rounded-xl text-sm"
+                              >
+                                  Subscribe for {posterSubscriptionPrice} Coins/mo
+                              </button>
+                          </div>
+                      )}
+                  </div>
+              </div>
+          )}
+      </div>
       
       <div className="p-3">
         <div className="flex space-x-4 mb-2">

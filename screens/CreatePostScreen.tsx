@@ -5,6 +5,7 @@ import { db } from '../firebaseConfig.ts';
 import { collection, addDoc, serverTimestamp, doc, updateDoc, increment } from 'firebase/firestore';
 import { uploadPhotos } from '../utils/photoUploader.ts';
 import { XpContext } from '../contexts/XpContext.ts';
+import FlameIcon from '../components/icons/FlameIcon.tsx';
 
 interface CreatePostScreenProps {
   user: User;
@@ -15,6 +16,8 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ user, onClose }) =>
     const [file, setFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<string | null>(null);
     const [caption, setCaption] = useState('');
+    const [isPaid, setIsPaid] = useState(false);
+    const [price, setPrice] = useState<number>(10); // Default price
     const [isLoading, setIsLoading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { showXpToast } = useContext(XpContext);
@@ -46,9 +49,13 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ user, onClose }) =>
                 likedBy: [],
                 commentCount: 0,
                 timestamp: serverTimestamp(),
+                // Flame-Post Data
+                isPaid: isPaid,
+                price: isPaid ? price : 0,
+                unlockedBy: [],
             });
 
-            // Small self-action boost or just visual feedback
+            // Small self-action boost
             showXpToast(10); 
             
             onClose();
@@ -70,7 +77,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ user, onClose }) =>
                 </button>
             </header>
 
-            <main className="flex-1 p-4">
+            <main className="flex-1 p-4 overflow-y-auto">
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
                 {!preview ? (
                     <button onClick={() => fileInputRef.current?.click()} className="w-full h-64 bg-gray-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center">
@@ -87,6 +94,46 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ user, onClose }) =>
                     className="w-full mt-4 p-2 border-t border-b dark:border-zinc-800 focus:outline-none bg-transparent dark:text-gray-200"
                     rows={3}
                 />
+
+                <div className="mt-6 bg-gray-50 dark:bg-zinc-800 p-4 rounded-xl">
+                    <div className="flex justify-between items-center">
+                        <div className="flex items-center">
+                            <FlameIcon isGradient className="w-6 h-6 mr-2" />
+                            <div>
+                                <p className="font-bold text-dark-gray dark:text-gray-200">Flame-Post</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">Make this post exclusive (Paid)</p>
+                            </div>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                className="sr-only peer" 
+                                checked={isPaid} 
+                                onChange={(e) => setIsPaid(e.target.checked)} 
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-flame-orange"></div>
+                        </label>
+                    </div>
+
+                    {isPaid && (
+                        <div className="mt-4 animate-fade-in">
+                            <label className="text-sm font-semibold text-gray-500 dark:text-gray-400">Price (FlameCoins)</label>
+                            <div className="flex items-center mt-2">
+                                <FlameIcon className="w-5 h-5 text-flame-orange mr-2" />
+                                <input 
+                                    type="number" 
+                                    value={price}
+                                    onChange={(e) => setPrice(Math.max(1, parseInt(e.target.value) || 0))}
+                                    className="flex-1 p-2 border rounded-lg dark:bg-zinc-900 dark:border-zinc-700 dark:text-gray-200 focus:ring-2 focus:ring-flame-orange focus:outline-none"
+                                    min="1"
+                                />
+                            </div>
+                            <p className="text-xs text-gray-400 mt-2">
+                                Users must pay this amount to view the photo. You will receive the coins.
+                            </p>
+                        </div>
+                    )}
+                </div>
             </main>
         </div>
     );

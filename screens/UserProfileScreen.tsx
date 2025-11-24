@@ -7,6 +7,7 @@ import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
 import ImageViewer from '../components/ImageViewer.tsx';
 import HotnessDisplay from '../components/HotnessDisplay.tsx';
 import { HotnessWeight } from '../utils/hotnessUtils.ts';
+import PostDetailView from '../components/PostDetailView.tsx';
 
 interface UserProfileScreenProps {
   currentUserId: string;
@@ -15,6 +16,12 @@ interface UserProfileScreenProps {
   onStartChat: (partnerId: string) => void;
 }
 
+const THEME_CLASSES: { [key: string]: { bg: string; text: string; subtext: string; border: string; }} = {
+    default: { bg: 'bg-white', text: 'text-dark-gray', subtext: 'text-gray-500', border: 'border-gray-200' },
+    dusk: { bg: 'bg-theme-dusk-bg', text: 'text-theme-dusk-text', subtext: 'text-gray-400', border: 'border-gray-700' },
+    rose: { bg: 'bg-theme-rose-bg', text: 'text-theme-rose-text', subtext: 'text-pink-200', border: 'border-pink-300' },
+};
+
 const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, viewingUserId, onClose, onStartChat }) => {
     const [user, setUser] = useState<User | null>(null);
     const [posts, setPosts] = useState<Post[]>([]);
@@ -22,6 +29,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
     const [isFollowing, setIsFollowing] = useState(false);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
+    const [viewingPost, setViewingPost] = useState<Post | null>(null);
 
     useEffect(() => {
         if (!db) return;
@@ -116,7 +124,6 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
         } catch (error) {
             console.error("Error updating follow status:", error);
             setIsFollowing(!newFollowingState); 
-            // Revert optimistic update omitted for brevity in this specific snippet
         }
     };
     
@@ -129,9 +136,20 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
     return (
         <div className={`absolute inset-0 ${themeClass.bg} z-[70] flex flex-col animate-slide-in`}>
             {isImageViewerOpen && <ImageViewer images={user.profilePhotos} onClose={() => setIsImageViewerOpen(false)} />}
+            {viewingPost && currentUser && (
+                <PostDetailView 
+                    post={viewingPost} 
+                    currentUser={currentUser} 
+                    onClose={() => setViewingPost(null)} 
+                    onPostDeleted={() => {}} 
+                    onPostUpdated={() => {}} 
+                    onOpenComments={() => {}} 
+                />
+            )}
+            
             <style>{`.animate-slide-in { animation: slideInFromRight 0.3s ease-out; } @keyframes slideInFromRight { from { transform: translateX(100%); } to { transform: translateX(0); } }`}</style>
             
-            <header className="flex items-center p-4 border-b flex-shrink-0">
+            <header className="flex items-center p-4 border-b flex-shrink-0 bg-white/80 backdrop-blur-md sticky top-0 z-10">
                  <button onClick={onClose} className="w-8">
                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 </button>
@@ -139,14 +157,14 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                 <div className="w-8"></div>
             </header>
 
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto p-4 pb-20">
                 <div className="flex items-center">
                     <button 
                         type="button"
-                        onClick={() => setIsImageViewerOpen(true)}
-                        className="relative group flex-shrink-0"
+                        onClick={(e) => { e.stopPropagation(); setIsImageViewerOpen(true); }}
+                        className="relative group flex-shrink-0 cursor-pointer"
                     >
-                        <img src={user.profilePhotos[0]} alt={user.name} className="w-24 h-24 rounded-full object-cover border-4 border-flame-orange shadow-md" />
+                        <img src={user.profilePhotos[0]} alt={user.name} className="w-24 h-24 rounded-full object-cover border-4 border-flame-orange shadow-md transform active:scale-95 transition-transform" />
                         <div className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/10 transition-colors" />
                     </button>
                     
@@ -159,7 +177,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
 
                 <div className="mt-6">
                     <div className="flex justify-between items-start">
-                        <p className="font-semibold flex items-center text-lg">
+                        <p className="font-bold flex items-center text-xl">
                             {user.name}, {user.age}
                             {user.isPremium && <VerifiedIcon className="ml-1 w-5 h-5" />}
                         </p>
@@ -191,35 +209,29 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                 <div className="flex space-x-3 mt-6">
                     <button 
                         onClick={handleFollowToggle} 
-                        className={`flex-1 py-2.5 rounded-xl font-bold transition-all transform active:scale-95 ${isFollowing ? 'bg-gray-200 text-gray-800' : 'bg-flame-orange text-white shadow-md'}`}
+                        className={`flex-1 py-3 rounded-xl font-bold transition-all transform active:scale-95 ${isFollowing ? 'bg-gray-200 text-gray-800' : 'bg-flame-orange text-white shadow-md'}`}
                     >
                         {isFollowing ? 'Following' : 'Follow'}
                     </button>
                      <button 
                         onClick={() => onStartChat(user.id)} 
-                        className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+                        className="flex-1 py-3 border-2 border-gray-200 rounded-xl font-bold text-gray-700 hover:bg-gray-50 transition-colors"
                     >
                         Message
                     </button>
                 </div>
                 
-                <div className="grid grid-cols-3 gap-1 mt-6">
+                <div className="grid grid-cols-3 gap-1 mt-8">
                     {posts.map(post => (
-                        <div key={post.id} className="aspect-square bg-gray-200 relative group">
+                        <button key={post.id} onClick={() => setViewingPost(post)} className="aspect-square bg-gray-200 relative group overflow-hidden">
                             <img src={post.mediaUrls[0]} alt="post" className="w-full h-full object-cover" />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
-                        </div>
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                        </button>
                     ))}
                 </div>
             </div>
         </div>
     );
-};
-
-const THEME_CLASSES: { [key: string]: { bg: string; text: string; subtext: string; border: string; }} = {
-    default: { bg: 'bg-white', text: 'text-dark-gray', subtext: 'text-gray-500', border: 'border-gray-200' },
-    dusk: { bg: 'bg-theme-dusk-bg', text: 'text-theme-dusk-text', subtext: 'text-gray-400', border: 'border-gray-700' },
-    rose: { bg: 'bg-theme-rose-bg', text: 'text-theme-rose-text', subtext: 'text-pink-200', border: 'border-pink-300' },
 };
 
 export default UserProfileScreen;

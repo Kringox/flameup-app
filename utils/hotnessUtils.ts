@@ -6,7 +6,8 @@ export enum HotnessWeight {
     LIKE = 2,
     COMMENT = 3,
     FOLLOW = 5,
-    PAID_UNLOCK = 10, // Future feature
+    PAID_UNLOCK = 10,
+    SUBSCRIBE = 20, 
 }
 
 /**

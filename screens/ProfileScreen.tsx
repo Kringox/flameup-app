@@ -135,7 +135,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
             {viewingPost && <PostDetailView post={viewingPost} currentUser={currentUser} onClose={() => setViewingPost(null)} onPostDeleted={handlePostDeleted} onPostUpdated={handlePostUpdated} onOpenComments={() => {}} />}
             {isImageViewerOpen && <ImageViewer images={currentUser.profilePhotos} onClose={() => setIsImageViewerOpen(false)} />}
             
-            <header className={`flex justify-between items-center p-4 ${themeClasses.border} border-b`}>
+            <header className={`flex justify-between items-center p-4 ${themeClasses.border} border-b sticky top-0 bg-white/90 dark:bg-black/90 backdrop-blur z-10`}>
                 <div className="w-8"></div>
                 <div className={`flex items-center space-x-2`}>
                     <h1 className={`text-xl font-bold ${themeClasses.text}`}>{currentUser.name}</h1>
@@ -146,9 +146,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                 </button>
             </header>
             
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto p-4 pb-20">
                 <div className="flex items-center">
-                    <button onClick={() => setIsImageViewerOpen(true)}>
+                    <button onClick={() => setIsImageViewerOpen(true)} className="flex-shrink-0">
                         <img src={currentUser.profilePhotos[0]} alt={currentUser.name} className="w-24 h-24 rounded-full object-cover border-4 border-flame-orange shadow-md" />
                     </button>
                     <div className="flex-1 ml-6 flex justify-around text-center">
@@ -170,15 +170,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                 <div className="mt-6 space-y-6">
                     <div>
                         <div className="flex justify-between items-start">
-                            <p className={`font-semibold text-lg ${themeClasses.text} flex items-center`}>
+                            <p className={`font-semibold text-xl ${themeClasses.text} flex items-center`}>
                                 {currentUser.name}, {currentUser.age}
                                 {currentUser.isPremium && <VerifiedIcon className="ml-1.5 w-5 h-5" />}
                             </p>
-                            {/* Hotness Display instead of Level */}
                             <HotnessDisplay score={currentUser.hotnessScore || 0} />
                         </div>
                          {currentUser.aboutMe && (
-                            <p className={`${themeClasses.text} whitespace-pre-wrap mt-1 text-sm leading-relaxed`}>{currentUser.aboutMe}</p>
+                            <p className={`${themeClasses.text} whitespace-pre-wrap mt-2 text-sm leading-relaxed`}>{currentUser.aboutMe}</p>
                         )}
                     </div>
 
@@ -197,27 +196,30 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                     )}
                 </div>
 
-                <button 
-                    onClick={() => setIsWalletOpen(true)} 
-                    className={`w-full flex items-center justify-between p-3 mt-6 mb-4 ${themeClasses.bg} border ${themeClasses.border} rounded-xl shadow-sm transition-transform hover:scale-102 active:scale-98`}
-                >
-                    <div>
-                        <p className={`font-semibold ${themeClasses.text}`}>{t('wallet')}</p>
-                        <p className={`text-sm ${themeClasses.subtext}`}>{t('viewYourBalance')}</p>
-                    </div>
-                    <div className="flex items-center font-bold text-lg">
-                        <FlameIcon isGradient className="w-5 h-5 mr-2" />
-                        <span className={`${themeClasses.text}`}>{Number(currentUser.coins) || 0}</span>
-                    </div>
-                </button>
-
-                <button onClick={() => setIsEditing(true)} className={`w-full py-2.5 ${themeClasses.border} border rounded-xl font-semibold ${themeClasses.text} bg-transparent active:bg-gray-50 dark:active:bg-zinc-800 transition-colors`}>
-                    {t('editProfile')}
-                </button>
+                {/* UPDATED BUTTON LAYOUT: Side-by-Side, Clean White/Border Style */}
+                <div className="flex space-x-3 mt-8 mb-6">
+                    <button 
+                         onClick={() => setIsEditing(true)}
+                         className="flex-1 py-3 border-2 border-black dark:border-gray-500 rounded-xl font-semibold text-lg bg-white dark:bg-zinc-800 text-black dark:text-white shadow-sm active:scale-95 transition-transform"
+                    >
+                        {t('editProfile')}
+                    </button>
+                    
+                    <button 
+                        onClick={() => setIsWalletOpen(true)} 
+                        className="flex-1 flex items-center justify-center space-x-2 py-3 border-2 border-black dark:border-gray-500 rounded-xl bg-white dark:bg-zinc-800 text-black dark:text-white shadow-sm active:scale-95 transition-transform"
+                    >
+                        <span className="font-semibold text-lg">{t('wallet')}</span>
+                        <div className="flex items-center text-flame-orange font-bold">
+                             <FlameIcon isGradient className="w-5 h-5 mr-1" />
+                             <span>{Number(currentUser.coins) || 0}</span>
+                        </div>
+                    </button>
+                </div>
                 
-                <div className="grid grid-cols-3 gap-1 mt-6">
+                <div className="grid grid-cols-3 gap-1">
                     {posts.map(post => (
-                        <button key={post.id} onClick={() => setViewingPost(post)} className="aspect-square relative group overflow-hidden">
+                        <button key={post.id} onClick={() => setViewingPost(post)} className="aspect-square relative group overflow-hidden bg-gray-100 dark:bg-zinc-800">
                             <img src={post.mediaUrls[0]} alt="post" className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </button>

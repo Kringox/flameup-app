@@ -7,30 +7,33 @@ interface HotnessDisplayProps {
 }
 
 const HotnessDisplay: React.FC<HotnessDisplayProps> = ({ score, size = 'md' }) => {
+  // Ensure score is never negative for display
+  const displayScore = Math.max(0, score);
+  
   const sizeClasses = {
-    sm: 'text-xs px-2 py-1',
-    md: 'text-sm px-3 py-1.5',
-    lg: 'text-lg px-6 py-2',
+    sm: 'text-[10px] px-2 py-0.5',
+    md: 'text-sm px-3 py-1',
+    lg: 'text-lg px-5 py-1.5',
   };
 
   const getFireCount = () => {
-      if (score < 50) return '🔥';
-      if (score < 200) return '🔥🔥';
+      if (displayScore < 50) return '🔥';
+      if (displayScore < 200) return '🔥🔥';
       return '🔥🔥🔥';
   }
 
   return (
     <div className={`
       inline-flex items-center justify-center
-      bg-gradient-to-r from-flame-orange to-flame-red
-      text-white font-black italic tracking-wider
-      transform -skew-x-12
-      border-2 border-yellow-400/50 shadow-lg shadow-flame-orange/30
+      bg-gradient-to-r from-orange-400 to-red-500
+      text-white font-extrabold italic
+      shadow-md shadow-orange-500/30
+      rounded-lg transform -skew-x-3
+      border-b-2 border-red-700/20
       ${sizeClasses[size]}
-      rounded-lg
     `}>
-      <span className="not-italic mr-1">{getFireCount()}</span>
-      <span>HOTNESS {score || 0}</span>
+      <span className="not-italic mr-1 drop-shadow-sm">{getFireCount()}</span>
+      <span className="tracking-wider drop-shadow-md uppercase">HOTNESS {displayScore}</span>
     </div>
   );
 };

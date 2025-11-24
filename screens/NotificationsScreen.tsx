@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
-// FIX: Added file extension to types import
 import { User, Notification, NotificationType } from '../types.ts';
 import { db } from '../firebaseConfig';
 import { collection, query, orderBy, onSnapshot, doc, writeBatch } from 'firebase/firestore';
+import FlameIcon from '../components/icons/FlameIcon.tsx';
 
 const formatTimestamp = (timestamp: any): string => {
     if (!timestamp?.toDate) return 'now';
@@ -29,7 +30,25 @@ const NotificationRow: React.FC<{ notification: Notification; onClick: () => voi
             case NotificationType.Follow:
                 return <>started following you.</>;
             case NotificationType.Match:
-                return <>You have a new match!</>
+                return <>You have a new match!</>;
+            case NotificationType.Purchase:
+                return (
+                    <>
+                        unlocked your Flame Post! 
+                        <span className="ml-1 font-bold text-flame-orange flex items-center inline-flex">
+                            +{notification.coinsSpent} <FlameIcon className="w-3 h-3 ml-0.5" />
+                        </span>
+                    </>
+                );
+            case NotificationType.Subscribe:
+                return (
+                    <>
+                        subscribed to you!
+                        <span className="ml-1 font-bold text-flame-orange flex items-center inline-flex">
+                            +{notification.coinsSpent} <FlameIcon className="w-3 h-3 ml-0.5" />
+                        </span>
+                    </>
+                );
             default:
                 return null;
         }

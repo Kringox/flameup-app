@@ -14,6 +14,8 @@ export enum NotificationType {
     Follow = 'follow',
     Match = 'match',
     SuperLike = 'superlike',
+    Purchase = 'purchase',
+    Subscribe = 'subscribe',
 }
 
 export type RetentionPolicy = 'forever' | '5min' | 'read';
@@ -35,13 +37,17 @@ export interface User {
   
   // New System
   hotnessScore?: number;
+  
+  // Creator Economy
+  subscriptionPrice?: number; // Cost in coins to subscribe to this user
+  subscriptions?: string[]; // Array of user IDs this user is subscribed to
 
   // Legacy (kept for type safety during migration, but effectively unused logic-wise)
   xp: number;
   level: number;
   
   createdAt: Timestamp;
-  isPremium?: boolean;
+  isPremium?: boolean; // Legacy generic premium
   profileTheme?: 'default' | 'dusk' | 'rose';
   lastDailyBonus?: Timestamp;
   swipedLeft?: string[]; // array of user IDs
@@ -66,6 +72,12 @@ export interface Post {
     likedBy: string[]; // array of user IDs
     commentCount: number;
     timestamp: Timestamp;
+    
+    // Flame-Post Fields
+    isPaid?: boolean;
+    price?: number; // Cost in coins
+    unlockedBy?: string[]; // Array of user IDs who purchased this post
+
     user: { // denormalized user data
         id: string;
         name: string;
@@ -171,4 +183,5 @@ export interface Notification {
     commentText?: string;
     read: boolean;
     timestamp: Timestamp;
+    coinsSpent?: number; // Optional context for purchases
 }

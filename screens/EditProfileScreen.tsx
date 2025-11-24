@@ -1,11 +1,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-// FIX: Added file extension to types import
 import { User } from '../types.ts';
 import { uploadPhotos } from '../utils/photoUploader.ts';
 import { db } from '../firebaseConfig.ts';
 import { doc, updateDoc } from 'firebase/firestore';
 import { useI18n } from '../contexts/I18nContext.ts';
+import FlameIcon from '../components/icons/FlameIcon.tsx';
 
 
 interface EditProfileScreenProps {
@@ -19,6 +19,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
   const [aboutMe, setAboutMe] = useState(user.aboutMe || '');
   const [interests, setInterests] = useState(user.interests || '');
   const [lifestyle, setLifestyle] = useState(user.lifestyle || '');
+  const [subscriptionPrice, setSubscriptionPrice] = useState<number>(user.subscriptionPrice || 0);
   const [photos, setPhotos] = useState<(string | File)[]>([...user.profilePhotos]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([...user.profilePhotos]);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,6 +58,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
         interests,
         lifestyle,
         profilePhotos: finalPhotos,
+        subscriptionPrice: Number(subscriptionPrice),
       };
 
       await updateDoc(doc(db, 'users', user.id), updatedData);
@@ -151,6 +153,34 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Subscription Settings (Creator Economy) */}
+        <div className="mt-8 bg-white dark:bg-zinc-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-700">
+            <h2 className="text-lg font-bold text-flame-orange flex items-center mb-3">
+                <FlameIcon isGradient className="w-5 h-5 mr-2" />
+                Subscription Settings
+            </h2>
+            <div className="flex flex-col">
+                <label htmlFor="subscriptionPrice" className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                    Monthly Subscription Price (Coins)
+                </label>
+                <div className="flex items-center">
+                     <span className="mr-2 text-2xl">🔥</span>
+                     <input 
+                        type="number" 
+                        id="subscriptionPrice"
+                        value={subscriptionPrice}
+                        onChange={(e) => setSubscriptionPrice(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="flex-1 px-4 py-2 border border-gray-300 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-900 text-dark-gray dark:text-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-flame-orange"
+                        placeholder="0 for free"
+                        min="0"
+                    />
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                    Set a price in coins. Users who subscribe will unlock ALL your paid posts automatically. Set to 0 to disable subscriptions.
+                </p>
+            </div>
         </div>
 
         {/* Name */}
