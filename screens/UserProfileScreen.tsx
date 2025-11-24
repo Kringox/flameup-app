@@ -132,6 +132,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
     }
     
     const themeClass = THEME_CLASSES[user.profileTheme || 'default'] || THEME_CLASSES.default;
+    const isSubscribed = currentUser?.subscriptions?.includes(user.id);
 
     return (
         <div className={`absolute inset-0 ${themeClass.bg} z-[70] flex flex-col animate-slide-in`}>
@@ -222,12 +223,29 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                 </div>
                 
                 <div className="grid grid-cols-3 gap-1 mt-8">
-                    {posts.map(post => (
-                        <button key={post.id} onClick={() => setViewingPost(post)} className="aspect-square bg-gray-200 relative group overflow-hidden">
-                            <img src={post.mediaUrls[0]} alt="post" className="w-full h-full object-cover" />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                        </button>
-                    ))}
+                    {posts.map(post => {
+                        const isUnlocked = !post.isPaid || post.unlockedBy?.includes(currentUserId) || isSubscribed;
+                        
+                        return (
+                            <button key={post.id} onClick={() => setViewingPost(post)} className="aspect-square bg-gray-200 relative group overflow-hidden">
+                                <img 
+                                    src={post.mediaUrls[0]} 
+                                    alt="post" 
+                                    className={`w-full h-full object-cover transition-all duration-300 ${!isUnlocked ? 'filter blur-md scale-110 brightness-75' : ''}`} 
+                                />
+                                {!isUnlocked && (
+                                    <div className="absolute inset-0 flex items-center justify-center z-10">
+                                        <div className="bg-black/50 p-2 rounded-full backdrop-blur-sm">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
         </div>

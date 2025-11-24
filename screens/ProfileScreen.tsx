@@ -196,22 +196,33 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                     )}
                 </div>
 
-                {/* UPDATED BUTTON LAYOUT: Side-by-Side, Clean White/Border Style */}
+                {/* UPDATED BUTTON LAYOUT: Premium Styled Buttons */}
                 <div className="flex space-x-3 mt-8 mb-6">
                     <button 
                          onClick={() => setIsEditing(true)}
-                         className="flex-1 py-3 border-2 border-black dark:border-gray-500 rounded-xl font-semibold text-lg bg-white dark:bg-zinc-800 text-black dark:text-white shadow-sm active:scale-95 transition-transform"
+                         className="flex-1 py-3 px-4 rounded-2xl font-bold text-base
+                                    bg-gradient-to-br from-gray-100 to-gray-200 dark:from-zinc-800 dark:to-zinc-900 
+                                    text-gray-800 dark:text-gray-100 shadow-md 
+                                    border border-white/50 dark:border-zinc-700
+                                    active:scale-95 transition-all duration-200"
                     >
                         {t('editProfile')}
                     </button>
                     
                     <button 
                         onClick={() => setIsWalletOpen(true)} 
-                        className="flex-1 flex items-center justify-center space-x-2 py-3 border-2 border-black dark:border-gray-500 rounded-xl bg-white dark:bg-zinc-800 text-black dark:text-white shadow-sm active:scale-95 transition-transform"
+                        className="flex-1 flex items-center justify-center space-x-2 py-3 px-4 rounded-2xl 
+                                   bg-gradient-to-r from-gray-900 to-black dark:from-gray-100 dark:to-white 
+                                   text-white dark:text-black shadow-lg shadow-black/10
+                                   border border-transparent
+                                   active:scale-95 transition-all duration-200 relative overflow-hidden group"
                     >
-                        <span className="font-semibold text-lg">{t('wallet')}</span>
-                        <div className="flex items-center text-flame-orange font-bold">
-                             <FlameIcon isGradient className="w-5 h-5 mr-1" />
+                         {/* Subtle shine effect */}
+                        <div className="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 group-hover:animate-[shimmer_1.5s_infinite]" />
+                        
+                        <span className="font-bold text-base relative z-10">{t('wallet')}</span>
+                        <div className="flex items-center text-flame-orange font-extrabold relative z-10 bg-white dark:bg-black px-2 py-0.5 rounded-full text-sm">
+                             <FlameIcon isGradient className="w-3.5 h-3.5 mr-1" />
                              <span>{Number(currentUser.coins) || 0}</span>
                         </div>
                     </button>
@@ -220,7 +231,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                 <div className="grid grid-cols-3 gap-1">
                     {posts.map(post => (
                         <button key={post.id} onClick={() => setViewingPost(post)} className="aspect-square relative group overflow-hidden bg-gray-100 dark:bg-zinc-800">
-                            <img src={post.mediaUrls[0]} alt="post" className="w-full h-full object-cover" />
+                            <img 
+                                src={post.mediaUrls[0]} 
+                                alt="post" 
+                                className={`w-full h-full object-cover transition-all duration-300 ${post.isPaid ? 'border-2 border-flame-orange/50' : ''}`} 
+                            />
+                            {post.isPaid && (
+                                <div className="absolute top-1 right-1 bg-flame-orange text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm">
+                                    PAID
+                                </div>
+                            )}
                             <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </button>
                     ))}

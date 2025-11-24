@@ -362,41 +362,45 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
         )}
       </div>
 
-      <div className="relative">
+      <div className="relative overflow-hidden bg-gray-100 dark:bg-zinc-900">
           <img 
-            className={`w-full h-auto object-cover transition-all duration-500 ${isLocked ? 'blur-xl scale-105 contrast-50' : ''}`} 
+            className={`w-full h-auto object-cover transition-all duration-700 ${isLocked ? 'blur-2xl scale-110 brightness-75 contrast-125' : ''}`} 
             src={post.mediaUrls[0]} 
             alt="Post content" 
           />
           
           {isLocked && (
-              <div className="absolute inset-0 z-10 flex flex-col justify-center items-center p-6 bg-black/20">
-                  <div className="bg-white/90 dark:bg-black/80 backdrop-blur-md p-6 rounded-2xl shadow-2xl text-center w-full max-w-sm border border-white/20">
-                      <div className="w-12 h-12 bg-flame-orange rounded-full flex items-center justify-center mx-auto mb-3 text-white shadow-lg shadow-flame-orange/40">
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+              <div className="absolute inset-0 z-10 flex flex-col justify-end p-6 bg-gradient-to-t from-black/80 via-black/20 to-transparent">
+                  <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20 text-center shadow-xl">
+                      <div className="w-10 h-10 bg-flame-orange rounded-full flex items-center justify-center mx-auto mb-2 text-white shadow-lg shadow-flame-orange/40">
+                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
                             <path fillRule="evenodd" d="M12 1.5a5.25 5.25 0 00-5.25 5.25v3a3 3 0 00-3 3v6.75a3 3 0 003 3h10.5a3 3 0 003-3v-6.75a3 3 0 00-3-3v-3c0-2.9-2.35-5.25-5.25-5.25zm3.75 8.25v-3a3.75 3.75 0 10-7.5 0v3h7.5z" clipRule="evenodd" />
                         </svg>
                       </div>
-                      <h3 className="text-xl font-bold dark:text-white mb-1">Flame Post</h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
-                          This content is exclusive. Unlock it now to see what's hidden.
+                      <h3 className="text-white font-black uppercase tracking-wider text-sm mb-1">Exclusive Content</h3>
+                      <p className="text-xs text-gray-200 mb-4 opacity-90">
+                          Unlock to see what's hidden behind the blur.
                       </p>
 
                       <button 
                         onClick={handleUnlockPost}
                         disabled={isProcessingTransaction}
-                        className="w-full py-3 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold rounded-xl shadow-lg transform hover:scale-105 transition-transform flex justify-center items-center"
+                        className="w-full py-2.5 bg-gradient-to-r from-flame-orange to-red-600 text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform flex justify-center items-center gap-2"
                       >
-                          {isProcessingTransaction ? 'Processing...' : `Unlock for ${post.price} Coins`}
+                          {isProcessingTransaction ? 'Processing...' : (
+                            <>
+                                <span>Unlock</span>
+                                <span className="bg-white/20 px-1.5 py-0.5 rounded text-xs">{post.price} Coins</span>
+                            </>
+                          )}
                       </button>
 
                       {posterSubscriptionPrice && posterSubscriptionPrice > 0 && (
-                          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                              <p className="text-xs text-gray-500 mb-2">OR</p>
+                          <div className="mt-3">
                               <button 
                                 onClick={handleSubscribe}
                                 disabled={isProcessingTransaction}
-                                className="w-full py-2 bg-gray-800 dark:bg-white text-white dark:text-black font-bold rounded-xl text-sm"
+                                className="w-full py-2 bg-white/20 text-white font-semibold rounded-xl text-xs hover:bg-white/30 transition-colors"
                               >
                                   Subscribe for {posterSubscriptionPrice} Coins/mo
                               </button>
