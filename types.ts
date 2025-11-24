@@ -99,7 +99,9 @@ export interface Message {
     mediaUrl?: string;
     mediaType?: 'image' | 'video';
     isViewOnce?: boolean;
-    viewedAt?: Timestamp; // For View Once logic
+    viewedAt?: Timestamp; // For View Once logic and Retention Logic
+    isSaved?: boolean; // For saving messages in Snapchat style
+    isSystemMessage?: boolean; // For status updates like changing retention policy
 
     reactions?: { [key: string]: string[] }; // emoji: array of user IDs
     replyTo?: {

@@ -6,12 +6,14 @@ import { User, Message, Chat, Gift, RetentionPolicy } from '../types.ts';
 import MoreVerticalIcon from '../components/icons/MoreVerticalIcon.tsx';
 import GiftIcon from '../components/icons/GiftIcon.tsx';
 import CameraIcon from '../components/icons/CameraIcon.tsx';
-import FlameIcon from '../components/icons/FlameIcon.tsx';
+import MicIcon from '../components/icons/MicIcon.tsx';
+import GalleryIcon from '../components/icons/GalleryIcon.tsx';
 import ChatOptionsModal from '../components/ChatOptionsModal.tsx';
 import ReportModal from '../components/ReportModal.tsx';
 import GiftModal from '../components/GiftModal.tsx';
 import FlameLoader from '../components/FlameLoader.tsx';
 import ViewOnceMedia from '../components/ViewOnceMedia.tsx';
+import ChatCamera from '../components/ChatCamera.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
 import { uploadPhotos } from '../utils/photoUploader.ts';
 
@@ -32,15 +34,57 @@ const ReplyPreview: React.FC<{ messageText: string, senderName: string, onCancel
     );
 };
 
-const MessageBubble: React.FC<{ message: Message, isOwnMessage: boolean, onLongPress: (e: React.MouseEvent, msg: Message) => void, onViewMedia: (msgId: string) => void }> = ({ message, isOwnMessage, onLongPress, onViewMedia }) => {
+const MessageBubble: React.FC<{ 
+    message: Message, 
+    isOwnMessage: boolean, 
+    onLongPress: (e: React.MouseEvent, msg: Message) => void, 
+    onViewMedia: (msgId: string) => void,
+    onToggleSave: (msg: Message) => void,
+}> = ({ message, isOwnMessage, onLongPress, onViewMedia, onToggleSave }) => {
+    
+    // Handle System Messages (e.g. "User changed settings")
+    if (message.isSystemMessage) {
+        return (
+            <div className="flex justify-center my-3">
+                <div className="bg-gray-100 dark:bg-zinc-800 px-3 py-1 rounded-full border border-gray-200 dark:border-zinc-700">
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 text-center">
+                        {message.text}
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
     // Determine bubble styling
     const isMedia = !!message.mediaUrl;
     const isViewOnce = !!message.isViewOnce;
+    const isSaved = !!message.isSaved;
     
-    const bubbleClass = isOwnMessage 
-        ? 'bg-flame-orange text-white self-end rounded-2xl rounded-tr-sm' 
-        : 'bg-white dark:bg-zinc-800 text-dark-gray dark:text-gray-200 self-start rounded-2xl rounded-tl-sm border border-gray-100 dark:border-zinc-700 shadow-sm';
+    // Base styles
+    let bubbleClass = isOwnMessage 
+        ? 'self-end rounded-2xl rounded-tr-sm ' 
+        : 'self-start rounded-2xl rounded-tl-sm ';
     
+    // Color logic based on "Saved" status
+    if (isSaved) {
+        // Saved state: distinct look (grayish background usually)
+        bubbleClass += 'bg-gray-200 dark:bg-zinc-700 text-dark-gray dark:text-gray-200 border-l-4 border-flame-orange ';
+    } else {
+        // Default State
+        bubbleClass += isOwnMessage 
+            ? 'bg-flame-orange text-white ' 
+            : 'bg-white dark:bg-zinc-800 text-dark-gray dark:text-gray-200 border border-gray-100 dark:border-zinc-700 shadow-sm ';
+    }
+
+    const handleClick = (e: React.MouseEvent) => {
+        // Prevent saving if clicking on media that handles its own click
+        if (isMedia) {
+             // For View Once, the component handles clicks. For permanent media, allow saving?
+             // Let's allow saving by tapping the bubble container area or text, but viewing media takes precedence.
+        }
+        onToggleSave(message);
+    };
+
     // Check if viewed
     const viewed = !!message.viewedAt;
 
@@ -66,10 +110,14 @@ const MessageBubble: React.FC<{ message: Message, isOwnMessage: boolean, onLongP
     );
     
     return (
-        <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} my-0.5 group`}>
-            <div onContextMenu={(e) => onLongPress(e, message)} className={`relative max-w-[75%] md:max-w-[60%] ${isMedia && !isViewOnce ? 'p-1' : 'px-4 py-2'} ${bubbleClass}`}>
+        <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} my-0.5 group transition-all duration-200`}>
+            <div 
+                onContextMenu={(e) => onLongPress(e, message)} 
+                onClick={handleClick}
+                className={`relative max-w-[75%] md:max-w-[60%] cursor-pointer ${isMedia && !isViewOnce ? 'p-1' : 'px-4 py-2'} ${bubbleClass}`}
+            >
                 {message.replyTo && (
-                    <div className={`p-2 rounded-lg mb-1 text-xs border-l-2 ${isOwnMessage ? 'bg-black/10 border-white/50' : 'bg-gray-100 dark:bg-zinc-700 border-flame-orange'}`}>
+                    <div className={`p-2 rounded-lg mb-1 text-xs border-l-2 ${isOwnMessage && !isSaved ? 'bg-black/10 border-white/50' : 'bg-gray-100 dark:bg-zinc-700 border-flame-orange'}`}>
                         <p className="font-bold opacity-80">{message.replyTo.senderName}</p>
                         <p className="opacity-70 truncate">{message.replyTo.text || 'Media'}</p>
                     </div>
@@ -77,25 +125,31 @@ const MessageBubble: React.FC<{ message: Message, isOwnMessage: boolean, onLongP
                 
                 {isMedia ? (
                     isViewOnce ? (
-                        <ViewOnceMedia 
-                            mediaUrl={message.mediaUrl!} 
-                            mediaType={message.mediaType || 'image'} 
-                            isSender={isOwnMessage}
-                            viewed={viewed}
-                            onView={() => onViewMedia(message.id)}
-                        />
+                        <div onClick={(e) => e.stopPropagation()}>
+                            <ViewOnceMedia 
+                                mediaUrl={message.mediaUrl!} 
+                                mediaType={message.mediaType || 'image'} 
+                                isSender={isOwnMessage}
+                                viewed={viewed}
+                                onView={() => onViewMedia(message.id)}
+                            />
+                        </div>
                     ) : (
                         <div className="rounded-xl overflow-hidden">
                              {message.mediaType === 'video' ? (
-                                 <video src={message.mediaUrl} controls className="max-h-64 w-full object-cover" />
+                                 <video src={message.mediaUrl} controls className="max-h-64 w-full object-cover" onClick={(e) => e.stopPropagation()} />
                              ) : (
                                  <img src={message.mediaUrl} alt="sent media" className="max-h-64 w-full object-cover" />
                              )}
-                             {message.text && <p className={`mt-2 text-sm px-2 pb-1 ${isOwnMessage ? 'text-white' : 'text-gray-800 dark:text-gray-200'}`}>{message.text}</p>}
+                             {message.text && <p className={`mt-2 text-sm px-2 pb-1 ${isOwnMessage && !isSaved ? 'text-white' : 'text-gray-800 dark:text-gray-200'}`}>{message.text}</p>}
                         </div>
                     )
                 ) : (
                     <p className="text-[15px] leading-relaxed break-words">{message.text}</p>
+                )}
+                
+                {isSaved && (
+                    <span className="text-[10px] font-bold uppercase opacity-50 block mt-1">Saved</span>
                 )}
             </div>
             
@@ -169,11 +223,9 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const [replyingTo, setReplyingTo] = useState<Message | null>(null);
     const [contextMenu, setContextMenu] = useState<{ message: Message; position: { x: number; y: number } } | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
+    const [isCameraOpen, setIsCameraOpen] = useState(false);
     
     // Media States
-    const [mediaFile, setMediaFile] = useState<File | null>(null);
-    const [mediaPreview, setMediaPreview] = useState<string | null>(null);
-    const [isViewOnce, setIsViewOnce] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Initial Load: Partner & Chat
@@ -225,43 +277,61 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
             const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
             setMessages(msgs);
+            
+            // Mark unread messages as viewed if I am the recipient
+            const unreadByMe = msgs.filter(m => m.senderId !== currentUser.id && !m.viewedAt && !m.isSystemMessage);
+            if (unreadByMe.length > 0) {
+                const batchUpdates = unreadByMe.map(m => updateDoc(doc(db, 'chats', chatId, 'messages', m.id), { viewedAt: serverTimestamp() }));
+                // We fire and forget these updates
+                Promise.all(batchUpdates).catch(e => console.error("Error marking viewed:", e));
+            }
         });
         return () => unsubscribe();
-    }, [chatId]);
+    }, [chatId, currentUser.id]);
     
     // Client-side filtering logic for retention
     useEffect(() => {
-        if (!messages.length) {
-            setFilteredMessages([]);
-            return;
-        }
-
         const now = Date.now();
+        
         const validMessages = messages.filter(msg => {
-            // Recalled messages are usually kept as placeholders
+            // Recalled messages placeholder
             if (msg.isRecalled) return true;
+            
+            // Saved messages are ALWAYS kept
+            if (msg.isSaved) return true;
+            
+            // System messages are kept for context, or we could expire them too. keeping for context.
+            if (msg.isSystemMessage) return true;
 
             // Retention: 5 minutes
             if (retentionPolicy === '5min') {
-                if (!msg.timestamp) return true; // optimistic update case
-                const msgTime = msg.timestamp.toDate().getTime();
-                return (now - msgTime) < 5 * 60 * 1000;
+                if (!msg.viewedAt) return true; // Not viewed yet, keep it.
+                // If viewed, check time diff
+                const viewTime = msg.viewedAt.toDate().getTime();
+                return (now - viewTime) < 5 * 60 * 1000;
             }
-
-            // Retention: Read (Simple Implementation: Hide if viewedAt is set and msg is older than 10s to allow viewing animation)
-            // Or strict: Hide immediately if viewed.
-            // In Snapchat, they disappear after navigating away. Here we can simulate it.
-            // For now, we only hide View Once media that has been viewed.
-            // Text messages with "delete after read" policy requires complex "seen" logic per message.
-            // We'll stick to '5min' being the main auto-delete for text, and 'viewOnce' for media.
             
             return true;
         });
         
         setFilteredMessages(validMessages);
-        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        
+        // Auto-scroll logic
+        if (messages.length > 0) {
+           setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        }
 
     }, [messages, retentionPolicy]);
+    
+    // Re-run filter periodically to hide expired messages without needing a db update
+    useEffect(() => {
+        if (retentionPolicy !== '5min') return;
+        const interval = setInterval(() => {
+             // Force re-render of filter
+             setMessages(prev => [...prev]);
+        }, 10000); // Check every 10 seconds
+        return () => clearInterval(interval);
+    }, [retentionPolicy]);
 
     const getOrCreateChat = async (): Promise<string> => {
         if (chatId) return chatId;
@@ -290,54 +360,35 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         return newChatRef.id;
     };
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setMediaFile(file);
-            setMediaPreview(URL.createObjectURL(file));
-        }
-    };
-
-    const clearMedia = () => {
-        setMediaFile(null);
-        setMediaPreview(null);
-        setIsViewOnce(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-
-    const handleSendMessage = async () => {
-        if ((!newMessage.trim() && !mediaFile) || !db || !partner || isSending) return;
+    const handleSendMessage = async (customText?: string, mediaFile?: File, mediaType?: 'image' | 'video', isViewOnce?: boolean) => {
+        if ((!newMessage.trim() && !customText && !mediaFile) || !db || !partner || isSending) return;
         setIsSending(true);
         
-        const text = newMessage.trim();
+        const textToSend = customText !== undefined ? customText : newMessage.trim();
         const replyContext = replyingTo ? { messageId: replyingTo.id, senderName: replyingTo.senderId === currentUser.id ? currentUser.name : partner.name, text: replyingTo.text || 'Media' } : null;
         
-        // Reset UI immediately
+        // Reset UI
         setNewMessage('');
         setReplyingTo(null);
-        const currentMediaFile = mediaFile;
-        const currentIsViewOnce = isViewOnce;
-        clearMedia();
 
         try {
             const currentChatId = await getOrCreateChat();
             let mediaUrl = '';
-            let mediaType: 'image' | 'video' | undefined;
 
-            if (currentMediaFile) {
-                const urls = await uploadPhotos([currentMediaFile]);
+            if (mediaFile) {
+                const urls = await uploadPhotos([mediaFile]);
                 mediaUrl = urls[0];
-                mediaType = currentMediaFile.type.startsWith('video') ? 'video' : 'image';
             }
 
             const messagePayload: any = {
                 chatId: currentChatId,
                 senderId: currentUser.id,
-                text,
+                text: textToSend,
                 timestamp: serverTimestamp(),
                 mediaUrl: mediaUrl || null,
                 mediaType: mediaType || null,
-                isViewOnce: currentIsViewOnce
+                isViewOnce: !!isViewOnce,
+                isSaved: false // New messages start unsaved
             };
             
             if (replyContext) messagePayload.replyTo = replyContext;
@@ -345,8 +396,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             await addDoc(collection(db, 'chats', currentChatId, 'messages'), messagePayload);
             
             // Update last message
-            let lastMsgText = text;
-            if (mediaUrl) lastMsgText = currentIsViewOnce ? '📷 View Once Media' : '📷 Media';
+            let lastMsgText = textToSend;
+            if (mediaUrl) lastMsgText = isViewOnce ? '📷 View Once Media' : '📷 Media';
 
             await updateDoc(doc(db, 'chats', currentChatId), {
                 lastMessage: { text: lastMsgText, senderId: currentUser.id, timestamp: serverTimestamp() },
@@ -363,23 +414,56 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     // View Once Logic
     const handleViewMedia = async (msgId: string) => {
         if (!chatId || !db) return;
-        // Optimistic update locally? 
-        // Real implementation relies on Firestore update
         const msgRef = doc(db, 'chats', chatId, 'messages', msgId);
         await updateDoc(msgRef, {
             viewedAt: serverTimestamp()
         });
     };
-
-    // Chat Settings
-    const updateRetention = async (policy: RetentionPolicy) => {
+    
+    const handleToggleSave = async (msg: Message) => {
         if (!chatId || !db) return;
-        setRetentionPolicy(policy); // Optimistic
-        await updateDoc(doc(db, 'chats', chatId), { retentionPolicy: policy });
+        const msgRef = doc(db, 'chats', chatId, 'messages', msg.id);
+        // Toggle saved status
+        await updateDoc(msgRef, { isSaved: !msg.isSaved });
     };
 
-    // ... Standard actions (Gift, Block, Report, Delete, Recall, React) ...
-    const handleSendGift = async (gift: Gift) => { /* Same as before but adapted */
+    const updateRetention = async (policy: RetentionPolicy) => {
+        if (!chatId || !db) return;
+        
+        // 1. Update the chat document (Applies to both users via listener)
+        setRetentionPolicy(policy); // Optimistic
+        await updateDoc(doc(db, 'chats', chatId), { retentionPolicy: policy });
+        
+        // 2. Send a system message to notify both users
+        let policyText = 'Messages are kept forever';
+        if (policy === '5min') policyText = 'Messages expire 5 minutes after reading';
+        if (policy === 'read') policyText = 'Messages expire immediately after reading';
+
+        await addDoc(collection(db, 'chats', chatId, 'messages'), {
+            chatId: chatId,
+            senderId: currentUser.id, // Needed for permission rules
+            text: `${currentUser.name} set chat to: ${policyText}`,
+            timestamp: serverTimestamp(),
+            isSystemMessage: true
+        });
+    };
+
+    const handleCameraCapture = (file: File, type: 'image' | 'video') => {
+        // Camera captures are View Once by default
+        handleSendMessage('', file, type, true);
+    };
+
+    const handleGallerySelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            const type = file.type.startsWith('video') ? 'video' : 'image';
+            // Gallery uploads are PERMANENT by default (viewOnce = false)
+            handleSendMessage('', file, type, false);
+        }
+    };
+
+    // ... Standard actions ...
+    const handleSendGift = async (gift: Gift) => { 
          const currentCoins = Number(currentUser.coins) || 0;
         if (!db || !partner || isSending || currentCoins < gift.cost) return;
         setIsSending(true);
@@ -445,6 +529,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             {isOptionsOpen && <ChatOptionsModal onClose={() => setIsOptionsOpen(false)} onViewProfile={() => { setIsOptionsOpen(false); onViewProfile(partner.id); }} onReport={() => setIsReportOpen(true)} onBlock={handleBlock} onDeleteChat={handleDeleteChat} currentRetention={retentionPolicy} onUpdateRetention={updateRetention} />}
             {isReportOpen && <ReportModal reportedUser={partner} onClose={() => setIsReportOpen(false)} onSubmit={handleReport} />}
             {isGiftModalOpen && <GiftModal onClose={() => setIsGiftModalOpen(false)} currentUser={currentUser} onSendGift={handleSendGift}/>}
+            {isCameraOpen && <ChatCamera onClose={() => setIsCameraOpen(false)} onCapture={handleCameraCapture} />}
             
             {/* Header */}
             <header className="flex items-center px-4 py-3 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 backdrop-blur-md sticky top-0 z-20">
@@ -480,7 +565,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             </header>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 flex flex-col space-y-2 bg-[#efeae2] dark:bg-black/50">
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col space-y-1 bg-[#efeae2] dark:bg-black/50">
                 {filteredMessages.map(msg => (
                     <MessageBubble 
                         key={msg.id} 
@@ -488,64 +573,53 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                         isOwnMessage={msg.senderId === currentUser.id} 
                         onLongPress={(e, m) => { e.preventDefault(); setContextMenu({ message: m, position: { x: e.clientX, y: e.clientY } }); }}
                         onViewMedia={handleViewMedia}
+                        onToggleSave={handleToggleSave}
                     />
                 ))}
                 <div ref={messagesEndRef} />
             </div>
             
-            {/* Input Area */}
-            <div className="bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800">
+            {/* Input Area - Snapchat Style */}
+            <div className="bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 pb-safe">
                 {replyingTo && <ReplyPreview messageText={replyingTo.text} senderName={replyingTo.senderId === currentUser.id ? 'You' : partner.name} onCancel={() => setReplyingTo(null)} />}
                 
-                {mediaPreview && (
-                    <div className="p-2 px-4 flex items-center justify-between bg-gray-100 dark:bg-zinc-800">
-                        <div className="flex items-center overflow-hidden">
-                             <img src={mediaPreview} alt="preview" className="h-12 w-12 object-cover rounded-md mr-3 border border-gray-300 dark:border-zinc-600" />
-                             <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Attached Media</span>
-                        </div>
-                        <button onClick={clearMedia} className="bg-gray-200 dark:bg-zinc-600 rounded-full p-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                        </button>
-                    </div>
-                )}
-
-                <div className="p-2 flex items-end space-x-2">
-                    <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*,video/*" />
+                <div className="flex items-end space-x-2 p-2 px-3">
+                    {/* Camera Button */}
                     <button 
-                        onClick={() => fileInputRef.current?.click()} 
-                        className={`p-3 rounded-full transition-colors ${mediaPreview ? 'bg-flame-orange text-white' : 'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400'}`}
+                        onClick={() => setIsCameraOpen(true)}
+                        className="p-2 bg-gray-100 dark:bg-zinc-800 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors"
                     >
                         <CameraIcon className="w-6 h-6" />
                     </button>
 
-                    <div className="flex-1 bg-gray-100 dark:bg-zinc-800 rounded-2xl flex items-center p-1 pr-2">
+                    {/* Input Field + Gallery Icon */}
+                    <div className="flex-1 bg-gray-100 dark:bg-zinc-800 rounded-2xl flex items-center relative">
+                        <input type="file" ref={fileInputRef} onChange={handleGallerySelect} className="hidden" accept="image/*,video/*" />
                         <textarea
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
-                            placeholder="Message..."
-                            className="flex-1 bg-transparent border-none focus:outline-none px-3 py-2.5 max-h-32 resize-none dark:text-gray-200 text-sm"
+                            placeholder="Chat"
+                            className="flex-1 bg-transparent border-none focus:outline-none px-4 py-3 max-h-32 resize-none dark:text-gray-200 text-base"
                             rows={1}
                             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
                         />
-                        {mediaPreview && (
-                            <button 
-                                onClick={() => setIsViewOnce(!isViewOnce)} 
-                                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs border transition-colors ${isViewOnce ? 'bg-flame-orange border-flame-orange text-white' : 'border-gray-400 text-gray-400'}`}
-                            >
-                                1
-                            </button>
-                        )}
+                        <button 
+                            onClick={() => fileInputRef.current?.click()}
+                            className="p-2 mr-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                        >
+                            <GalleryIcon className="w-6 h-6" />
+                        </button>
                     </div>
 
+                    {/* Mic Button (Logic placeholder for recording) */}
                     <button 
-                        onClick={handleSendMessage} 
-                        disabled={(!newMessage.trim() && !mediaFile) || isSending} 
-                        className={`p-3 rounded-full transition-all ${(!newMessage.trim() && !mediaFile) ? 'bg-gray-200 dark:bg-zinc-800 text-gray-400' : 'bg-flame-orange text-white shadow-md transform hover:scale-105'}`}
+                        className={`p-3 rounded-full transition-all ${newMessage.trim() ? 'bg-flame-orange text-white' : 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300'}`}
+                        onClick={() => newMessage.trim() ? handleSendMessage() : null}
                     >
-                        {isSending ? (
-                             <div className="w-6 h-6 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                        {newMessage.trim() ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-0.5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
                         ) : (
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 ml-0.5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
+                             <MicIcon className="w-5 h-5" />
                         )}
                     </button>
                 </div>
