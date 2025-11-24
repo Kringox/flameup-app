@@ -1,0 +1,21 @@
+{
+  "short_name": "FlameUp",
+  "name": "FlameUp: Dating & Social",
+  "icons": [
+    {
+      "src": "/assets/logo-icon.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/assets/logo-icon.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#FF6B35",
+  "background_color": "#000000",
+  "orientation": "portrait"
+}
