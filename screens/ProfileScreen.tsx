@@ -18,11 +18,13 @@ import { useI18n } from '../contexts/I18nContext.ts';
 
 const THEME_CLASSES: { [key: string]: { bg: string; text: string; subtext: string; border: string; }} = {
     default: { bg: 'bg-white dark:bg-black', text: 'text-dark-gray dark:text-gray-200', subtext: 'text-gray-500 dark:text-gray-400', border: 'border-gray-200 dark:border-gray-800' },
+    ocean: { bg: 'bg-blue-50 dark:bg-slate-900', text: 'text-blue-900 dark:text-blue-100', subtext: 'text-blue-600 dark:text-blue-400', border: 'border-blue-200 dark:border-blue-800' },
     dusk: { bg: 'bg-theme-dusk-bg', text: 'text-theme-dusk-text', subtext: 'text-gray-400', border: 'border-gray-700' },
     rose: { bg: 'bg-theme-rose-bg', text: 'text-theme-rose-text', subtext: 'text-pink-200', border: 'border-pink-300' },
 }
 
 type Theme = 'light' | 'dark' | 'system';
+type AppTint = 'default' | 'ocean' | 'rose' | 'dusk';
 
 interface ProfileScreenProps {
   currentUser: User;
@@ -30,6 +32,8 @@ interface ProfileScreenProps {
   onViewProfile: (userId: string) => void;
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  localTint: AppTint;
+  setLocalTint: (tint: AppTint) => void;
 }
 
 // Helper to assign icons based on keywords
@@ -73,7 +77,7 @@ const ChipList: React.FC<{ items: string, themeClasses: any }> = ({ items, theme
     );
 }
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser, onViewProfile, theme, setTheme }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser, onViewProfile, theme, setTheme, localTint, setLocalTint }) => {
     const [posts, setPosts] = useState<Post[]>([]);
     const [isEditing, setIsEditing] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -121,12 +125,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
         setViewingPost(updatedPost);
     };
     
-    const themeClasses = THEME_CLASSES[currentUser.profileTheme || 'default'] || THEME_CLASSES.default;
+    const themeClasses = THEME_CLASSES[localTint || 'default'] || THEME_CLASSES.default;
 
     return (
         <div className={`w-full h-full flex flex-col ${themeClasses.bg}`}>
             {isEditing && <EditProfileScreen user={currentUser} onSave={handleSaveProfile} onClose={() => setIsEditing(false)} />}
-            {isSettingsOpen && <SettingsScreen user={currentUser} onClose={() => setIsSettingsOpen(false)} onUpdateUser={onUpdateUser} theme={theme} setTheme={setTheme} />}
+            {isSettingsOpen && <SettingsScreen user={currentUser} onClose={() => setIsSettingsOpen(false)} onUpdateUser={onUpdateUser} theme={theme} setTheme={setTheme} localTint={localTint} setLocalTint={setLocalTint} />}
             {isWalletOpen && <WalletScreen user={currentUser} onClose={() => setIsWalletOpen(false)} onUpdateUser={onUpdateUser} />}
             {viewingFollowList && <FollowListScreen title={viewingFollowList === 'followers' ? 'Followers' : 'Following'} userIds={currentUser[viewingFollowList]} currentUser={currentUser} onClose={() => setViewingFollowList(null)} onViewProfile={onViewProfile} />}
             {viewingPost && <PostDetailView post={viewingPost} currentUser={currentUser} onClose={() => setViewingPost(null)} onPostDeleted={handlePostDeleted} onPostUpdated={handlePostUpdated} onOpenComments={() => {}} />}

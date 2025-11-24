@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 // FIX: Added file extension to types import
 import { Story, User } from '../types.ts';
 import HeartIcon from './icons/HeartIcon.tsx';
 import { db } from '../firebaseConfig.ts';
 import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import PlusIcon from './icons/PlusIcon.tsx';
 
 
 interface StoryViewerProps {
@@ -12,9 +14,10 @@ interface StoryViewerProps {
     startIndex?: number;
     onClose: () => void;
     onStoryViewed: (storyId: string) => void;
+    onAddStory?: () => void;
 }
 
-const StoryViewer: React.FC<StoryViewerProps> = ({ stories, currentUser, startIndex = 0, onClose, onStoryViewed }) => {
+const StoryViewer: React.FC<StoryViewerProps> = ({ stories, currentUser, startIndex = 0, onClose, onStoryViewed, onAddStory }) => {
     const [currentIndex, setCurrentIndex] = useState(startIndex);
     const [progress, setProgress] = useState(0);
     const [isLiked, setIsLiked] = useState(false);
@@ -93,6 +96,7 @@ const StoryViewer: React.FC<StoryViewerProps> = ({ stories, currentUser, startIn
     }
 
     const storyUser = currentStory.user;
+    const isOwnStory = storyUser.id === currentUser.id;
 
     return (
         <div className="absolute inset-0 bg-black z-[100] flex flex-col justify-center animate-fade-in">
@@ -111,6 +115,11 @@ const StoryViewer: React.FC<StoryViewerProps> = ({ stories, currentUser, startIn
                     <div className="flex items-center">
                         <img src={storyUser.profilePhoto} alt={storyUser.name} className="w-8 h-8 rounded-full" />
                         <span className="text-white font-semibold ml-2">{storyUser.name}</span>
+                        {isOwnStory && onAddStory && (
+                            <button onClick={onAddStory} className="ml-2 bg-white/20 rounded-full p-1 text-white hover:bg-white/30">
+                                <PlusIcon className="w-4 h-4" />
+                            </button>
+                        )}
                     </div>
                     <button onClick={onClose} className="text-white">
                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>

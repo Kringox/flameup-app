@@ -1,8 +1,8 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 // FIX: Added file extension to types import
 import { User } from '../types.ts';
 import { uploadPhotos } from '../utils/photoUploader.ts';
-import SparklesIcon from '../components/icons/SparklesIcon.tsx';
 import { db } from '../firebaseConfig.ts';
 import { doc, updateDoc } from 'firebase/firestore';
 import { useI18n } from '../contexts/I18nContext.ts';
@@ -14,13 +14,6 @@ interface EditProfileScreenProps {
   onClose: () => void;
 }
 
-// FIX: Add 'as const' to infer literal types for theme IDs, satisfying the 't' function's type requirements.
-const THEMES = [
-    { id: 'default', name: 'Default', bg: 'bg-white', text: 'text-dark-gray', border: 'border-flame-orange' },
-    { id: 'dusk', name: 'Dusk', bg: 'bg-theme-dusk-bg', text: 'text-theme-dusk-text', border: 'border-gray-500' },
-    { id: 'rose', name: 'Rosé', bg: 'bg-theme-rose-bg', text: 'text-theme-rose-text', border: 'border-pink-300' },
-] as const;
-
 const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onClose }) => {
   const [name, setName] = useState(user.name);
   const [aboutMe, setAboutMe] = useState(user.aboutMe || '');
@@ -29,7 +22,6 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
   const [photos, setPhotos] = useState<(string | File)[]>([...user.profilePhotos]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([...user.profilePhotos]);
   const [isLoading, setIsLoading] = useState(false);
-  const [profileTheme, setProfileTheme] = useState(user.profileTheme || 'default');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { t } = useI18n();
   
@@ -65,7 +57,6 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
         interests,
         lifestyle,
         profilePhotos: finalPhotos,
-        profileTheme,
       };
 
       await updateDoc(doc(db, 'users', user.id), updatedData);
@@ -217,28 +208,6 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onSave, onC
           />
            <p className="text-right text-sm text-gray-400 mt-1">{lifestyle.length} / 300</p>
         </div>
-
-        {/* Profile Themes (Premium) */}
-        {user.isPremium && (
-            <div className="mt-6">
-                <div className="flex items-center space-x-2 mb-2">
-                    <SparklesIcon className="w-5 h-5 text-premium-gold" />
-                    <h2 className="text-md font-semibold text-gray-500 dark:text-gray-400">{t('customizeProfile')}</h2>
-                </div>
-                <div className="p-3 bg-white dark:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700">
-                    <h3 className="text-sm font-semibold mb-2 dark:text-gray-200">{t('profileTheme')}</h3>
-                    <div className="flex space-x-2">
-                        {THEMES.map(theme => (
-                            <button key={theme.id} onClick={() => setProfileTheme(theme.id)} className={`flex-1 p-2 rounded-lg border-2 ${profileTheme === theme.id ? theme.border : 'border-transparent'}`}>
-                                <div className={`w-full h-12 rounded-md ${theme.bg} flex items-center justify-center`}>
-                                    <span className={`font-semibold text-sm ${theme.text}`}>{t(theme.id)}</span>
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        )}
       </div>
     </div>
   );

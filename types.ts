@@ -98,6 +98,7 @@ export interface Message {
     // New Media Fields
     mediaUrl?: string;
     mediaType?: 'image' | 'video' | 'audio';
+    duration?: number; // Duration in seconds for audio/video
     isViewOnce?: boolean;
     viewedAt?: Timestamp; // For View Once logic and Retention Logic
     viewCount?: number; // 0 = new, 1 = viewed once, 2 = viewed & replayed (max)

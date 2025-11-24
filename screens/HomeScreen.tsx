@@ -48,9 +48,10 @@ interface HomeScreenProps {
     onViewProfile: (userId: string) => void;
     onUpdateUser: (user: User) => void;
     onOpenSearch: () => void;
+    onCreateStory: () => void;
 }
 
-const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, onOpenNotifications, onViewProfile, onUpdateUser, onOpenSearch }) => {
+const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, onOpenNotifications, onViewProfile, onUpdateUser, onOpenSearch, onCreateStory }) => {
   const [stories, setStories] = useState<Story[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -164,6 +165,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
   const handleLogoClick = () => {
     scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
+  
+  const handleOwnStoryClick = () => {
+      const hasStory = stories.some(s => s.user.id === currentUser.id);
+      if (hasStory) {
+          openStoryViewer(0); // Own story is always index 0 in the UI list
+      } else {
+          onCreateStory();
+      }
+  };
 
   if (isLoading) {
       return <LoadingScreen />;
@@ -178,7 +188,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
         id: 'currentUserStory',
         user: { id: currentUser.id, name: 'Your Story', profilePhoto: currentUser.profilePhotos?.[0] || PLACEHOLDER_AVATAR },
         mediaUrl: ownStories.length > 0 ? ownStories[0].mediaUrl : '',
-        viewed: !hasUnviewedOwnStory,
+        viewed: !hasUnviewedOwnStory, // If empty, it shows viewed (grey ring) or we handle special style
         timestamp: null,
     },
     ...otherStories
@@ -222,6 +232,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
                 startIndex={0}
                 onClose={closeStoryViewer}
                 onStoryViewed={handleStoryViewed}
+                onAddStory={() => { closeStoryViewer(); onCreateStory(); }}
             />
         )}
         {renderHeader()}
@@ -232,7 +243,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
              <StoryCircle 
                 key={story.id} 
                 story={story} 
-                onClick={() => openStoryViewer(index)} 
+                onClick={index === 0 ? handleOwnStoryClick : () => openStoryViewer(index)} 
                 isOwnStory={index === 0}
                 hasUnviewed={index === 0 ? hasUnviewedOwnStory : !story.viewed}
              />

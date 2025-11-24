@@ -33,6 +33,7 @@ import PostGridViewer from './components/PostGridViewer.tsx';
 
 
 type Theme = 'light' | 'dark' | 'system';
+type AppTint = 'default' | 'ocean' | 'rose' | 'dusk';
 
 const App: React.FC = () => {
   const [authState, setAuthState] = useState<{
@@ -46,7 +47,7 @@ const App: React.FC = () => {
   });
   
   const [activeTab, setActiveTab] = useState<Tab>(Tab.Home);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [createScreenMode, setCreateScreenMode] = useState<'select' | 'post' | 'story' | null>(null);
   const [viewingPostComments, setViewingPostComments] = useState<Post | null>(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
@@ -55,6 +56,7 @@ const App: React.FC = () => {
   const [inAppNotification, setInAppNotification] = useState<any | null>(null);
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
   const [theme, setTheme] = useState<Theme>((localStorage.getItem('theme') as Theme) || 'system');
+  const [localTint, setLocalTint] = useState<AppTint>((localStorage.getItem('appTint') as AppTint) || 'default');
   const [xpToast, setXpToast] = useState<{ amount: number; key: number } | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [viewingPostGrid, setViewingPostGrid] = useState<{ posts: Post[], startIndex: number } | null>(null);
@@ -88,6 +90,12 @@ const App: React.FC = () => {
     systemTheme.addEventListener('change', handleSystemThemeChange);
     return () => systemTheme.removeEventListener('change', handleSystemThemeChange);
 }, [theme]);
+
+  // Handle Local Tint Application (Applying classes to body/root or context)
+  useEffect(() => {
+      localStorage.setItem('appTint', localTint);
+      // We'll pass this down via props or context, but for now, let's use it in ProfileScreen directly
+  }, [localTint]);
 
 
   useEffect(() => {
@@ -201,6 +209,10 @@ const App: React.FC = () => {
     };
     setMatchNotification(pseudoNotification);
   };
+  
+  const openStoryCreator = () => {
+      setCreateScreenMode('story');
+  };
 
   const renderContent = () => {
     if (authState.isLoading) {
@@ -231,21 +243,21 @@ const App: React.FC = () => {
           <div className="relative w-screen h-screen max-w-md mx-auto flex flex-col bg-gray-50 dark:bg-black md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)] overflow-hidden">
             {xpToast && <XPToast key={xpToast.key} amount={xpToast.amount} />}
             <main className="flex-1 overflow-y-auto">
-              {activeTab === Tab.Home && <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} onUpdateUser={handleUpdateUser} onOpenSearch={() => setIsSearchOpen(true)} />}
+              {activeTab === Tab.Home && <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} onUpdateUser={handleUpdateUser} onOpenSearch={() => setIsSearchOpen(true)} onCreateStory={openStoryCreator} />}
               {activeTab === Tab.Swipe && <SwipeScreen currentUser={currentUser} onNewMatch={handleNewMatch} onUpdateUser={handleUpdateUser}/>}
               {activeTab === Tab.Chat && <ChatScreen currentUser={currentUser} activeChatPartnerId={activeChatPartnerId} onStartChat={handleStartChat} onCloseChat={() => setActiveChatPartnerId(null)} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} />}
-              {activeTab === Tab.Profile && <ProfileScreen currentUser={currentUser} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} theme={theme} setTheme={setTheme} />}
+              {activeTab === Tab.Profile && <ProfileScreen currentUser={currentUser} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} theme={theme} setTheme={setTheme} localTint={localTint} setLocalTint={setLocalTint} />}
             </main>
 
             <BottomNav 
               activeTab={activeTab} 
               setActiveTab={setActiveTab} 
-              onOpenCreate={() => setIsCreateOpen(true)} 
+              onOpenCreate={() => setCreateScreenMode('select')} 
               hasUnreadMessages={hasUnreadMessages}
             />
 
             {/* Modals and Overlays */}
-            {isCreateOpen && <CreateScreen user={currentUser} onClose={() => setIsCreateOpen(false)} />}
+            {createScreenMode && <CreateScreen user={currentUser} onClose={() => setCreateScreenMode(null)} initialMode={createScreenMode} />}
             {viewingPostComments && <CommentScreen post={viewingPostComments} currentUser={currentUser} onClose={() => setViewingPostComments(null)} onViewProfile={handleViewProfile} />}
             {isNotificationsOpen && <NotificationsScreen user={currentUser} onClose={() => setIsNotificationsOpen(false)} onShowMatch={handleShowMatch} onViewProfile={handleViewProfile} />}
             {isSearchOpen && <SearchScreen 

@@ -17,8 +17,10 @@ import ShieldCheckIcon from '../components/icons/ShieldCheckIcon.tsx';
 import UsersIcon from '../components/icons/UsersIcon.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
 import PrivacySettingsScreen from './PrivacySettingsScreen.tsx';
+import DesktopIcon from '../components/icons/DesktopIcon.tsx';
 
 type Theme = 'light' | 'dark' | 'system';
+type AppTint = 'default' | 'ocean' | 'rose' | 'dusk';
 type Language = 'en' | 'de';
 
 interface SettingsScreenProps {
@@ -27,6 +29,8 @@ interface SettingsScreenProps {
   onUpdateUser: (user: User) => void;
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  localTint: AppTint;
+  setLocalTint: (tint: AppTint) => void;
 }
 
 const SettingsItem: React.FC<{ onClick: () => void, children: React.ReactNode, isDestructive?: boolean }> = ({ onClick, children, isDestructive }) => (
@@ -38,7 +42,7 @@ const SettingsItem: React.FC<{ onClick: () => void, children: React.ReactNode, i
     </button>
 );
 
-const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdateUser, theme, setTheme }) => {
+const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdateUser, theme, setTheme, localTint, setLocalTint }) => {
     const [activeSubScreen, setActiveSubScreen] = useState<string | null>(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const { t } = useI18n();
@@ -115,6 +119,23 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdate
                                     className={`flex-1 py-2 text-sm font-semibold rounded-md capitalize flex items-center justify-center transition-colors ${(user.language || 'en') === lang ? 'bg-white dark:bg-zinc-900 shadow text-flame-orange' : 'text-gray-600 dark:text-gray-300'}`}
                                 >
                                     {lang === 'de' ? 'Deutsch' : 'English'}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    
+                    <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg shadow-sm">
+                        <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3 flex items-center">
+                            <DesktopIcon className="w-4 h-4 mr-1" /> App Design (Local Only)
+                        </h2>
+                        <div className="grid grid-cols-4 gap-2">
+                            {(['default', 'ocean', 'rose', 'dusk'] as AppTint[]).map(tint => (
+                                <button
+                                    key={tint}
+                                    onClick={() => setLocalTint(tint)}
+                                    className={`py-2 rounded-lg border-2 text-xs font-bold capitalize ${localTint === tint ? 'border-flame-orange bg-gray-100 dark:bg-zinc-700' : 'border-transparent bg-gray-50 dark:bg-zinc-900'}`}
+                                >
+                                    {tint}
                                 </button>
                             ))}
                         </div>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, query, where, orderBy, onSnapshot, Timestamp, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
@@ -34,6 +35,17 @@ const ChatListItem: React.FC<{ chat: Chat; currentUser: User; onSelect: (partner
   const unreadCount = chat.unreadCount?.[currentUser.id] || 0;
   const isUnread = unreadCount > 0;
 
+  // Handle Retention Policy for Preview
+  let previewText = chat.lastMessage?.text || t('noMessagesYet');
+  
+  if (chat.retentionPolicy === '5min' && chat.lastMessage?.timestamp) {
+      const msgTime = chat.lastMessage.timestamp.toDate().getTime();
+      const now = Date.now();
+      if (now - msgTime > 5 * 60 * 1000) {
+          previewText = 'Message expired'; // Visual indicator only, doesn't change DB
+      }
+  }
+
   const handleContextMenu = (e: React.MouseEvent) => {
       e.preventDefault();
       onPinToggle(chat.id);
@@ -50,7 +62,9 @@ const ChatListItem: React.FC<{ chat: Chat; currentUser: User; onSelect: (partner
           <span className="text-xs text-gray-500 dark:text-gray-400">{formatTimestamp(chat.lastMessage?.timestamp)}</span>
         </div>
         <div className="flex justify-between items-center mt-1">
-          <p className={`text-sm truncate w-10/12 transition-all ${isUnread ? 'font-semibold text-dark-gray dark:text-gray-200' : 'text-gray-600 dark:text-gray-400'}`}>{chat.lastMessage?.text || t('noMessagesYet')}</p>
+          <p className={`text-sm truncate w-10/12 transition-all ${isUnread ? 'font-semibold text-dark-gray dark:text-gray-200' : 'text-gray-600 dark:text-gray-400'} ${previewText === 'Message expired' ? 'italic opacity-60' : ''}`}>
+              {previewText}
+          </p>
           <div className="flex items-center space-x-2">
             {isPinned && <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.05 3.05a7 7 0 119.9 9.9L10 18.9l-4.95-5.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg>}
             {isUnread && (
@@ -67,6 +81,13 @@ const ChatList: React.FC<{ currentUser: User, onStartChat: (partnerId: string) =
     const [chats, setChats] = useState<Chat[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { t } = useI18n();
+
+    // Periodic update for retention policy visualization
+    const [tick, setTick] = useState(0);
+    useEffect(() => {
+        const interval = setInterval(() => setTick(t => t + 1), 10000); // Update every 10s to refresh "expired" status
+        return () => clearInterval(interval);
+    }, []);
 
     useEffect(() => {
         if (!db) {

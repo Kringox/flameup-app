@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 // FIX: Added file extension to types import
 import { User } from '../types.ts';
 // FIX: Added file extensions to screen imports
@@ -8,10 +9,15 @@ import StoryCreatorScreen from './StoryCreatorScreen.tsx';
 interface CreateScreenProps {
   onClose: () => void;
   user: User;
+  initialMode?: 'select' | 'post' | 'story';
 }
 
-const CreateScreen: React.FC<CreateScreenProps> = ({ onClose, user }) => {
-    const [mode, setMode] = useState<'select' | 'post' | 'story'>('select');
+const CreateScreen: React.FC<CreateScreenProps> = ({ onClose, user, initialMode = 'select' }) => {
+    const [mode, setMode] = useState<'select' | 'post' | 'story'>(initialMode);
+
+    useEffect(() => {
+        setMode(initialMode);
+    }, [initialMode]);
 
     if (mode === 'post') {
         return <CreatePostScreen user={user} onClose={onClose} />;

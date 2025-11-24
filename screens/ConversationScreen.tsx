@@ -1,13 +1,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, increment, arrayUnion, arrayRemove, getDocs, limit, setDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, increment, arrayUnion, arrayRemove, getDocs, limit, setDoc } from 'firebase/firestore';
 import { User, Message, Chat, Gift, RetentionPolicy } from '../types.ts';
 import MoreVerticalIcon from '../components/icons/MoreVerticalIcon.tsx';
 import GiftIcon from '../components/icons/GiftIcon.tsx';
 import CameraIcon from '../components/icons/CameraIcon.tsx';
 import MicIcon from '../components/icons/MicIcon.tsx';
-import GalleryIcon from '../components/icons/GalleryIcon.tsx';
 import ChatOptionsModal from '../components/ChatOptionsModal.tsx';
 import ReportModal from '../components/ReportModal.tsx';
 import GiftModal from '../components/GiftModal.tsx';
@@ -34,10 +33,75 @@ const ReplyPreview: React.FC<{ messageText: string, senderName: string, onCancel
     );
 };
 
-const AudioPlayer: React.FC<{ src: string, isOwnMessage: boolean }> = ({ src, isOwnMessage }) => {
+const AudioPlayer: React.FC<{ src: string, duration?: number, isOwnMessage: boolean }> = ({ src, duration, isOwnMessage }) => {
+    const [isPlaying, setIsPlaying] = useState(false);
+    const audioRef = useRef<HTMLAudioElement>(null);
+    const [currentTime, setCurrentTime] = useState(0);
+
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!audio) return;
+
+        const updateTime = () => setCurrentTime(audio.currentTime);
+        const handleEnded = () => {
+            setIsPlaying(false);
+            setCurrentTime(0);
+        };
+
+        audio.addEventListener('timeupdate', updateTime);
+        audio.addEventListener('ended', handleEnded);
+        return () => {
+            audio.removeEventListener('timeupdate', updateTime);
+            audio.removeEventListener('ended', handleEnded);
+        };
+    }, []);
+
+    const togglePlay = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!audioRef.current) return;
+
+        if (isPlaying) {
+            audioRef.current.pause();
+        } else {
+            audioRef.current.play();
+        }
+        setIsPlaying(!isPlaying);
+    };
+    
+    const formatTime = (seconds: number) => {
+        if (!seconds || isNaN(seconds)) return "0:00";
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    // Use prop duration if available, otherwise fallback to currentTime/metadata
+    const displayTime = isPlaying ? formatTime(currentTime) : formatTime(duration || 0);
+
     return (
-        <div className="min-w-[150px] p-2 flex items-center">
-            <audio controls src={src} className="h-8 w-full max-w-[200px]" />
+        <div className="min-w-[150px] p-2 flex items-center space-x-3">
+            <audio ref={audioRef} src={src} className="hidden" preload="metadata" />
+            <button 
+                onClick={togglePlay}
+                className={`w-8 h-8 rounded-full flex items-center justify-center ${isOwnMessage ? 'bg-white/20 text-white' : 'bg-flame-orange/10 text-flame-orange'}`}
+            >
+                {isPlaying ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
+                )}
+            </button>
+            <div className="flex-1 flex flex-col justify-center">
+                <div className={`h-1 w-full rounded-full overflow-hidden ${isOwnMessage ? 'bg-white/30' : 'bg-gray-200'}`}>
+                     <div 
+                        className={`h-full ${isOwnMessage ? 'bg-white' : 'bg-flame-orange'}`} 
+                        style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+                     />
+                </div>
+            </div>
+            <span className={`text-xs font-medium ${isOwnMessage ? 'text-white/80' : 'text-gray-500'}`}>
+                {displayTime}
+            </span>
         </div>
     );
 };
@@ -50,51 +114,41 @@ const MessageBubble: React.FC<{
     onToggleSave: (msg: Message) => void,
 }> = ({ message, isOwnMessage, onLongPress, onViewMedia, onToggleSave }) => {
     
-    // Handle System Messages (e.g. "User changed settings")
     if (message.isSystemMessage) {
         return (
             <div className="flex justify-center my-4 opacity-70">
-                <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 text-center bg-gray-100 dark:bg-zinc-800 px-3 py-1 rounded-full">
+                <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 text-center bg-gray-100 dark:bg-zinc-800 px-3 py-1 rounded-full shadow-sm">
                     {message.text}
                 </p>
             </div>
         );
     }
 
-    // Determine bubble styling
     const isMedia = !!message.mediaUrl;
     const isAudio = message.mediaType === 'audio';
     const isViewOnce = !!message.isViewOnce;
     const isSaved = !!message.isSaved;
     
-    // Base styles
     let bubbleClass = isOwnMessage 
         ? 'self-end rounded-2xl rounded-tr-sm ' 
         : 'self-start rounded-2xl rounded-tl-sm ';
     
-    // Color logic based on "Saved" status
     if (isSaved) {
-        // Saved state: distinct look (grayish background usually)
         bubbleClass += 'bg-gray-200 dark:bg-zinc-700 text-dark-gray dark:text-gray-200 border-l-4 border-flame-orange ';
     } else {
-        // Default State
         bubbleClass += isOwnMessage 
             ? 'bg-flame-orange text-white ' 
             : 'bg-white dark:bg-zinc-800 text-dark-gray dark:text-gray-200 border border-gray-100 dark:border-zinc-700 shadow-sm ';
     }
 
     const handleClick = (e: React.MouseEvent) => {
-        // Don't toggle save on view once media or if it's already an interactive element
         if (!isViewOnce) {
-             // In Snapchat, tapping text saves it. Tapping media usually opens it.
-             // We'll allow tap-to-save for text and audio.
             if (!isMedia || isAudio) {
                  onToggleSave(message);
             }
         }
     };
 
-    // Check if viewed
     const viewed = !!message.viewedAt;
     const viewCount = message.viewCount || (viewed ? 1 : 0);
 
@@ -135,7 +189,7 @@ const MessageBubble: React.FC<{
                 
                 {isMedia ? (
                     isAudio ? (
-                        <AudioPlayer src={message.mediaUrl!} isOwnMessage={isOwnMessage && !isSaved} />
+                        <AudioPlayer src={message.mediaUrl!} duration={message.duration} isOwnMessage={isOwnMessage && !isSaved} />
                     ) : (
                         isViewOnce ? (
                             <div onClick={(e) => e.stopPropagation()}>
@@ -239,14 +293,14 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const [isCameraOpen, setIsCameraOpen] = useState(false);
     
-    // Audio Recording State
     const [isRecording, setIsRecording] = useState(false);
+    const [recordingDuration, setRecordingDuration] = useState(0);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
+    const timerIntervalRef = useRef<number | null>(null);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Initial Load: Partner & Chat
     useEffect(() => {
         if (!db) return;
         const fetchPartnerData = async () => {
@@ -259,7 +313,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         fetchPartnerData();
     }, [partnerId]);
 
-    // Chat Subscription
     useEffect(() => {
         if (!db) return;
         const userIds = [currentUser.id, partnerId].sort();
@@ -273,21 +326,18 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 const data = chatDoc.data() as Chat;
                 if (data.retentionPolicy) setRetentionPolicy(data.retentionPolicy);
                 
-                // Mark read if needed
                 if ((data.unreadCount?.[currentUser.id] || 0) > 0) {
                     updateDoc(doc(db, 'chats', chatDoc.id), {
                         [`unreadCount.${currentUser.id}`]: 0
                     });
                 }
             } else {
-                // Chat might not exist yet, wait for creation
                 setChatId(null);
             }
         });
         return () => unsubscribe();
     }, [currentUser.id, partnerId]);
 
-    // Messages Subscription & Filtering
     useEffect(() => {
         if (!chatId || !db) {
             setMessages([]);
@@ -302,43 +352,29 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         return () => unsubscribe();
     }, [chatId]);
     
-    // Client-side filtering and auto-marking as viewed for retention
     useEffect(() => {
         const now = Date.now();
         const messagesToMarkViewed: string[] = [];
 
         const validMessages = messages.filter(msg => {
-            // Recalled messages placeholder
             if (msg.isRecalled) return true;
-            
-            // Saved messages are ALWAYS kept
             if (msg.isSaved) return true;
-            
-            // System messages are kept for context
             if (msg.isSystemMessage) return true;
 
-            // Logic to mark unviewed messages as viewed if a retention policy is active
             if (retentionPolicy !== 'forever' && !msg.viewedAt && msg.senderId !== currentUser.id) {
-                // Only mark as viewed if we are filtering. 
-                // This ensures "read" starts the timer.
-                // We add to a list to batch update.
                 messagesToMarkViewed.push(msg.id);
             }
 
-            // Retention Logic
             if (retentionPolicy === '5min') {
-                if (!msg.viewedAt) return true; // Not viewed yet, keep it.
-                // If viewed, check time diff
+                if (!msg.viewedAt) return true;
                 const viewTime = msg.viewedAt.toDate().getTime();
                 return (now - viewTime) < 5 * 60 * 1000;
             }
 
             if (retentionPolicy === 'read') {
-                 if (!msg.viewedAt) return true; // Not viewed yet
-                 // If I just marked it as viewed in this render cycle, it will disappear on next render/filter check
-                 // Check if it was viewed more than a few seconds ago to prevent instant flicker
+                 if (!msg.viewedAt) return true;
                  const viewTime = msg.viewedAt.toDate().getTime();
-                 return (now - viewTime) < 2000; // Keep for 2 seconds after read
+                 return (now - viewTime) < 2000;
             }
             
             return true;
@@ -346,11 +382,9 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         
         setFilteredMessages(validMessages);
         
-        // Batch update viewedAt for messages that need it
         if (messagesToMarkViewed.length > 0 && chatId && db) {
             const batchUpdate = async () => {
                 const timestamp = serverTimestamp();
-                // We do one by one or batch. Firestore batch limit is 500.
                 for (const msgId of messagesToMarkViewed) {
                      await updateDoc(doc(db, 'chats', chatId, 'messages', msgId), { viewedAt: timestamp });
                 }
@@ -364,11 +398,9 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
     }, [messages, retentionPolicy, chatId, currentUser.id]);
     
-    // Re-run filter periodically to hide expired messages without needing a db update
     useEffect(() => {
         if (retentionPolicy === 'forever') return;
         const interval = setInterval(() => {
-             // Trigger re-render by creating a new array reference
              setMessages(prev => [...prev]);
         }, 5000); 
         return () => clearInterval(interval);
@@ -394,7 +426,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             },
             retentionPolicy: 'forever',
             createdAt: serverTimestamp(),
-            // Important: initialize deletedFor as empty
             deletedFor: []
         };
         const newChatRef = doc(collection(db, 'chats'));
@@ -403,7 +434,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         return newChatRef.id;
     };
 
-    const handleSendMessage = async (customText?: string, mediaFile?: File, mediaType?: 'image' | 'video' | 'audio', isViewOnce?: boolean) => {
+    const handleSendMessage = async (customText?: string, mediaFile?: File, mediaType?: 'image' | 'video' | 'audio', isViewOnce?: boolean, duration?: number) => {
         if ((!newMessage.trim() && !customText && !mediaFile) || !db || !partner || isSending) return;
         setIsSending(true);
         
@@ -430,14 +461,14 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 mediaUrl: mediaUrl || null,
                 mediaType: mediaType || null,
                 isViewOnce: !!isViewOnce,
-                isSaved: false 
+                isSaved: false,
+                duration: duration || 0
             };
             
             if (replyContext) messagePayload.replyTo = replyContext;
             
             await addDoc(collection(db, 'chats', currentChatId, 'messages'), messagePayload);
             
-            // Update last message
             let lastMsgText = textToSend;
             if (mediaUrl) {
                 if (mediaType === 'audio') lastMsgText = '🎤 Voice Message';
@@ -445,7 +476,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 else lastMsgText = '📷 Media';
             }
 
-            // Ensure we clear deletedFor so the partner sees the new message even if they deleted the chat
             await updateDoc(doc(db, 'chats', currentChatId), {
                 lastMessage: { text: lastMsgText, senderId: currentUser.id, timestamp: serverTimestamp() },
                 [`unreadCount.${partnerId}`]: increment(1),
@@ -459,8 +489,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         }
     };
 
-    // Audio Recorder Functions
-    const startRecording = async () => {
+    const startRecording = async (e: React.MouseEvent | React.TouchEvent) => {
+        e.preventDefault(); // PREVENT SCROLL/SELECTION
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const recorder = new MediaRecorder(stream);
@@ -473,50 +503,62 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             recorder.start();
             mediaRecorderRef.current = recorder;
             setIsRecording(true);
+            setRecordingDuration(0);
+            
+            timerIntervalRef.current = window.setInterval(() => {
+                setRecordingDuration(prev => prev + 1);
+            }, 1000);
+            
         } catch (err) {
             console.error("Error starting microphone:", err);
             alert("Could not access microphone.");
         }
     };
 
-    const stopRecording = () => {
+    const stopRecording = (e: React.MouseEvent | React.TouchEvent) => {
+        e.preventDefault();
         if (mediaRecorderRef.current && isRecording) {
+            // Capture the final duration at moment of stop
+            const finalDuration = recordingDuration; 
+            
             mediaRecorderRef.current.onstop = () => {
-                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/mp4' }); // mp4 or webm
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/mp4' });
                 const audioFile = new File([audioBlob], `voice_${Date.now()}.m4a`, { type: 'audio/mp4' });
-                handleSendMessage('', audioFile, 'audio', false);
                 
                 // Stop tracks
                 mediaRecorderRef.current?.stream.getTracks().forEach(track => track.stop());
+                
+                // Send
+                if (finalDuration > 0) {
+                   handleSendMessage('', audioFile, 'audio', false, finalDuration);
+                }
             };
             mediaRecorderRef.current.stop();
             setIsRecording(false);
+            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+            setRecordingDuration(0);
         }
     };
     
     const handleViewMedia = async (msgId: string, currentCount: number) => {
         if (!chatId || !db) return;
-        
-        // Max 2 views allowed (Original + 1 Replay)
         if (currentCount >= 2) return;
 
         const msgRef = doc(db, 'chats', chatId, 'messages', msgId);
         await updateDoc(msgRef, {
-            viewedAt: serverTimestamp(), // Update timestamp on latest view
+            viewedAt: serverTimestamp(),
             viewCount: increment(1)
         });
     };
     
     const handleToggleSave = async (msg: Message) => {
         if (!chatId || !db) return;
-        // Toggle saved status
         await updateDoc(doc(db, 'chats', chatId, 'messages', msg.id), { isSaved: !msg.isSaved });
     };
 
     const updateRetention = async (policy: RetentionPolicy) => {
         if (!chatId || !db) return;
         
-        // Update the chat document first (this syncs the setting to both users)
         await updateDoc(doc(db, 'chats', chatId), { retentionPolicy: policy });
         setRetentionPolicy(policy);
         
@@ -524,7 +566,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         if (policy === '5min') policyText = 'Messages expire 5 minutes after reading';
         if (policy === 'read') policyText = 'Messages expire immediately after reading';
 
-        // Add system message to the chat so the other user sees it
         await addDoc(collection(db, 'chats', chatId, 'messages'), {
             chatId: chatId,
             senderId: currentUser.id,
@@ -535,7 +576,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     };
 
     const handleCameraCapture = (file: File, type: 'image' | 'video') => {
-        // Camera captures are View Once by default
         handleSendMessage('', file, type, true);
     };
 
@@ -543,7 +583,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             const type = file.type.startsWith('video') ? 'video' : 'image';
-            // Gallery uploads are PERMANENT by default
             handleSendMessage('', file, type, false);
         }
     };
@@ -603,6 +642,9 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
          if (!chatId || !db) return;
          if (window.confirm("Recall this message?")) {
             await updateDoc(doc(db, 'chats', chatId, 'messages', message.id), { isRecalled: true, text: '', mediaUrl: null });
+            await updateDoc(doc(db, 'chats', chatId), {
+                lastMessage: { text: 'Message recalled', senderId: currentUser.id, timestamp: serverTimestamp() }
+            });
          }
          setContextMenu(null);
     }
@@ -679,35 +721,40 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                         <textarea
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
-                            placeholder={isRecording ? "Recording..." : "Chat"}
+                            placeholder={isRecording ? `Recording ${recordingDuration}s...` : "Chat"}
                             disabled={isRecording}
                             className={`flex-1 bg-transparent border-none focus:outline-none px-4 py-3 max-h-32 resize-none dark:text-gray-200 text-base ${isRecording ? 'text-red-500 animate-pulse font-bold' : ''}`}
                             rows={1}
                             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
                         />
-                        <button 
-                            onClick={() => fileInputRef.current?.click()}
-                            className="p-2 mr-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                        >
-                            <GalleryIcon className="w-6 h-6" />
-                        </button>
-                    </div>
-
-                    <button 
-                        className={`p-3 rounded-full transition-all ${newMessage.trim() || isRecording ? 'bg-flame-orange text-white' : 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300'}`}
-                        onClick={() => newMessage.trim() ? handleSendMessage() : null}
-                        // Mouse/Touch events for recording
-                        onMouseDown={!newMessage.trim() ? startRecording : undefined}
-                        onMouseUp={!newMessage.trim() ? stopRecording : undefined}
-                        onTouchStart={!newMessage.trim() ? startRecording : undefined}
-                        onTouchEnd={!newMessage.trim() ? stopRecording : undefined}
-                    >
-                        {newMessage.trim() ? (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-0.5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
-                        ) : (
-                             <MicIcon className={`w-5 h-5 ${isRecording ? 'animate-pulse scale-110' : ''}`} />
+                        {!isRecording && !newMessage && (
+                             <button onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                                <span className="text-2xl">🖼️</span>
+                            </button>
                         )}
-                    </button>
+                    </div>
+                    
+                    {newMessage || replyingTo ? (
+                        <button 
+                            onClick={() => handleSendMessage()} 
+                            disabled={isSending}
+                            className="p-3 bg-flame-orange text-white rounded-full shadow-md hover:scale-105 transition-transform disabled:opacity-50"
+                        >
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 rotate-90" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
+                        </button>
+                    ) : (
+                        <button 
+                            onMouseDown={startRecording}
+                            onMouseUp={stopRecording}
+                            onMouseLeave={stopRecording}
+                            onTouchStart={startRecording}
+                            onTouchEnd={stopRecording}
+                            className={`p-3 rounded-full shadow-md transition-all ${isRecording ? 'bg-red-500 scale-125' : 'bg-flame-orange'} text-white touch-none select-none`}
+                            style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
+                        >
+                            <MicIcon className="h-5 w-5" />
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
