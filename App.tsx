@@ -240,14 +240,17 @@ const App: React.FC = () => {
           <div className="relative w-screen h-screen max-w-md mx-auto flex flex-col bg-gray-50 dark:bg-black md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)] overflow-hidden">
             {xpToast && <XPToast key={xpToast.key} amount={xpToast.amount} />}
             
-            {/* Main Content Area - Relative positioning allows UserProfile to overlay content but not BottomNav */}
-            <main className="flex-1 overflow-y-auto relative">
-              {activeTab === Tab.Home && <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} onUpdateUser={handleUpdateUser} onOpenSearch={() => setIsSearchOpen(true)} onCreateStory={openStoryCreator} />}
-              {activeTab === Tab.Swipe && <SwipeScreen currentUser={currentUser} onNewMatch={handleNewMatch} onUpdateUser={handleUpdateUser}/>}
-              {activeTab === Tab.Chat && <ChatScreen currentUser={currentUser} activeChatPartnerId={activeChatPartnerId} onStartChat={handleStartChat} onCloseChat={() => setActiveChatPartnerId(null)} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} />}
-              {activeTab === Tab.Profile && <ProfileScreen currentUser={currentUser} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} theme={theme} setTheme={setTheme} localTint={localTint} setLocalTint={setLocalTint} />}
+            {/* Main Content Area */}
+            <main className="flex-1 relative overflow-hidden">
+              {/* Active Tab Content - Hidden when viewing a user profile to prevent background scrolling */}
+              <div className={`w-full h-full overflow-y-auto ${viewingUserId ? 'hidden' : 'block'}`}>
+                  {activeTab === Tab.Home && <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} onUpdateUser={handleUpdateUser} onOpenSearch={() => setIsSearchOpen(true)} onCreateStory={openStoryCreator} />}
+                  {activeTab === Tab.Swipe && <SwipeScreen currentUser={currentUser} onNewMatch={handleNewMatch} onUpdateUser={handleUpdateUser}/>}
+                  {activeTab === Tab.Chat && <ChatScreen currentUser={currentUser} activeChatPartnerId={activeChatPartnerId} onStartChat={handleStartChat} onCloseChat={() => setActiveChatPartnerId(null)} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} />}
+                  {activeTab === Tab.Profile && <ProfileScreen currentUser={currentUser} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} theme={theme} setTheme={setTheme} localTint={localTint} setLocalTint={setLocalTint} />}
+              </div>
               
-              {/* User Profile Overlay - Renders INSIDE main, covering content but not Nav */}
+              {/* User Profile Overlay - Renders INSIDE main but covers content completely */}
               {viewingUserId && (
                 <UserProfileScreen 
                     currentUserId={currentUser.id} 

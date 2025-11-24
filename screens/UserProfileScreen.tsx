@@ -19,7 +19,7 @@ interface UserProfileScreenProps {
 }
 
 const THEME_CLASSES: { [key: string]: { bg: string; text: string; subtext: string; border: string; }} = {
-    default: { bg: 'bg-white', text: 'text-dark-gray', subtext: 'text-gray-500', border: 'border-gray-200' },
+    default: { bg: 'bg-white dark:bg-black', text: 'text-dark-gray dark:text-gray-200', subtext: 'text-gray-500 dark:text-gray-400', border: 'border-gray-200 dark:border-gray-700' },
     dusk: { bg: 'bg-theme-dusk-bg', text: 'text-theme-dusk-text', subtext: 'text-gray-400', border: 'border-gray-700' },
     rose: { bg: 'bg-theme-rose-bg', text: 'text-theme-rose-text', subtext: 'text-pink-200', border: 'border-pink-300' },
 };
@@ -182,7 +182,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
     };
     
     if (isLoading || !user) {
-        return <div className="absolute inset-0 bg-white z-[70] flex justify-center items-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div></div>;
+        return <div className="absolute inset-0 bg-white dark:bg-black z-[70] flex justify-center items-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white"></div></div>;
     }
     
     const themeClass = THEME_CLASSES[user.profileTheme || 'default'] || THEME_CLASSES.default;
@@ -190,8 +190,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
     const hasSubscriptionPrice = (user.subscriptionPrice || 0) > 0;
 
     return (
-        // Added h-full w-full overflow-hidden to fix scroll glitch
-        <div className={`absolute inset-0 h-full w-full overflow-hidden ${themeClass.bg} z-[40] flex flex-col animate-slide-in`}>
+        <div className={`absolute inset-0 h-full w-full overflow-hidden z-[40] flex flex-col animate-slide-in ${themeClass.bg}`}>
             {isImageViewerOpen && <ImageViewer images={user.profilePhotos} onClose={() => setIsImageViewerOpen(false)} />}
             {viewingPost && currentUser && (
                 <PostDetailView 
@@ -206,15 +205,14 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
             
             <style>{`.animate-slide-in { animation: slideInFromRight 0.3s ease-out; } @keyframes slideInFromRight { from { transform: translateX(100%); } to { transform: translateX(0); } }`}</style>
             
-            <header className="flex items-center p-4 border-b flex-shrink-0 bg-white/80 backdrop-blur-md sticky top-0 z-10">
-                 <button onClick={onClose} className="w-8">
+            <header className="flex items-center p-4 border-b border-gray-200 dark:border-gray-800 flex-shrink-0 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-10">
+                 <button onClick={onClose} className="w-8 text-dark-gray dark:text-gray-200">
                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 </button>
-                <h1 className="text-xl font-bold text-center flex-1 truncate">{user.name}</h1>
+                <h1 className={`text-xl font-bold text-center flex-1 truncate ${themeClass.text}`}>{user.name}</h1>
                 <div className="w-8"></div>
             </header>
 
-            {/* Added flex-1 overflow-y-auto to allow internal scrolling only */}
             <div className="flex-1 overflow-y-auto p-4 pb-20">
                 <div className="flex items-center">
                     <button 
@@ -227,15 +225,15 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                     </button>
                     
                     <div className="flex-1 ml-6 flex justify-around text-center">
-                        <div><p className="text-xl font-bold">{posts.length}</p><p className="text-sm text-gray-500">Posts</p></div>
-                        <div><p className="text-xl font-bold">{user.followers.length}</p><p className="text-sm text-gray-500">Followers</p></div>
-                        <div><p className="text-xl font-bold">{user.following.length}</p><p className="text-sm text-gray-500">Following</p></div>
+                        <div><p className={`text-xl font-bold ${themeClass.text}`}>{posts.length}</p><p className="text-sm text-gray-500">Posts</p></div>
+                        <div><p className={`text-xl font-bold ${themeClass.text}`}>{user.followers.length}</p><p className="text-sm text-gray-500">Followers</p></div>
+                        <div><p className={`text-xl font-bold ${themeClass.text}`}>{user.following.length}</p><p className="text-sm text-gray-500">Following</p></div>
                     </div>
                 </div>
 
                 <div className="mt-6">
                     <div className="flex justify-between items-start">
-                        <p className="font-bold flex items-center text-xl">
+                        <p className={`font-bold flex items-center text-xl ${themeClass.text}`}>
                             {user.name}, {user.age}
                             {user.isPremium && <VerifiedIcon className="ml-1 w-5 h-5" />}
                         </p>
@@ -267,13 +265,13 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                 <div className="flex space-x-3 mt-6">
                     <button 
                         onClick={handleFollowToggle} 
-                        className={`flex-1 py-3 rounded-xl font-bold transition-all transform active:scale-95 ${isFollowing ? 'bg-gray-200 text-gray-800' : 'bg-flame-orange text-white shadow-md'}`}
+                        className={`flex-1 py-3 rounded-xl font-bold transition-all transform active:scale-95 ${isFollowing ? 'bg-gray-200 text-gray-800 dark:bg-zinc-700 dark:text-gray-200' : 'bg-flame-orange text-white shadow-md'}`}
                     >
                         {isFollowing ? 'Following' : 'Follow'}
                     </button>
                      <button 
                         onClick={() => onStartChat(user.id)} 
-                        className="flex-1 py-3 border-2 border-gray-200 rounded-xl font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+                        className="flex-1 py-3 border-2 border-gray-200 dark:border-zinc-700 rounded-xl font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors"
                     >
                         Message
                     </button>
@@ -285,7 +283,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                         <button
                             onClick={handleSubscribe}
                             disabled={isProcessingSub}
-                            className="w-full relative overflow-hidden group rounded-2xl p-4 bg-gradient-to-r from-gray-900 to-black text-white shadow-lg active:scale-95 transition-all"
+                            className="w-full relative overflow-hidden group rounded-2xl p-4 bg-gradient-to-r from-gray-900 to-black dark:from-zinc-800 dark:to-black text-white shadow-lg active:scale-95 transition-all"
                         >
                             <div className="absolute top-0 right-0 p-2 opacity-10">
                                 <CrownIcon className="w-24 h-24" />
@@ -309,7 +307,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                         const isUnlocked = !post.isPaid || post.unlockedBy?.includes(currentUserId) || isSubscribed || post.user.id === currentUserId;
                         
                         return (
-                            <button key={post.id} onClick={() => setViewingPost(post)} className="aspect-square bg-gray-200 relative group overflow-hidden">
+                            <button key={post.id} onClick={() => setViewingPost(post)} className="aspect-square bg-gray-200 dark:bg-zinc-800 relative group overflow-hidden">
                                 <img 
                                     src={post.mediaUrls[0]} 
                                     alt="post" 

@@ -113,6 +113,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
           likedBy: data.likedBy || [],
           commentCount: data.commentCount || 0,
           timestamp: data.timestamp,
+          isPaid: data.isPaid || false,
+          price: data.price || 0,
+          unlockedBy: data.unlockedBy || [],
           user: postUser,
         } as Post;
       });
