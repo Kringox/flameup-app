@@ -133,7 +133,8 @@ const MessageBubble: React.FC<{
         );
     }
 
-    const isMedia = !!message.mediaUrl;
+    // Ensure isMedia is true if url exists, regardless of other flags
+    const isMedia = !!message.mediaUrl && message.mediaUrl.length > 0;
     const isAudio = message.mediaType === 'audio';
     const isViewOnce = !!message.isViewOnce;
     const isSaved = !!message.isSaved;
@@ -308,6 +309,9 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const audioChunksRef = useRef<Blob[]>([]);
     const timerIntervalRef = useRef<number | null>(null);
     
+    // Track when the user entered this specific session
+    const sessionStartTime = useRef<number>(Date.now());
+    
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -365,27 +369,45 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         const now = Date.now();
         const messagesToMarkViewed: string[] = [];
 
+        // CRITICAL: Only filter out messages that EXPIRED BEFORE this session started.
+        // Messages that expire DURING this session (because we just read them) should stay visible.
         const validMessages = messages.filter(msg => {
             if (msg.isRecalled) return true;
             if (msg.isSaved) return true;
             if (msg.isSystemMessage) return true;
 
-            if (retentionPolicy !== 'forever' && !msg.viewedAt && msg.senderId !== currentUser.id) {
-                messagesToMarkViewed.push(msg.id);
+            // If retention is active
+            if (retentionPolicy !== 'forever') {
+                // If I am the sender, I always see it until retention kicks in globally? 
+                // Usually sender sees it until receiver reads + retention.
+                // For simplicity in this app: Sender sees it forever/until recall.
+                // Receiver applies retention.
+                if (msg.senderId === currentUser.id) return true; 
+
+                // If viewedAt exists
+                if (msg.viewedAt) {
+                    const viewTime = msg.viewedAt.toDate().getTime();
+                    
+                    // If it was viewed BEFORE this session started, hide it.
+                    // We add a small buffer (e.g. 1 sec) to avoid race conditions on mount.
+                    if (viewTime < (sessionStartTime.current - 1000)) {
+                        // Double check policies
+                        if (retentionPolicy === 'read') return false; // Expired
+                        if (retentionPolicy === '5min') {
+                            if ((now - viewTime) > 5 * 60 * 1000) return false; // Expired
+                        }
+                    }
+                } else {
+                    // Not viewed yet, so we mark it for viewing
+                    messagesToMarkViewed.push(msg.id);
+                }
+            } else {
+                // Retention Forever - just mark as viewed if not already
+                 if (msg.senderId !== currentUser.id && !msg.viewedAt) {
+                     messagesToMarkViewed.push(msg.id);
+                 }
             }
 
-            if (retentionPolicy === '5min') {
-                if (!msg.viewedAt) return true;
-                const viewTime = msg.viewedAt.toDate().getTime();
-                return (now - viewTime) < 5 * 60 * 1000;
-            }
-
-            if (retentionPolicy === 'read') {
-                 if (!msg.viewedAt) return true;
-                 const viewTime = msg.viewedAt.toDate().getTime();
-                 return (now - viewTime) < 2000;
-            }
-            
             return true;
         });
         
@@ -395,7 +417,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             const batchUpdate = async () => {
                 const timestamp = serverTimestamp();
                 for (const msgId of messagesToMarkViewed) {
-                     await updateDoc(doc(db, 'chats', chatId, 'messages', msgId), { viewedAt: timestamp });
+                     // Fire and forget update to avoid UI stutter
+                     updateDoc(doc(db, 'chats', chatId, 'messages', msgId), { viewedAt: timestamp }).catch(e => console.error(e));
                 }
             };
             batchUpdate();
@@ -410,6 +433,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     useEffect(() => {
         if (retentionPolicy === 'forever') return;
         const interval = setInterval(() => {
+             // Force re-render to check 5min expiration
              setMessages(prev => [...prev]);
         }, 5000); 
         return () => clearInterval(interval);
