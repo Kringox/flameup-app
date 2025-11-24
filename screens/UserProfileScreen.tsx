@@ -2,12 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import { User, Post, NotificationType } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
-import { doc, getDoc, collection, query, where, orderBy, onSnapshot, updateDoc, arrayUnion, arrayRemove, addDoc, serverTimestamp, increment } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, orderBy, onSnapshot, updateDoc, arrayUnion, arrayRemove, addDoc, serverTimestamp, increment, runTransaction } from 'firebase/firestore';
 import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
 import ImageViewer from '../components/ImageViewer.tsx';
 import HotnessDisplay from '../components/HotnessDisplay.tsx';
 import { HotnessWeight } from '../utils/hotnessUtils.ts';
 import PostDetailView from '../components/PostDetailView.tsx';
+import CrownIcon from '../components/icons/CrownIcon.tsx';
+import FlameIcon from '../components/icons/FlameIcon.tsx';
 
 interface UserProfileScreenProps {
   currentUserId: string;
@@ -30,6 +32,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
     const [viewingPost, setViewingPost] = useState<Post | null>(null);
+    const [isProcessingSub, setIsProcessingSub] = useState(false);
 
     useEffect(() => {
         if (!db) return;
@@ -126,6 +129,57 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
             setIsFollowing(!newFollowingState); 
         }
     };
+
+    const handleSubscribe = async () => {
+        if (!db || !currentUser || !user || isProcessingSub) return;
+        const price = user.subscriptionPrice || 0;
+        const currentCoins = Number(currentUser.coins) || 0;
+
+        if (currentCoins < price) {
+            alert("Nicht genug Münzen! Bitte lade dein Wallet auf.");
+            return;
+        }
+
+        if (!window.confirm(`Möchtest du ${user.name} für ${price} Münzen/Monat abonnieren?`)) return;
+
+        setIsProcessingSub(true);
+        try {
+            await runTransaction(db, async (transaction) => {
+                const userRef = doc(db, 'users', currentUser.id);
+                const creatorRef = doc(db, 'users', user.id);
+
+                transaction.update(userRef, { 
+                    coins: increment(-price),
+                    subscriptions: arrayUnion(user.id)
+                });
+                transaction.update(creatorRef, { 
+                    coins: increment(price),
+                    hotnessScore: increment(HotnessWeight.SUBSCRIBE) 
+                });
+            });
+
+            // Optimistic Update
+            setCurrentUser(prev => prev ? ({ ...prev, coins: currentCoins - price, subscriptions: [...(prev.subscriptions || []), user.id] }) : null);
+            
+            // Notify Creator
+            const notificationsRef = collection(db, 'users', user.id, 'notifications');
+            await addDoc(notificationsRef, {
+                type: NotificationType.Subscribe,
+                fromUser: {
+                    id: currentUser.id, name: currentUser.name, profilePhoto: currentUser.profilePhotos?.[0] || ''
+                },
+                read: false,
+                coinsSpent: price,
+                timestamp: serverTimestamp(),
+            });
+
+        } catch (error) {
+            console.error("Subscription failed:", error);
+            alert("Abonnement fehlgeschlagen.");
+        } finally {
+            setIsProcessingSub(false);
+        }
+    };
     
     if (isLoading || !user) {
         return <div className="absolute inset-0 bg-white z-[70] flex justify-center items-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div></div>;
@@ -133,10 +187,11 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
     
     const themeClass = THEME_CLASSES[user.profileTheme || 'default'] || THEME_CLASSES.default;
     const isSubscribed = currentUser?.subscriptions?.includes(user.id);
+    const hasSubscriptionPrice = (user.subscriptionPrice || 0) > 0;
 
     return (
-        // Changed positioning: uses absolute inset-0 relative to the <main> container in App.tsx
-        <div className={`absolute inset-0 ${themeClass.bg} z-[40] flex flex-col animate-slide-in`}>
+        // Added h-full w-full overflow-hidden to fix scroll glitch
+        <div className={`absolute inset-0 h-full w-full overflow-hidden ${themeClass.bg} z-[40] flex flex-col animate-slide-in`}>
             {isImageViewerOpen && <ImageViewer images={user.profilePhotos} onClose={() => setIsImageViewerOpen(false)} />}
             {viewingPost && currentUser && (
                 <PostDetailView 
@@ -159,6 +214,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                 <div className="w-8"></div>
             </header>
 
+            {/* Added flex-1 overflow-y-auto to allow internal scrolling only */}
             <div className="flex-1 overflow-y-auto p-4 pb-20">
                 <div className="flex items-center">
                     <button 
@@ -223,24 +279,54 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                     </button>
                 </div>
                 
-                <div className="grid grid-cols-3 gap-1 mt-8">
+                {/* Subscription Button Section */}
+                {hasSubscriptionPrice && !isSubscribed && (
+                    <div className="mt-6">
+                        <button
+                            onClick={handleSubscribe}
+                            disabled={isProcessingSub}
+                            className="w-full relative overflow-hidden group rounded-2xl p-4 bg-gradient-to-r from-gray-900 to-black text-white shadow-lg active:scale-95 transition-all"
+                        >
+                            <div className="absolute top-0 right-0 p-2 opacity-10">
+                                <CrownIcon className="w-24 h-24" />
+                            </div>
+                            <div className="flex items-center justify-between relative z-10">
+                                <div className="text-left">
+                                    <p className="text-xs text-gray-300 uppercase font-bold tracking-wider mb-1">Exclusive Access</p>
+                                    <p className="font-bold text-lg">Unlock all posts</p>
+                                </div>
+                                <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-xl flex items-center">
+                                    <FlameIcon className="w-5 h-5 text-flame-orange mr-1.5" />
+                                    <span className="font-bold text-xl">{user.subscriptionPrice}</span>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+                )}
+                
+                <div className="grid grid-cols-3 gap-1 mt-6">
                     {posts.map(post => {
-                        const isUnlocked = !post.isPaid || post.unlockedBy?.includes(currentUserId) || isSubscribed;
+                        const isUnlocked = !post.isPaid || post.unlockedBy?.includes(currentUserId) || isSubscribed || post.user.id === currentUserId;
                         
                         return (
                             <button key={post.id} onClick={() => setViewingPost(post)} className="aspect-square bg-gray-200 relative group overflow-hidden">
                                 <img 
                                     src={post.mediaUrls[0]} 
                                     alt="post" 
-                                    className={`w-full h-full object-cover transition-all duration-300 ${!isUnlocked ? 'filter blur-md scale-105 brightness-90' : ''}`} 
+                                    className={`w-full h-full object-cover transition-all duration-300 ${!isUnlocked ? 'blur-xl scale-110 brightness-75' : ''}`} 
                                 />
                                 {!isUnlocked && (
-                                    <div className="absolute inset-0 flex items-center justify-center z-10">
-                                        <div className="bg-black/30 p-2 rounded-full backdrop-blur-sm">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-black/10">
+                                        <div className="bg-black/40 p-2 rounded-full backdrop-blur-sm mb-1">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                             </svg>
                                         </div>
+                                        {post.price && (
+                                            <span className="text-white text-xs font-bold drop-shadow-md flex items-center bg-black/50 px-2 py-0.5 rounded-full">
+                                                <FlameIcon className="w-3 h-3 mr-1" />{post.price}
+                                            </span>
+                                        )}
                                     </div>
                                 )}
                                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />

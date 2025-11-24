@@ -59,6 +59,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
   const isOwnPost = post.userId === currentUser.id;
   const isSubscribed = currentUser.subscriptions?.includes(post.userId);
   const hasPurchased = post.unlockedBy?.includes(currentUser.id);
+  // Robust check for locking: If paid, not own, not purchased, not subscribed, and not locally unlocked -> Locked.
   const isLocked = post.isPaid && !isOwnPost && !hasPurchased && !isSubscribed && !isUnlocked;
 
   useEffect(() => {
@@ -365,15 +366,15 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
       </div>
 
       <div className="relative overflow-hidden bg-gray-100 dark:bg-zinc-900 group">
-          {/* Changed blur-2xl to blur-lg for better visibility of shapes */}
+          {/* Locked/Paid logic determines blur. blur-xl for heavy obfuscation. */}
           <img 
-            className={`w-full h-auto object-cover transition-all duration-700 ${isLocked ? 'blur-lg scale-105 brightness-90' : ''}`} 
+            className={`w-full h-auto object-cover transition-all duration-700 ${isLocked ? 'blur-xl scale-110 brightness-90' : ''}`} 
             src={post.mediaUrls[0]} 
             alt="Post content" 
           />
           
           {isLocked && (
-              <div className="absolute inset-0 z-10 flex flex-col justify-end items-center pb-4 bg-gradient-to-t from-black/80 via-transparent to-transparent">
+              <div className="absolute inset-0 z-10 flex flex-col justify-end items-center pb-4 bg-gradient-to-t from-black/60 via-transparent to-transparent">
                   {/* Minimalist Unlock Button */}
                   <div className="w-full px-8 flex flex-col gap-2">
                        <button 
@@ -396,7 +397,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
                           <button 
                             onClick={handleSubscribe}
                             disabled={isProcessingTransaction}
-                            className="text-xs text-white/90 font-medium hover:underline shadow-sm"
+                            className="text-xs text-white/90 font-medium hover:underline shadow-sm drop-shadow-md text-center w-full"
                           >
                               Or subscribe for {posterSubscriptionPrice} Coins/mo
                           </button>

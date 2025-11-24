@@ -14,6 +14,7 @@ import WalletScreen from './WalletScreen.tsx';
 import FlameIcon from '../components/icons/FlameIcon.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
 import HotnessDisplay from '../components/HotnessDisplay.tsx';
+import ReceiptIcon from '../components/icons/ReceiptIcon.tsx';
 
 const THEME_CLASSES: { [key: string]: { bg: string; text: string; subtext: string; border: string; }} = {
     default: { bg: 'bg-white dark:bg-black', text: 'text-dark-gray dark:text-gray-200', subtext: 'text-gray-500 dark:text-gray-400', border: 'border-gray-200 dark:border-gray-800' },
@@ -196,32 +197,28 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                     )}
                 </div>
 
-                {/* UPDATED BUTTON LAYOUT: Premium Styled Buttons */}
-                <div className="flex space-x-3 mt-8 mb-6">
+                {/* UPDATED BUTTON LAYOUT: Symmetrical, High Quality Buttons */}
+                <div className="flex gap-4 mt-8 mb-6">
                     <button 
                          onClick={() => setIsEditing(true)}
                          className="flex-1 py-3 px-4 rounded-2xl font-bold text-base
-                                    bg-gradient-to-br from-gray-100 to-gray-200 dark:from-zinc-800 dark:to-zinc-900 
-                                    text-gray-800 dark:text-gray-100 shadow-md 
-                                    border border-white/50 dark:border-zinc-700
-                                    active:scale-95 transition-all duration-200"
+                                    bg-white dark:bg-zinc-800 
+                                    text-gray-800 dark:text-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.1)]
+                                    border border-gray-100 dark:border-zinc-700
+                                    active:scale-95 transition-all duration-200 flex items-center justify-center gap-2"
                     >
-                        {t('editProfile')}
+                        <span>✏️</span> {t('editProfile')}
                     </button>
                     
                     <button 
                         onClick={() => setIsWalletOpen(true)} 
-                        className="flex-1 flex items-center justify-center space-x-2 py-3 px-4 rounded-2xl 
-                                   bg-gradient-to-r from-gray-900 to-black dark:from-gray-100 dark:to-white 
-                                   text-white dark:text-black shadow-lg shadow-black/10
-                                   border border-transparent
-                                   active:scale-95 transition-all duration-200 relative overflow-hidden group"
+                        className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl 
+                                   bg-gradient-to-r from-gray-900 to-black dark:from-white dark:to-gray-200 
+                                   text-white dark:text-black shadow-[0_4px_12px_rgba(0,0,0,0.2)]
+                                   active:scale-95 transition-all duration-200"
                     >
-                         {/* Subtle shine effect */}
-                        <div className="absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 group-hover:animate-[shimmer_1.5s_infinite]" />
-                        
-                        <span className="font-bold text-base relative z-10">{t('wallet')}</span>
-                        <div className="flex items-center text-flame-orange font-extrabold relative z-10 bg-white dark:bg-black px-2 py-0.5 rounded-full text-sm">
+                         <span className="font-bold">{t('wallet')}</span>
+                         <div className="flex items-center text-flame-orange font-extrabold bg-white dark:bg-black px-2 py-0.5 rounded-full text-sm">
                              <FlameIcon isGradient className="w-3.5 h-3.5 mr-1" />
                              <span>{Number(currentUser.coins) || 0}</span>
                         </div>
