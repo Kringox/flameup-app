@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, increment, arrayUnion, arrayRemove, getDocs, limit, setDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, increment, arrayUnion, arrayRemove, getDocs, limit, setDoc, writeBatch } from 'firebase/firestore';
 import { User, Message, Chat, Gift, RetentionPolicy } from '../types.ts';
 import MoreVerticalIcon from '../components/icons/MoreVerticalIcon.tsx';
 import GiftIcon from '../components/icons/GiftIcon.tsx';
@@ -309,10 +309,110 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const audioChunksRef = useRef<Blob[]>([]);
     const timerIntervalRef = useRef<number | null>(null);
     
+    // Refs to hold state for cleanup function (which can't see updated state in closures)
+    const messagesRef = useRef<Message[]>([]);
+    const retentionPolicyRef = useRef<RetentionPolicy>('forever');
+    const chatIdRef = useRef<string | null>(null);
+    const currentUserIdRef = useRef<string>(currentUser.id);
+
     // Track when the user entered this specific session
     const sessionStartTime = useRef<number>(Date.now());
     
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
+
+    useEffect(() => {
+        retentionPolicyRef.current = retentionPolicy;
+    }, [retentionPolicy]);
+
+    useEffect(() => {
+        chatIdRef.current = chatId;
+    }, [chatId]);
+    
+    useEffect(() => {
+        currentUserIdRef.current = currentUser.id;
+    }, [currentUser.id]);
+
+
+    useEffect(() => {
+        // Cleanup function for when the component unmounts (user leaves chat)
+        return () => {
+            const policy = retentionPolicyRef.current;
+            const msgs = messagesRef.current;
+            const cId = chatIdRef.current;
+            const uId = currentUserIdRef.current;
+
+            if (!cId || !db || msgs.length === 0) return;
+
+            // Determine messages to delete based on strict "Delete After Read" logic
+            const messagesToDelete: string[] = [];
+            const now = Date.now();
+
+            if (policy !== 'forever') {
+                msgs.forEach(msg => {
+                    if (msg.isSaved || msg.isSystemMessage || msg.isRecalled) return;
+                    if (msg.deletedFor?.includes(uId)) return; // Already deleted for me
+
+                    // Has the message been viewed?
+                    if (msg.viewedAt) {
+                        const viewTime = msg.viewedAt.toDate().getTime();
+                        let shouldDelete = false;
+
+                        if (policy === 'read') {
+                            // Delete immediately if viewed
+                            shouldDelete = true;
+                        } else if (policy === '5min') {
+                            // Delete if 5 mins passed since view
+                            if ((now - viewTime) > 5 * 60 * 1000) {
+                                shouldDelete = true;
+                            }
+                        }
+
+                        if (shouldDelete) {
+                            messagesToDelete.push(msg.id);
+                        }
+                    }
+                });
+            }
+            
+            if (messagesToDelete.length > 0) {
+                // Perform batch update to mark messages as deleted for this user
+                const batch = writeBatch(db);
+                let batchCount = 0;
+                let lastMessageDeleted = false;
+                
+                // Find the very last message to check if we need to update Chat List Preview
+                const lastMsgId = msgs[msgs.length - 1]?.id;
+
+                messagesToDelete.forEach(msgId => {
+                    if (batchCount < 490) { // Safety limit
+                        const msgRef = doc(db, 'chats', cId, 'messages', msgId);
+                        batch.update(msgRef, { deletedFor: arrayUnion(uId) });
+                        batchCount++;
+                        
+                        if (msgId === lastMsgId) {
+                            lastMessageDeleted = true;
+                        }
+                    }
+                });
+
+                // If the last message is being deleted, update the Chat document so the list view updates in real-time
+                if (lastMessageDeleted) {
+                     const chatRef = doc(db, 'chats', cId);
+                     // We can't remove the text entirely because the other user might not have read it.
+                     // Instead, we add the current user ID to a 'deletedFor' array on the lastMessage object in the Chat doc.
+                     // The ChatList item component will check this array.
+                     // Note: Firestore map updates can be tricky with dot notation if fields are dynamic, but here it's standard.
+                     batch.update(chatRef, { "lastMessage.deletedFor": arrayUnion(uId) });
+                }
+
+                batch.commit().catch(err => console.error("Error cleaning up messages on leave:", err));
+            }
+        };
+    }, []); // Run only on mount/unmount (cleanup logic)
 
     useEffect(() => {
         if (!db) return;
@@ -369,49 +469,24 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         const now = Date.now();
         const messagesToMarkViewed: string[] = [];
 
-        // CRITICAL: Only filter out messages that EXPIRED BEFORE this session started.
-        // Messages that expire DURING this session (because we just read them) should stay visible.
+        // Only filter out messages that are explicitly deleted for THIS user.
+        // Messages that are "expired" according to policy but NOT yet deleted (because user is still in session) 
+        // should REMAIN VISIBLE until the user leaves.
         const validMessages = messages.filter(msg => {
-            if (msg.isRecalled) return true;
-            if (msg.isSaved) return true;
-            if (msg.isSystemMessage) return true;
-
-            // If retention is active
-            if (retentionPolicy !== 'forever') {
-                // If I am the sender, I always see it until retention kicks in globally? 
-                // Usually sender sees it until receiver reads + retention.
-                // For simplicity in this app: Sender sees it forever/until recall.
-                // Receiver applies retention.
-                if (msg.senderId === currentUser.id) return true; 
-
-                // If viewedAt exists
-                if (msg.viewedAt) {
-                    const viewTime = msg.viewedAt.toDate().getTime();
-                    
-                    // If it was viewed BEFORE this session started, hide it.
-                    // We add a small buffer (e.g. 1 sec) to avoid race conditions on mount.
-                    if (viewTime < (sessionStartTime.current - 1000)) {
-                        // Double check policies
-                        if (retentionPolicy === 'read') return false; // Expired
-                        if (retentionPolicy === '5min') {
-                            if ((now - viewTime) > 5 * 60 * 1000) return false; // Expired
-                        }
-                    }
-                } else {
-                    // Not viewed yet, so we mark it for viewing
-                    messagesToMarkViewed.push(msg.id);
-                }
-            } else {
-                // Retention Forever - just mark as viewed if not already
-                 if (msg.senderId !== currentUser.id && !msg.viewedAt) {
-                     messagesToMarkViewed.push(msg.id);
-                 }
-            }
-
+            if (msg.deletedFor?.includes(currentUser.id)) return false;
             return true;
         });
         
         setFilteredMessages(validMessages);
+        
+        // Identify messages that need to be marked as "Viewed"
+        validMessages.forEach(msg => {
+            // If I am the receiver and haven't marked it viewed yet
+            if (msg.senderId !== currentUser.id && !msg.viewedAt) {
+                messagesToMarkViewed.push(msg.id);
+            }
+            // Even if I am the sender, if it's not viewed, it stays. 
+        });
         
         if (messagesToMarkViewed.length > 0 && chatId && db) {
             const batchUpdate = async () => {
@@ -428,12 +503,13 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
         }
 
-    }, [messages, retentionPolicy, chatId, currentUser.id]);
+    }, [messages, chatId, currentUser.id]);
     
     useEffect(() => {
+        // Force re-render every few seconds to check for time-based expirations (visual only) if strictly needed,
+        // but since we only delete on leave, this isn't strictly necessary for deletion logic, just for UI.
         if (retentionPolicy === 'forever') return;
         const interval = setInterval(() => {
-             // Force re-render to check 5min expiration
              setMessages(prev => [...prev]);
         }, 5000); 
         return () => clearInterval(interval);
@@ -495,12 +571,13 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 mediaType: mediaType || null,
                 isViewOnce: !!isViewOnce,
                 isSaved: false,
-                duration: duration || 0
+                duration: duration || 0,
+                deletedFor: []
             };
             
             if (replyContext) messagePayload.replyTo = replyContext;
             
-            await addDoc(collection(db, 'chats', currentChatId, 'messages'), messagePayload);
+            const msgRef = await addDoc(collection(db, 'chats', currentChatId, 'messages'), messagePayload);
             
             let lastMsgText = textToSend;
             if (mediaUrl) {
@@ -509,8 +586,15 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 else lastMsgText = '📷 Media';
             }
 
+            // IMPORTANT: Include the ID and reset deletedFor for the new last message
             await updateDoc(doc(db, 'chats', currentChatId), {
-                lastMessage: { text: lastMsgText, senderId: currentUser.id, timestamp: serverTimestamp() },
+                lastMessage: { 
+                    id: msgRef.id,
+                    text: lastMsgText, 
+                    senderId: currentUser.id, 
+                    timestamp: serverTimestamp(),
+                    deletedFor: [] // Reset deleted status for new message
+                },
                 [`unreadCount.${partnerId}`]: increment(1),
                 deletedFor: arrayRemove(partnerId, currentUser.id) 
             });
@@ -523,7 +607,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     };
 
     const startRecording = async (e: React.MouseEvent | React.TouchEvent) => {
-        // Prevent default to stop text selection and other UI glitches on mobile
         e.preventDefault();
         if(isRecording) return;
 
@@ -554,16 +637,14 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const stopRecording = (e: React.MouseEvent | React.TouchEvent) => {
         e.preventDefault();
         if (mediaRecorderRef.current && isRecording) {
-            const finalDuration = recordingDuration; // Capture current duration
+            const finalDuration = recordingDuration;
             
             mediaRecorderRef.current.onstop = () => {
                 const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/mp4' });
                 const audioFile = new File([audioBlob], `voice_${Date.now()}.m4a`, { type: 'audio/mp4' });
                 
-                // Stop tracks
                 mediaRecorderRef.current?.stream.getTracks().forEach(track => track.stop());
                 
-                // Send only if duration > 0
                 if (finalDuration > 0) {
                    handleSendMessage('', audioFile, 'audio', false, finalDuration);
                 }
@@ -635,11 +716,11 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             const userRef = doc(db, 'users', currentUser.id);
             await updateDoc(userRef, { coins: increment(-gift.cost) });
             onUpdateUser({...currentUser, coins: (currentCoins - gift.cost) }); 
-            await addDoc(collection(db, 'chats', currentChatId, 'messages'), { 
+            const msgRef = await addDoc(collection(db, 'chats', currentChatId, 'messages'), { 
                 chatId: currentChatId, senderId: currentUser.id, gift, timestamp: serverTimestamp() 
             });
             await updateDoc(doc(db, 'chats', currentChatId), { 
-                lastMessage: { text: `${gift.icon} ${gift.name}`, senderId: currentUser.id, timestamp: serverTimestamp() }, 
+                lastMessage: { id: msgRef.id, text: `${gift.icon} ${gift.name}`, senderId: currentUser.id, timestamp: serverTimestamp(), deletedFor: [] }, 
                 [`unreadCount.${partnerId}`]: increment(1),
                 deletedFor: arrayRemove(partnerId, currentUser.id)
             });
@@ -681,7 +762,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
          if (window.confirm("Recall this message?")) {
             await updateDoc(doc(db, 'chats', chatId, 'messages', message.id), { isRecalled: true, text: '', mediaUrl: null });
             await updateDoc(doc(db, 'chats', chatId), {
-                lastMessage: { text: 'Message recalled', senderId: currentUser.id, timestamp: serverTimestamp() }
+                lastMessage: { text: 'Message recalled', senderId: currentUser.id, timestamp: serverTimestamp(), deletedFor: [] }
             });
          }
          setContextMenu(null);

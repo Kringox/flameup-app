@@ -38,11 +38,18 @@ const ChatListItem: React.FC<{ chat: Chat; currentUser: User; onSelect: (partner
   // Handle Retention Policy for Preview
   let previewText = chat.lastMessage?.text || t('noMessagesYet');
   
-  if (chat.retentionPolicy === '5min' && chat.lastMessage?.timestamp) {
+  // Check if the last message is explicitly deleted for this user (via cleanup logic)
+  if (chat.lastMessage?.deletedFor?.includes(currentUser.id)) {
+      previewText = t('messageRecalled'); // Or specific text for "expired"
+      if (chat.retentionPolicy !== 'forever') {
+          previewText = "Message expired";
+      }
+  } else if (chat.retentionPolicy === '5min' && chat.lastMessage?.timestamp) {
+      // Fallback visual check for 5min policy if strict deletion hasn't run yet
       const msgTime = chat.lastMessage.timestamp.toDate().getTime();
       const now = Date.now();
       if (now - msgTime > 5 * 60 * 1000) {
-          previewText = 'Message expired'; // Visual indicator only, doesn't change DB
+          previewText = 'Message expired'; 
       }
   }
 

@@ -104,6 +104,7 @@ export interface Message {
     viewCount?: number; // 0 = new, 1 = viewed once, 2 = viewed & replayed (max)
     isSaved?: boolean; // For saving messages in Snapchat style
     isSystemMessage?: boolean; // For status updates like changing retention policy
+    deletedFor?: string[]; // Array of user IDs for whom this message is deleted
 
     reactions?: { [key: string]: string[] }; // emoji: array of user IDs
     replyTo?: {
@@ -124,9 +125,11 @@ export interface Chat {
         }
     };
     lastMessage?: {
+        id?: string; // Add ID to track specific message deletion status
         text: string;
         senderId: string;
         timestamp: Timestamp;
+        deletedFor?: string[]; // Array of user IDs who have deleted this specific last message
     };
     unreadCount?: {
         [key: string]: number;
