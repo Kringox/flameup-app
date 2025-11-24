@@ -1,9 +1,8 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../firebaseConfig.ts';
 import { collection, query, getDocs, orderBy, where, Timestamp, onSnapshot } from 'firebase/firestore';
-// FIX: Added file extension to types import
 import { Story, Post, User } from '../types.ts';
-// FIX: Added file extension to StoryViewer import
 import StoryViewer from '../components/StoryViewer.tsx';
 import BellIcon from '../components/icons/BellIcon.tsx';
 import LoadingScreen from '../components/LoadingScreen.tsx';
@@ -11,6 +10,7 @@ import PostCard from '../components/PostCard.tsx';
 import { promiseWithTimeout } from '../utils/promiseUtils.ts';
 import WifiOffIcon from '../components/icons/WifiOffIcon.tsx';
 import SearchIcon from '../components/icons/SearchIcon.tsx';
+import FlameIcon from '../components/icons/FlameIcon.tsx';
 
 
 const PLACEHOLDER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VlZSIvPjwvc3ZnPg==';
@@ -185,14 +185,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
   ];
 
   const renderHeader = () => (
-     <header className="relative flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-black sticky top-0 z-10">
-        <button onClick={onOpenNotifications} className="w-8">
+     <header className="relative flex justify-between items-center px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-black sticky top-0 z-10">
+        <button onClick={onOpenNotifications} className="w-8 flex justify-start">
             <BellIcon hasNotification={hasNotifications} />
         </button>
-        <button onClick={handleLogoClick}>
-            <img src="/assets/logo-text.png" alt="FlameUp" className="h-8 dark:invert" />
+        {/* Central Flame Logo */}
+        <button onClick={handleLogoClick} className="flex justify-center items-center transform active:scale-95 transition-transform">
+            <FlameIcon isGradient className="w-8 h-8" />
         </button>
-        <button onClick={onOpenSearch} className="w-8">
+        <button onClick={onOpenSearch} className="w-8 flex justify-end">
             <SearchIcon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
         </button>
     </header>
@@ -226,7 +227,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
         {renderHeader()}
 
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
-        <div className="flex space-x-4 overflow-x-auto pb-2">
+        <div className="flex space-x-4 overflow-x-auto pb-2 scrollbar-hide">
           {storyListForUI.map((story, index) => (
              <StoryCircle 
                 key={story.id} 
@@ -239,7 +240,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
         </div>
       </div>
 
-      <div className="p-2 md:p-4">
+      <div className="p-2 md:p-4 pb-20">
         {posts.map((post) => (
           <PostCard key={post.id} post={post} currentUser={currentUser} onPostDeleted={handlePostDeleted} onOpenComments={onOpenComments} onViewProfile={onViewProfile} onUpdateUser={onUpdateUser} />
         ))}

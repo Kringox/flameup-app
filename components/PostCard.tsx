@@ -1,5 +1,5 @@
+
 import React, { useState, useEffect } from 'react';
-// FIX: Added file extension to types import
 import { Post, User, NotificationType } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
 import { doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, addDoc, collection, serverTimestamp } from 'firebase/firestore';
@@ -10,6 +10,7 @@ import SendIcon from './icons/SendIcon.tsx';
 import MoreHorizontalIcon from './icons/MoreHorizontalIcon.tsx';
 import EditPostModal from './EditPostModal.tsx';
 import VerifiedIcon from './icons/VerifiedIcon.tsx';
+import UserPlusIcon from './icons/UserPlusIcon.tsx';
 import { hapticFeedback } from '../utils/haptics.ts';
 
 const formatTimestamp = (timestamp: any): string => {
@@ -81,9 +82,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
       }
   };
   
-  const handleFollow = async () => {
+  const handleFollow = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent navigating to profile
     if (!db || isFollowLoading) return;
     setIsFollowLoading(true);
+    hapticFeedback('selection');
 
     const currentUserRef = doc(db, 'users', currentUser.id);
 
@@ -185,28 +188,39 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
     )}
     <div className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden mb-4 shadow-sm">
       <div className="flex items-center justify-between p-3">
-        <button onClick={handleProfileClick} disabled={!onViewProfile} className="flex items-center disabled:cursor-default">
-            <img className="w-8 h-8 rounded-full object-cover" src={post.user.profilePhoto} alt={post.user.name} />
-            <div className="ml-3 font-semibold text-sm flex items-center space-x-2 text-dark-gray dark:text-gray-200">
-                <span>{post.user.name}</span>
-                {post.user.isPremium && <VerifiedIcon />}
+        {/* User Info Header */}
+        <div className="flex items-center flex-1 min-w-0">
+            <button onClick={handleProfileClick} disabled={!onViewProfile} className="flex-shrink-0 disabled:cursor-default">
+                <img className="w-9 h-9 rounded-full object-cover border border-gray-100 dark:border-zinc-700" src={post.user.profilePhoto} alt={post.user.name} />
+            </button>
+            <div className="ml-3 flex items-center min-w-0">
+                <button onClick={handleProfileClick} disabled={!onViewProfile} className="font-semibold text-sm text-dark-gray dark:text-gray-200 truncate disabled:cursor-default">
+                    {post.user.name}
+                </button>
+                {post.user.isPremium && <VerifiedIcon className="w-3.5 h-3.5 ml-1 flex-shrink-0" />}
+                
+                {/* 1-Tap Follow Icon */}
                 {!isOwnPost && !isFollowing && (
-                    <>
-                        <span className="text-gray-400 font-bold">·</span>
-                        <button onClick={handleFollow} disabled={isFollowLoading} className="font-bold text-blue-500 hover:text-blue-700 text-sm disabled:opacity-50">
-                            Follow
-                        </button>
-                    </>
+                    <button 
+                        onClick={handleFollow} 
+                        disabled={isFollowLoading} 
+                        className="ml-2 bg-flame-orange/10 text-flame-orange hover:bg-flame-orange hover:text-white transition-colors rounded-full p-1 flex items-center justify-center disabled:opacity-50"
+                        aria-label="Follow"
+                    >
+                        <UserPlusIcon className="w-3.5 h-3.5" />
+                    </button>
                 )}
             </div>
-        </button>
+        </div>
+
+        {/* Options */}
         {isOwnPost && (
             <div className="relative">
-                 <button onClick={() => setShowOptions(!showOptions)}>
+                 <button onClick={() => setShowOptions(!showOptions)} className="p-1">
                     <MoreHorizontalIcon className="h-5 w-5 text-gray-500" />
                 </button>
                 {showOptions && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-zinc-700 rounded-md shadow-lg z-20 animate-fade-in-fast">
+                    <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-zinc-700 rounded-md shadow-lg z-20 animate-fade-in-fast border border-gray-100 dark:border-gray-600">
                         <ul className="py-1">
                             <li>
                                 <button
@@ -250,7 +264,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
         </div>
         <div className="font-semibold text-sm text-dark-gray dark:text-gray-200">{likeCount} likes</div>
         <p className="text-sm mt-1 text-dark-gray dark:text-gray-200">
-          <button onClick={handleProfileClick} disabled={!onViewProfile} className="font-semibold">{post.user.name}</button> {post.caption}
+          <button onClick={handleProfileClick} disabled={!onViewProfile} className="font-semibold mr-1 hover:underline">{post.user.name}</button>
+          {post.caption}
         </p>
          {post.commentCount > 0 && (
             <button onClick={() => onOpenComments(post)} className="text-sm text-gray-500 dark:text-gray-400 mt-1">
