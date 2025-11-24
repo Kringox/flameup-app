@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 // FIX: Added file extension to types import
-import { User } from '../types.ts';
+import { User, AppTint } from '../types.ts';
 import { auth, db } from '../firebaseConfig.ts';
 // FIX: Added file extensions to screen imports
 import ManageSubscriptionScreen from './ManageSubscriptionScreen.tsx';
@@ -18,9 +18,10 @@ import UsersIcon from '../components/icons/UsersIcon.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
 import PrivacySettingsScreen from './PrivacySettingsScreen.tsx';
 import DesktopIcon from '../components/icons/DesktopIcon.tsx';
+import DailyBonusWheel from '../components/DailyBonusWheel.tsx';
+import StarIcon from '../components/icons/StarIcon.tsx';
 
 type Theme = 'light' | 'dark' | 'system';
-type AppTint = 'default' | 'ocean' | 'rose' | 'dusk';
 type Language = 'en' | 'de';
 
 interface SettingsScreenProps {
@@ -45,7 +46,19 @@ const SettingsItem: React.FC<{ onClick: () => void, children: React.ReactNode, i
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdateUser, theme, setTheme, localTint, setLocalTint }) => {
     const [activeSubScreen, setActiveSubScreen] = useState<string | null>(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [showDailyBonus, setShowDailyBonus] = useState(false);
+    const [bonusAvailable, setBonusAvailable] = useState(false);
     const { t } = useI18n();
+
+    useEffect(() => {
+        if (!user.lastDailyBonus) {
+            setBonusAvailable(true);
+        } else {
+            const last = user.lastDailyBonus.toDate().getTime();
+            const now = Date.now();
+            setBonusAvailable(now - last > 24 * 60 * 60 * 1000);
+        }
+    }, [user.lastDailyBonus]);
 
     const handleLogout = () => {
         if (!auth) return;
@@ -97,6 +110,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdate
              <style>{`.animate-slide-in { animation: slideInFromRight 0.3s ease-out; } @keyframes slideInFromRight { from { transform: translateX(100%); } to { transform: translateX(0); } }`}</style>
             
              {isDeleteModalOpen && <DeleteAccountModal onClose={() => setIsDeleteModalOpen(false)} onConfirm={handleDeleteConfirm} />}
+             {showDailyBonus && <DailyBonusWheel currentUser={user} onClose={() => setShowDailyBonus(false)} onUpdateUser={onUpdateUser} />}
 
             <header className="flex items-center p-4 border-b dark:border-gray-800 bg-white dark:bg-zinc-900">
                  <button onClick={onClose} className="w-8 text-dark-gray dark:text-gray-200">
@@ -109,6 +123,26 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdate
             <main className="flex-1 overflow-y-auto p-4">
                 <div className="space-y-4">
                     
+                    {/* Daily Bonus Button */}
+                    <button 
+                        onClick={() => setShowDailyBonus(true)}
+                        className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-gray-800 to-black dark:from-zinc-800 dark:to-zinc-900 text-white rounded-xl shadow-lg relative overflow-hidden group"
+                    >
+                        <div className="flex items-center relative z-10">
+                            <div className="p-2 bg-white/20 rounded-full mr-3">
+                                <span className="text-xl">🎁</span>
+                            </div>
+                            <div className="text-left">
+                                <p className="font-bold">{t('dailyRewards')}</p>
+                                <p className="text-xs text-gray-300">{bonusAvailable ? t('readyToClaim') : t('comeBackLater')}</p>
+                            </div>
+                        </div>
+                        {bonusAvailable && (
+                            <span className="relative z-10 w-3 h-3 bg-red-500 rounded-full animate-ping"></span>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-r from-flame-orange/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </button>
+
                     <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg shadow-sm">
                         <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">{t('language')}</h2>
                         <div className="flex bg-gray-200 dark:bg-zinc-700 rounded-lg p-1">
@@ -126,16 +160,16 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdate
                     
                     <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg shadow-sm">
                         <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3 flex items-center">
-                            <DesktopIcon className="w-4 h-4 mr-1" /> App Design (Nur für dich)
+                            <DesktopIcon className="w-4 h-4 mr-1" /> {t('appDesign')}
                         </h2>
-                        <div className="grid grid-cols-4 gap-2">
-                            {(['default', 'ocean', 'rose', 'dusk'] as AppTint[]).map(tint => (
+                        <div className="grid grid-cols-3 gap-2">
+                            {(['white', 'black', 'red'] as AppTint[]).map(tint => (
                                 <button
                                     key={tint}
                                     onClick={() => setLocalTint(tint)}
                                     className={`py-2 rounded-lg border-2 text-xs font-bold capitalize ${localTint === tint ? 'border-flame-orange bg-gray-100 dark:bg-zinc-700' : 'border-transparent bg-gray-50 dark:bg-zinc-900 dark:text-white text-gray-700'}`}
                                 >
-                                    {tint}
+                                    {t(tint)}
                                 </button>
                             ))}
                         </div>

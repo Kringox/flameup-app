@@ -1,3 +1,4 @@
+
 export const en = {
   // Navigation
   navHome: 'Home',
@@ -28,9 +29,11 @@ export const en = {
   lifestylePlaceholder: 'e.g. Early bird, non-smoker, dog person...',
   customizeProfile: 'Customize Profile (Premium)',
   profileTheme: 'Profile Theme',
-  default: 'Default',
-  dusk: 'Dusk',
-  rose: 'Rosé',
+  
+  // Tints
+  white: 'White',
+  black: 'Black',
+  red: 'Red',
 
   // Settings Screen
   settingsTitle: 'Settings',
@@ -45,6 +48,10 @@ export const en = {
   privacyPolicy: 'Privacy Policy',
   logOut: 'Log Out',
   deleteAccount: 'Delete Account',
+  dailyRewards: 'Daily Rewards',
+  readyToClaim: 'Ready to claim!',
+  comeBackLater: 'Come back later',
+  appDesign: 'App Design',
 
   // Wallet Screen
   yourBalance: 'Your Balance',
@@ -88,4 +95,33 @@ export const en = {
   sendReadReceipts: 'Send Read Receipts',
   showLastOnline: 'Show Last Online Status',
   premiumFeature: 'Premium Feature',
+
+  // Daily Bonus Wheel
+  dailyBonusTitle: 'DAILY BONUS',
+  spinTheWheel: 'Spin the wheel to win coins & rewards!',
+  spinNow: 'SPIN NOW',
+  spinning: 'Spinning...',
+  comeBackTomorrow: 'Come back tomorrow',
+  youWon: 'You won:',
+  awesome: 'Awesome!',
+
+  // Filter Modal
+  filters: 'Filters',
+  close: 'Close',
+  locationSource: 'Location Source',
+  myGps: 'My GPS',
+  manual: 'Manual',
+  enterCity: 'Enter City (e.g. Berlin)',
+  radius: 'Radius',
+  ageRange: 'Age Range',
+  applyFilters: 'Apply Filters',
+  noInterests: 'No interests selected',
+
+  // Swipe Screen
+  noMoreProfiles: 'No more profiles',
+  adjustFiltersMsg: 'Try adjusting your filters to see more people.',
+  adjustFiltersBtn: 'Adjust Filters',
+  refresh: 'Refresh',
+  profileError: 'Profile Error',
+  profileErrorMsg: 'This profile could not be loaded.',
 };

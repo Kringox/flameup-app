@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { SwipeFilters } from '../types';
 import MapPinIcon from './icons/MapPinIcon';
 import FilterIcon from './icons/FilterIcon';
+import { useI18n } from '../contexts/I18nContext';
 
 interface FilterModalProps {
   onClose: () => void;
@@ -17,6 +18,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ onClose, onApply, currentFilt
   const [ageRange, setAgeRange] = useState<[number, number]>(currentFilters.ageRange);
   const [interestInput, setInterestInput] = useState('');
   const [interests, setInterests] = useState<string[]>(currentFilters.requiredInterests || []);
+  const { t } = useI18n();
 
   const handleApply = () => {
     onApply({
@@ -49,26 +51,26 @@ const FilterModal: React.FC<FilterModalProps> = ({ onClose, onApply, currentFilt
         <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold flex items-center dark:text-white">
                 <FilterIcon className="w-6 h-6 mr-2 text-flame-orange" />
-                Filters
+                {t('filters')}
             </h2>
-            <button onClick={onClose} className="text-gray-500 dark:text-gray-400 hover:text-gray-800">Close</button>
+            <button onClick={onClose} className="text-gray-500 dark:text-gray-400 hover:text-gray-800">{t('close')}</button>
         </div>
         
         {/* Location Section */}
         <div className="mb-6 bg-gray-50 dark:bg-zinc-700/50 p-4 rounded-xl">
-            <h3 className="font-bold text-sm uppercase text-gray-500 dark:text-gray-400 mb-3 tracking-wide">Location Source</h3>
+            <h3 className="font-bold text-sm uppercase text-gray-500 dark:text-gray-400 mb-3 tracking-wide">{t('locationSource')}</h3>
             <div className="flex bg-white dark:bg-zinc-800 rounded-lg p-1 shadow-sm border border-gray-200 dark:border-zinc-700 mb-4">
                 <button 
                     onClick={() => setUseMyLocation(true)}
                     className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${useMyLocation ? 'bg-flame-orange text-white shadow' : 'text-gray-600 dark:text-gray-300'}`}
                 >
-                    My GPS
+                    {t('myGps')}
                 </button>
                 <button 
                     onClick={() => setUseMyLocation(false)}
                     className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${!useMyLocation ? 'bg-flame-orange text-white shadow' : 'text-gray-600 dark:text-gray-300'}`}
                 >
-                    Manual
+                    {t('manual')}
                 </button>
             </div>
 
@@ -78,7 +80,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ onClose, onApply, currentFilt
                         type="text"
                         value={manualLocation}
                         onChange={(e) => setManualLocation(e.target.value)}
-                        placeholder="Enter City (e.g. Berlin)"
+                        placeholder={t('enterCity')}
                         className="w-full p-3 rounded-lg border border-gray-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-dark-gray dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-flame-orange"
                     />
                 </div>
@@ -87,7 +89,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ onClose, onApply, currentFilt
             {useMyLocation && (
                 <div>
                     <div className="flex justify-between mb-2">
-                        <label className="font-semibold dark:text-gray-200">Radius</label>
+                        <label className="font-semibold dark:text-gray-200">{t('radius')}</label>
                         <span className="text-flame-orange font-bold">{maxDistance} km</span>
                     </div>
                     <input
@@ -104,13 +106,13 @@ const FilterModal: React.FC<FilterModalProps> = ({ onClose, onApply, currentFilt
 
         {/* Interests Section */}
         <div className="mb-6">
-            <h3 className="font-bold text-sm uppercase text-gray-500 dark:text-gray-400 mb-3 tracking-wide">Interests</h3>
+            <h3 className="font-bold text-sm uppercase text-gray-500 dark:text-gray-400 mb-3 tracking-wide">{t('interests')}</h3>
             <div className="flex mb-2">
                 <input 
                     type="text" 
                     value={interestInput}
                     onChange={(e) => setInterestInput(e.target.value)}
-                    placeholder="Add interest (e.g. Music)" 
+                    placeholder={t('interestsPlaceholder')} 
                     className="flex-1 p-2 border border-gray-300 dark:border-zinc-600 rounded-l-lg dark:bg-zinc-800 dark:text-white focus:outline-none"
                     onKeyDown={(e) => e.key === 'Enter' && addInterest()}
                 />
@@ -123,14 +125,14 @@ const FilterModal: React.FC<FilterModalProps> = ({ onClose, onApply, currentFilt
                         <button onClick={() => removeInterest(idx)} className="ml-2 text-red-500 font-bold">×</button>
                     </span>
                 ))}
-                {interests.length === 0 && <span className="text-sm text-gray-400 italic">No interests selected</span>}
+                {interests.length === 0 && <span className="text-sm text-gray-400 italic">{t('noInterests')}</span>}
             </div>
         </div>
 
         {/* Age Range */}
         <div className="mb-8">
           <div className="flex justify-between mb-2">
-             <label className="font-semibold dark:text-gray-200">Age Range</label>
+             <label className="font-semibold dark:text-gray-200">{t('ageRange')}</label>
              <span className="text-flame-orange font-bold">{ageRange[0]} - {ageRange[1]}</span>
           </div>
           <div className="flex items-center space-x-4">
@@ -163,7 +165,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ onClose, onApply, currentFilt
           onClick={handleApply}
           className="w-full py-3 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-shadow"
         >
-          Apply Filters
+          {t('applyFilters')}
         </button>
       </div>
     </div>

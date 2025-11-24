@@ -16,6 +16,8 @@ import { DEMO_USERS_FOR_UI } from '../constants.ts';
 import HotnessDisplay from '../components/HotnessDisplay.tsx';
 import FilterModal from '../components/FilterModal.tsx';
 import MapPinIcon from '../components/icons/MapPinIcon.tsx';
+import FlameIcon from '../components/icons/FlameIcon.tsx';
+import { useI18n } from '../contexts/I18nContext.ts';
 
 interface SwipeScreenProps {
   currentUser: User;
@@ -23,7 +25,9 @@ interface SwipeScreenProps {
   onUpdateUser: (updatedUser: User) => void;
 }
 
-const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; distance?: number }> = ({ user, isVisible, animation, distance }) => {
+const SUPER_LIKE_COST = 5;
+
+const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; distance?: number; errorMsg: string; errorTitle: string }> = ({ user, isVisible, animation, distance, errorMsg, errorTitle }) => {
   try {
     const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
@@ -41,8 +45,8 @@ const SwipeCard: React.FC<{ user: User; isVisible: boolean; animation: string; d
       return (
           <div className={`absolute inset-0 w-full h-full bg-gray-300 dark:bg-zinc-700 rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center p-4 text-center ${animation}`}>
               <div className="text-red-500">
-                  <p className="font-bold">Profile Error</p>
-                  <p className="text-sm">This profile could not be loaded due to an image error.</p>
+                  <p className="font-bold">{errorTitle}</p>
+                  <p className="text-sm">{errorMsg}</p>
               </div>
           </div>
       );
@@ -121,6 +125,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
     const [error, setError] = useState<string | null>(null);
     const [animation, setAnimation] = useState('');
     const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const { t } = useI18n();
     
     // Default Filters
     const [filters, setFilters] = useState<SwipeFilters>({
@@ -269,6 +274,23 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
     const handleSwipe = async (direction: 'left' | 'right' | 'super') => {
         if (currentIndex >= users.length || !db) return;
 
+        // Super Like Logic check
+        if (direction === 'super') {
+            const freeLikes = currentUser.freeSuperLikes || 0;
+            const currentCoins = currentUser.coins || 0;
+
+            if (freeLikes > 0) {
+                // Use free like
+                // Proceed (deduction happens in firestore/optimistic update below)
+            } else if (currentCoins >= SUPER_LIKE_COST) {
+                // Use coins
+                // Proceed
+            } else {
+                alert(`Not enough coins! Super Like costs ${SUPER_LIKE_COST} coins or a free token.`);
+                return;
+            }
+        }
+
         const swipedUser = users[currentIndex];
         if (!swipedUser || !swipedUser.id) return;
 
@@ -296,10 +318,23 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
             const fieldToUpdate = direction === 'left' ? 'swipedLeft' : 'swipedRight';
             batch.update(userRef, { [fieldToUpdate]: arrayUnion(swipedUserId) });
 
+            // Deduction Logic for Super Like
+            if (direction === 'super') {
+                const freeLikes = currentUser.freeSuperLikes || 0;
+                if (freeLikes > 0) {
+                    batch.update(userRef, { freeSuperLikes: increment(-1) });
+                    onUpdateUser({...currentUser, freeSuperLikes: freeLikes - 1});
+                } else {
+                    batch.update(userRef, { coins: increment(-SUPER_LIKE_COST) });
+                    onUpdateUser({...currentUser, coins: (currentUser.coins || 0) - SUPER_LIKE_COST});
+                }
+            }
+
             if (direction === 'right' || direction === 'super') {
                 // IMPORTANT: Increment the Hotness Score of the person being LIKED
                 const targetUserRef = doc(db, 'users', swipedUserId);
-                batch.update(targetUserRef, { hotnessScore: increment(2) }); // +2 Hotness for a like
+                const hotnessInc = direction === 'super' ? 10 : 2; // +10 for Super, +2 for Like
+                batch.update(targetUserRef, { hotnessScore: increment(hotnessInc) }); 
 
                 if (Array.isArray(swipedUser.swipedRight) && swipedUser.swipedRight.includes(currentUser.id)) {
                     onNewMatch(swipedUser);
@@ -311,11 +346,14 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
 
                     const notifRef = doc(collection(db, 'users', swipedUserId, 'notifications'));
                     batch.set(notifRef, {
-                        type: NotificationType.Match,
+                        type: NotificationType.Match, // Assuming NotificationType from imports
                         fromUser: { id: currentUser.id, name: currentUser.name, profilePhoto: currentUserProfilePhoto },
                         read: false,
                         timestamp: serverTimestamp(),
                     });
+                } else if (direction === 'super') {
+                    // For Super Like, maybe send a notification even if not matched yet?
+                    // For MVP, keeping it simple.
                 }
             }
             await batch.commit();
@@ -346,12 +384,12 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
         if (currentIndex >= users.length) {
             return (
                 <div className="flex flex-col justify-center items-center h-full text-center p-4">
-                    <h3 className="font-bold text-lg dark:text-gray-200">No more profiles</h3>
-                    <p className="text-gray-600 dark:text-gray-400 mb-4">Try adjusting your filters to see more people.</p>
+                    <h3 className="font-bold text-lg dark:text-gray-200">{t('noMoreProfiles')}</h3>
+                    <p className="text-gray-600 dark:text-gray-400 mb-4">{t('adjustFiltersMsg')}</p>
                     <button onClick={() => setIsFilterOpen(true)} className="flex items-center px-6 py-3 bg-white dark:bg-zinc-800 shadow-md rounded-full font-bold text-flame-orange">
-                        <FilterIcon className="w-5 h-5 mr-2" /> Adjust Filters
+                        <FilterIcon className="w-5 h-5 mr-2" /> {t('adjustFiltersBtn')}
                     </button>
-                    <button onClick={fetchUsers} className="mt-4 text-sm text-gray-500 underline">Refresh</button>
+                    <button onClick={fetchUsers} className="mt-4 text-sm text-gray-500 underline">{t('refresh')}</button>
                 </div>
             );
         }
@@ -366,6 +404,8 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                             isVisible={true}
                             animation="transform scale-95 opacity-80"
                             distance={(users[currentIndex + 1] as any)._distance}
+                            errorMsg={t('profileErrorMsg')}
+                            errorTitle={t('profileError')}
                         />
                     )}
                     {users[currentIndex] && (
@@ -375,6 +415,8 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                             isVisible={true}
                             animation={animation}
                             distance={(users[currentIndex] as any)._distance}
+                            errorMsg={t('profileErrorMsg')}
+                            errorTitle={t('profileError')}
                         />
                     )}
                 </div>
@@ -382,10 +424,20 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                     <button onClick={() => handleSwipe('left')} className="w-16 h-16 bg-white dark:bg-zinc-800 rounded-full shadow-lg flex justify-center items-center text-gray-500 transform hover:scale-110 transition-transform">
                         <XIcon className="w-8 h-8" />
                     </button>
-                    {/* Super like kept as interaction but no coin cost logic needed for MVP */}
-                    <button onClick={() => handleSwipe('super')} className="w-14 h-14 bg-white dark:bg-zinc-800 rounded-full shadow-lg flex justify-center items-center text-blue-500 transform hover:scale-110 transition-transform">
-                        <StarIcon className="w-7 h-7" />
+                    
+                    <button onClick={() => handleSwipe('super')} className="w-14 h-14 bg-white dark:bg-zinc-800 rounded-full shadow-lg flex flex-col justify-center items-center text-blue-500 transform hover:scale-110 transition-transform relative">
+                        <StarIcon className="w-6 h-6" />
+                        {/* Free Super Like Badge */}
+                        {(currentUser.freeSuperLikes || 0) > 0 && (
+                            <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white dark:border-zinc-900">
+                                {currentUser.freeSuperLikes}
+                            </div>
+                        )}
+                        <span className="text-[9px] font-bold mt-0.5">
+                            {(currentUser.freeSuperLikes || 0) > 0 ? 'FREE' : `${SUPER_LIKE_COST}`}
+                        </span>
                     </button>
+
                     <button onClick={() => handleSwipe('right')} className="w-16 h-16 bg-white dark:bg-zinc-800 rounded-full shadow-lg flex justify-center items-center text-red-500 transform hover:scale-110 transition-transform">
                         <HeartIcon isLiked={false} className="w-8 h-8" />
                     </button>
@@ -404,9 +456,17 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                 />
             )}
             
-            <header className="flex justify-between items-center px-4 py-3 flex-shrink-0">
+            <header className="flex justify-between items-center px-4 py-3 flex-shrink-0 relative">
                 <div className="w-8"></div> {/* Spacer */}
+                
                 <img src="/assets/logo-icon.png" alt="FlameUp" className="h-8 dark:invert" />
+                
+                {/* Coin Display on Swipe Screen */}
+                <div className="absolute top-3 right-14 bg-white/80 dark:bg-zinc-800/80 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm border border-gray-100 dark:border-zinc-700 flex items-center gap-1.5">
+                    <FlameIcon isGradient className="w-4 h-4" />
+                    <span className="text-sm font-bold text-dark-gray dark:text-white">{currentUser.coins || 0}</span>
+                </div>
+
                 <button 
                     onClick={() => setIsFilterOpen(true)} 
                     className="w-8 flex justify-center items-center text-gray-600 dark:text-gray-300"

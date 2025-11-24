@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { User, Post } from '../types.ts';
+import { User, Post, AppTint } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import SettingsIcon from '../components/icons/SettingsIcon.tsx';
@@ -45,14 +45,14 @@ const ProfileSkeleton = () => (
 // --- End Skeleton ---
 
 const THEME_CLASSES: { [key: string]: { bg: string; text: string; subtext: string; border: string; }} = {
+    white: { bg: 'bg-white', text: 'text-gray-900', subtext: 'text-gray-500', border: 'border-gray-200' },
+    black: { bg: 'bg-black', text: 'text-gray-100', subtext: 'text-gray-400', border: 'border-zinc-800' },
+    red: { bg: 'bg-gradient-to-b from-red-900 to-black', text: 'text-white', subtext: 'text-red-200', border: 'border-red-800' },
+    // Fallback
     default: { bg: 'bg-white dark:bg-black', text: 'text-dark-gray dark:text-gray-200', subtext: 'text-gray-500 dark:text-gray-400', border: 'border-gray-200 dark:border-gray-800' },
-    ocean: { bg: 'bg-blue-50 dark:bg-slate-900', text: 'text-blue-900 dark:text-blue-100', subtext: 'text-blue-600 dark:text-blue-400', border: 'border-blue-200 dark:border-blue-800' },
-    dusk: { bg: 'bg-theme-dusk-bg', text: 'text-theme-dusk-text', subtext: 'text-gray-400', border: 'border-gray-700' },
-    rose: { bg: 'bg-theme-rose-bg', text: 'text-theme-rose-text', subtext: 'text-pink-200', border: 'border-pink-300' },
 }
 
 type Theme = 'light' | 'dark' | 'system';
-type AppTint = 'default' | 'ocean' | 'rose' | 'dusk';
 
 interface ProfileScreenProps {
   currentUser: User;
@@ -93,7 +93,7 @@ const ChipList: React.FC<{ items: string, themeClasses: any }> = ({ items, theme
             {list.map((item, index) => (
                 <span 
                     key={index} 
-                    className={`px-3 py-1.5 rounded-full text-sm font-medium flex items-center shadow-sm transition-transform hover:scale-105 bg-gray-100 dark:bg-zinc-800 ${themeClasses.text} border border-gray-200 dark:border-zinc-700`}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium flex items-center shadow-sm transition-transform hover:scale-105 bg-white/10 ${themeClasses.text} border ${themeClasses.border}`}
                 >
                     <span className="mr-1.5">{getIconForKeyword(item)}</span>
                     {item}
@@ -154,7 +154,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
         setViewingPost(updatedPost);
     };
     
-    const themeClasses = THEME_CLASSES[localTint || 'default'] || THEME_CLASSES.default;
+    const themeClasses = THEME_CLASSES[localTint || 'white'] || THEME_CLASSES.default;
 
     return (
         <div className={`w-full h-full flex flex-col ${themeClasses.bg}`}>
@@ -165,7 +165,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
             {viewingPost && <PostDetailView post={viewingPost} currentUser={currentUser} onClose={() => setViewingPost(null)} onPostDeleted={handlePostDeleted} onPostUpdated={handlePostUpdated} onOpenComments={() => {}} />}
             {isImageViewerOpen && <ImageViewer images={currentUser.profilePhotos} onClose={() => setIsImageViewerOpen(false)} />}
             
-            <header className={`flex justify-between items-center p-4 ${themeClasses.border} border-b sticky top-0 bg-white/90 dark:bg-black/90 backdrop-blur z-10`}>
+            <header className={`flex justify-between items-center p-4 ${themeClasses.border} border-b sticky top-0 backdrop-blur z-10`}>
                 <div className="w-8"></div>
                 <div className={`flex items-center space-x-2`}>
                     <h1 className={`text-xl font-bold ${themeClasses.text}`}>{currentUser.name}</h1>
@@ -231,24 +231,17 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                         <div className="flex gap-4 mt-8 mb-6">
                             <button 
                                 onClick={() => setIsEditing(true)}
-                                className="flex-1 py-3 px-4 rounded-2xl font-bold text-base
-                                            bg-white dark:bg-zinc-800 
-                                            text-gray-800 dark:text-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.1)]
-                                            border border-gray-100 dark:border-zinc-700
-                                            active:scale-95 transition-all duration-200 flex items-center justify-center gap-2"
+                                className={`flex-1 py-3 px-4 rounded-2xl font-bold text-base shadow-[0_2px_8px_rgba(0,0,0,0.1)] border ${themeClasses.border} ${localTint === 'white' ? 'bg-white text-gray-800' : 'bg-zinc-800 text-white'} active:scale-95 transition-all duration-200 flex items-center justify-center gap-2`}
                             >
                                 <span>✏️</span> {t('editProfile')}
                             </button>
                             
                             <button 
                                 onClick={() => setIsWalletOpen(true)} 
-                                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl 
-                                        bg-gradient-to-r from-gray-900 to-black dark:from-white dark:to-gray-200 
-                                        text-white dark:text-black shadow-[0_4px_12px_rgba(0,0,0,0.2)]
-                                        active:scale-95 transition-all duration-200"
+                                className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl shadow-[0_4px_12px_rgba(0,0,0,0.2)] active:scale-95 transition-all duration-200 ${localTint === 'white' ? 'bg-black text-white' : 'bg-white text-black'}`}
                             >
                                 <span className="font-bold">{t('wallet')}</span>
-                                <div className="flex items-center text-flame-orange font-extrabold bg-white dark:bg-black px-2 py-0.5 rounded-full text-sm">
+                                <div className={`flex items-center text-flame-orange font-extrabold px-2 py-0.5 rounded-full text-sm ${localTint === 'white' ? 'bg-white' : 'bg-black'}`}>
                                     <FlameIcon isGradient className="w-3.5 h-3.5 mr-1" />
                                     <span>{Number(currentUser.coins) || 0}</span>
                                 </div>

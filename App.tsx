@@ -7,7 +7,7 @@ import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, onSnapshot, getDoc, collection, query, where, Timestamp, updateDoc } from 'firebase/firestore';
 
 // FIX: Added file extension to types import
-import { User, Tab, Post, Notification, Chat, NotificationType } from './types.ts';
+import { User, Tab, Post, Notification, Chat, NotificationType, AppTint } from './types.ts';
 import { I18nProvider } from './contexts/I18nContext.ts';
 
 // FIX: Added file extension to screen and component imports
@@ -30,10 +30,10 @@ import XPToast from './components/XPToast.tsx';
 import { XpContext } from './contexts/XpContext.ts';
 import SearchScreen from './screens/SearchScreen.tsx';
 import PostGridViewer from './components/PostGridViewer.tsx';
+import DailyBonusWheel from './components/DailyBonusWheel.tsx';
 
 
 type Theme = 'light' | 'dark' | 'system';
-type AppTint = 'default' | 'ocean' | 'rose' | 'dusk';
 
 const App: React.FC = () => {
   const [authState, setAuthState] = useState<{
@@ -56,10 +56,11 @@ const App: React.FC = () => {
   const [inAppNotification, setInAppNotification] = useState<any | null>(null);
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
   const [theme, setTheme] = useState<Theme>((localStorage.getItem('theme') as Theme) || 'system');
-  const [localTint, setLocalTint] = useState<AppTint>((localStorage.getItem('appTint') as AppTint) || 'default');
+  const [localTint, setLocalTint] = useState<AppTint>((localStorage.getItem('appTint') as AppTint) || 'white');
   const [xpToast, setXpToast] = useState<{ amount: number; key: number } | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [viewingPostGrid, setViewingPostGrid] = useState<{ posts: Post[], startIndex: number } | null>(null);
+  const [showDailyBonus, setShowDailyBonus] = useState(false);
 
 
   const showXpToast = (amount: number) => {
@@ -94,6 +95,14 @@ const App: React.FC = () => {
   // Handle Local Tint Application
   useEffect(() => {
       localStorage.setItem('appTint', localTint);
+      // Apply tint-based classes to body for global feel if needed, mostly handled in components
+      const root = window.document.documentElement;
+      if (localTint === 'black') {
+          root.classList.add('dark');
+      } else if (localTint === 'white') {
+          root.classList.remove('dark');
+      }
+      // 'red' can be either, usually we keep it separate or map it to dark
   }, [localTint]);
 
 
@@ -123,6 +132,21 @@ const App: React.FC = () => {
       unsubscribeUser = onSnapshot(userRef, (snapshot) => {
         if (snapshot.exists()) {
           const userData = { id: snapshot.id, ...snapshot.data() } as User;
+          
+          // Check for Daily Bonus Availability on initial load
+          // We check if authState.currentUser is null to ensure this only runs once per session init
+          if (!authState.currentUser) {
+              if (!userData.lastDailyBonus) {
+                  setShowDailyBonus(true);
+              } else {
+                  const lastBonus = userData.lastDailyBonus.toDate().getTime();
+                  const now = Date.now();
+                  if (now - lastBonus > 24 * 60 * 60 * 1000) {
+                      setShowDailyBonus(true);
+                  }
+              }
+          }
+
           setAuthState(prev => ({ ...prev, currentUser: userData, isLoading: false }));
 
           // Request Location Permission on Load
@@ -145,7 +169,6 @@ const App: React.FC = () => {
                                       latitude: newLat,
                                       longitude: newLng,
                                       // Simple reverse geo-coding simulation or placeholder
-                                      // For a real app, use an API like Google Maps or OpenCage here
                                       cityName: userData.location?.cityName || "Unknown" 
                                   }
                               });
@@ -304,6 +327,7 @@ const App: React.FC = () => {
               }} 
               onOpenCreate={() => setCreateScreenMode('select')} 
               hasUnreadMessages={hasUnreadMessages}
+              localTint={localTint}
             />
 
             {/* Modals and Full Screen Overlays (Cover Nav) */}
@@ -352,6 +376,15 @@ const App: React.FC = () => {
                         setInAppNotification(null);
                     }} 
                     onClose={() => setInAppNotification(null)}
+                />
+            )}
+            
+            {/* Daily Bonus Wheel */}
+            {showDailyBonus && authState.currentUser && (
+                <DailyBonusWheel 
+                    currentUser={authState.currentUser} 
+                    onClose={() => setShowDailyBonus(false)} 
+                    onUpdateUser={handleUpdateUser}
                 />
             )}
           </div>

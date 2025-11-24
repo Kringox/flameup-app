@@ -20,6 +20,9 @@ export enum NotificationType {
 
 export type RetentionPolicy = 'forever' | '5min' | 'read';
 
+// Updated AppTint to strictly White, Black, Red
+export type AppTint = 'white' | 'black' | 'red';
+
 export interface UserLocation {
     latitude: number;
     longitude: number;
@@ -40,6 +43,7 @@ export interface User {
   followers: string[]; // array of user IDs
   following: string[]; // array of user IDs
   coins?: number;
+  freeSuperLikes?: number; // New field for earned super likes
   
   // Location Data
   location?: UserLocation;
@@ -57,7 +61,7 @@ export interface User {
   
   createdAt: Timestamp;
   isPremium?: boolean; // Legacy generic premium
-  profileTheme?: 'default' | 'dusk' | 'rose';
+  profileTheme?: AppTint; // Use the new restricted type
   lastDailyBonus?: Timestamp;
   swipedLeft?: string[]; // array of user IDs
   swipedRight?: string[]; // array of user IDs
