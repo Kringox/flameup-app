@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, increment, arrayUnion, getDocs, limit, setDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, increment, arrayUnion, arrayRemove, getDocs, limit, setDoc, Timestamp } from 'firebase/firestore';
 import { User, Message, Chat, Gift, RetentionPolicy } from '../types.ts';
 import MoreVerticalIcon from '../components/icons/MoreVerticalIcon.tsx';
 import GiftIcon from '../components/icons/GiftIcon.tsx';
@@ -34,6 +34,14 @@ const ReplyPreview: React.FC<{ messageText: string, senderName: string, onCancel
     );
 };
 
+const AudioPlayer: React.FC<{ src: string, isOwnMessage: boolean }> = ({ src, isOwnMessage }) => {
+    return (
+        <div className="min-w-[150px] p-2 flex items-center">
+            <audio controls src={src} className="h-8 w-full max-w-[200px]" />
+        </div>
+    );
+};
+
 const MessageBubble: React.FC<{ 
     message: Message, 
     isOwnMessage: boolean, 
@@ -45,18 +53,17 @@ const MessageBubble: React.FC<{
     // Handle System Messages (e.g. "User changed settings")
     if (message.isSystemMessage) {
         return (
-            <div className="flex justify-center my-3">
-                <div className="bg-gray-100 dark:bg-zinc-800 px-3 py-1 rounded-full border border-gray-200 dark:border-zinc-700">
-                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 text-center">
-                        {message.text}
-                    </p>
-                </div>
+            <div className="flex justify-center my-4 opacity-70">
+                <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 text-center bg-gray-100 dark:bg-zinc-800 px-3 py-1 rounded-full">
+                    {message.text}
+                </p>
             </div>
         );
     }
 
     // Determine bubble styling
     const isMedia = !!message.mediaUrl;
+    const isAudio = message.mediaType === 'audio';
     const isViewOnce = !!message.isViewOnce;
     const isSaved = !!message.isSaved;
     
@@ -77,8 +84,13 @@ const MessageBubble: React.FC<{
     }
 
     const handleClick = (e: React.MouseEvent) => {
+        // Don't toggle save on view once media or if it's already an interactive element
         if (!isViewOnce) {
-            onToggleSave(message);
+             // In Snapchat, tapping text saves it. Tapping media usually opens it.
+             // We'll allow tap-to-save for text and audio.
+            if (!isMedia || isAudio) {
+                 onToggleSave(message);
+            }
         }
     };
 
@@ -112,7 +124,7 @@ const MessageBubble: React.FC<{
             <div 
                 onContextMenu={(e) => onLongPress(e, message)} 
                 onClick={handleClick}
-                className={`relative max-w-[75%] md:max-w-[60%] cursor-pointer ${isMedia && !isViewOnce ? 'p-1' : 'px-4 py-2'} ${bubbleClass}`}
+                className={`relative max-w-[85%] md:max-w-[70%] cursor-pointer ${isMedia && !isViewOnce && !isAudio ? 'p-1' : 'px-4 py-2'} ${bubbleClass}`}
             >
                 {message.replyTo && (
                     <div className={`p-2 rounded-lg mb-1 text-xs border-l-2 ${isOwnMessage && !isSaved ? 'bg-black/10 border-white/50' : 'bg-gray-100 dark:bg-zinc-700 border-flame-orange'}`}>
@@ -122,26 +134,30 @@ const MessageBubble: React.FC<{
                 )}
                 
                 {isMedia ? (
-                    isViewOnce ? (
-                        <div onClick={(e) => e.stopPropagation()}>
-                            <ViewOnceMedia 
-                                mediaUrl={message.mediaUrl!} 
-                                mediaType={message.mediaType || 'image'} 
-                                isSender={isOwnMessage}
-                                viewed={viewed}
-                                viewCount={viewCount}
-                                onView={() => onViewMedia(message.id, viewCount)}
-                            />
-                        </div>
+                    isAudio ? (
+                        <AudioPlayer src={message.mediaUrl!} isOwnMessage={isOwnMessage && !isSaved} />
                     ) : (
-                        <div className="rounded-xl overflow-hidden">
-                             {message.mediaType === 'video' ? (
-                                 <video src={message.mediaUrl} controls className="max-h-64 w-full object-cover" onClick={(e) => e.stopPropagation()} />
-                             ) : (
-                                 <img src={message.mediaUrl} alt="sent media" className="max-h-64 w-full object-cover" />
-                             )}
-                             {message.text && <p className={`mt-2 text-sm px-2 pb-1 ${isOwnMessage && !isSaved ? 'text-white' : 'text-gray-800 dark:text-gray-200'}`}>{message.text}</p>}
-                        </div>
+                        isViewOnce ? (
+                            <div onClick={(e) => e.stopPropagation()}>
+                                <ViewOnceMedia 
+                                    mediaUrl={message.mediaUrl!} 
+                                    mediaType={message.mediaType || 'image'} 
+                                    isSender={isOwnMessage}
+                                    viewed={viewed}
+                                    viewCount={viewCount}
+                                    onView={() => onViewMedia(message.id, viewCount)}
+                                />
+                            </div>
+                        ) : (
+                            <div className="rounded-xl overflow-hidden">
+                                {message.mediaType === 'video' ? (
+                                    <video src={message.mediaUrl} controls className="max-h-64 w-full object-cover" onClick={(e) => e.stopPropagation()} />
+                                ) : (
+                                    <img src={message.mediaUrl} alt="sent media" className="max-h-64 w-full object-cover" />
+                                )}
+                                {message.text && <p className={`mt-2 text-sm px-2 pb-1 ${isOwnMessage && !isSaved ? 'text-white' : 'text-gray-800 dark:text-gray-200'}`}>{message.text}</p>}
+                            </div>
+                        )
                     )
                 ) : (
                     <p className="text-[15px] leading-relaxed break-words">{message.text}</p>
@@ -223,6 +239,11 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const [isCameraOpen, setIsCameraOpen] = useState(false);
     
+    // Audio Recording State
+    const [isRecording, setIsRecording] = useState(false);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
+    
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Initial Load: Partner & Chat
@@ -258,6 +279,9 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                         [`unreadCount.${currentUser.id}`]: 0
                     });
                 }
+            } else {
+                // Chat might not exist yet, wait for creation
+                setChatId(null);
             }
         });
         return () => unsubscribe();
@@ -276,12 +300,13 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             setMessages(msgs);
         });
         return () => unsubscribe();
-    }, [chatId, currentUser.id]);
+    }, [chatId]);
     
-    // Client-side filtering logic for retention
+    // Client-side filtering and auto-marking as viewed for retention
     useEffect(() => {
         const now = Date.now();
-        
+        const messagesToMarkViewed: string[] = [];
+
         const validMessages = messages.filter(msg => {
             // Recalled messages placeholder
             if (msg.isRecalled) return true;
@@ -292,6 +317,14 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             // System messages are kept for context
             if (msg.isSystemMessage) return true;
 
+            // Logic to mark unviewed messages as viewed if a retention policy is active
+            if (retentionPolicy !== 'forever' && !msg.viewedAt && msg.senderId !== currentUser.id) {
+                // Only mark as viewed if we are filtering. 
+                // This ensures "read" starts the timer.
+                // We add to a list to batch update.
+                messagesToMarkViewed.push(msg.id);
+            }
+
             // Retention Logic
             if (retentionPolicy === '5min') {
                 if (!msg.viewedAt) return true; // Not viewed yet, keep it.
@@ -301,8 +334,11 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             }
 
             if (retentionPolicy === 'read') {
-                 if (!msg.viewedAt) return true;
-                 return false; // Deleted immediately after read
+                 if (!msg.viewedAt) return true; // Not viewed yet
+                 // If I just marked it as viewed in this render cycle, it will disappear on next render/filter check
+                 // Check if it was viewed more than a few seconds ago to prevent instant flicker
+                 const viewTime = msg.viewedAt.toDate().getTime();
+                 return (now - viewTime) < 2000; // Keep for 2 seconds after read
             }
             
             return true;
@@ -310,11 +346,23 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         
         setFilteredMessages(validMessages);
         
+        // Batch update viewedAt for messages that need it
+        if (messagesToMarkViewed.length > 0 && chatId && db) {
+            const batchUpdate = async () => {
+                const timestamp = serverTimestamp();
+                // We do one by one or batch. Firestore batch limit is 500.
+                for (const msgId of messagesToMarkViewed) {
+                     await updateDoc(doc(db, 'chats', chatId, 'messages', msgId), { viewedAt: timestamp });
+                }
+            };
+            batchUpdate();
+        }
+        
         if (messages.length > 0) {
            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
         }
 
-    }, [messages, retentionPolicy]);
+    }, [messages, retentionPolicy, chatId, currentUser.id]);
     
     // Re-run filter periodically to hide expired messages without needing a db update
     useEffect(() => {
@@ -345,7 +393,9 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 [partner.id]: { name: partner.name, profilePhoto: partner.profilePhotos[0] }
             },
             retentionPolicy: 'forever',
-            createdAt: serverTimestamp()
+            createdAt: serverTimestamp(),
+            // Important: initialize deletedFor as empty
+            deletedFor: []
         };
         const newChatRef = doc(collection(db, 'chats'));
         await setDoc(newChatRef, newChatData);
@@ -353,7 +403,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         return newChatRef.id;
     };
 
-    const handleSendMessage = async (customText?: string, mediaFile?: File, mediaType?: 'image' | 'video', isViewOnce?: boolean) => {
+    const handleSendMessage = async (customText?: string, mediaFile?: File, mediaType?: 'image' | 'video' | 'audio', isViewOnce?: boolean) => {
         if ((!newMessage.trim() && !customText && !mediaFile) || !db || !partner || isSending) return;
         setIsSending(true);
         
@@ -389,17 +439,58 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             
             // Update last message
             let lastMsgText = textToSend;
-            if (mediaUrl) lastMsgText = isViewOnce ? '📷 View Once Media' : '📷 Media';
+            if (mediaUrl) {
+                if (mediaType === 'audio') lastMsgText = '🎤 Voice Message';
+                else if (isViewOnce) lastMsgText = '📷 View Once Media';
+                else lastMsgText = '📷 Media';
+            }
 
+            // Ensure we clear deletedFor so the partner sees the new message even if they deleted the chat
             await updateDoc(doc(db, 'chats', currentChatId), {
                 lastMessage: { text: lastMsgText, senderId: currentUser.id, timestamp: serverTimestamp() },
-                [`unreadCount.${partnerId}`]: increment(1)
+                [`unreadCount.${partnerId}`]: increment(1),
+                deletedFor: arrayRemove(partnerId, currentUser.id) 
             });
 
         } catch (error) {
             console.error("Error sending:", error);
         } finally {
             setIsSending(false);
+        }
+    };
+
+    // Audio Recorder Functions
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const recorder = new MediaRecorder(stream);
+            audioChunksRef.current = [];
+            
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) audioChunksRef.current.push(e.data);
+            };
+            
+            recorder.start();
+            mediaRecorderRef.current = recorder;
+            setIsRecording(true);
+        } catch (err) {
+            console.error("Error starting microphone:", err);
+            alert("Could not access microphone.");
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.onstop = () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/mp4' }); // mp4 or webm
+                const audioFile = new File([audioBlob], `voice_${Date.now()}.m4a`, { type: 'audio/mp4' });
+                handleSendMessage('', audioFile, 'audio', false);
+                
+                // Stop tracks
+                mediaRecorderRef.current?.stream.getTracks().forEach(track => track.stop());
+            };
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
         }
     };
     
@@ -418,20 +509,22 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     
     const handleToggleSave = async (msg: Message) => {
         if (!chatId || !db) return;
-        const msgRef = doc(db, 'chats', chatId, 'messages', msg.id);
-        await updateDoc(msgRef, { isSaved: !msg.isSaved });
+        // Toggle saved status
+        await updateDoc(doc(db, 'chats', chatId, 'messages', msg.id), { isSaved: !msg.isSaved });
     };
 
     const updateRetention = async (policy: RetentionPolicy) => {
         if (!chatId || !db) return;
         
-        setRetentionPolicy(policy);
+        // Update the chat document first (this syncs the setting to both users)
         await updateDoc(doc(db, 'chats', chatId), { retentionPolicy: policy });
+        setRetentionPolicy(policy);
         
         let policyText = 'Messages are kept forever';
         if (policy === '5min') policyText = 'Messages expire 5 minutes after reading';
         if (policy === 'read') policyText = 'Messages expire immediately after reading';
 
+        // Add system message to the chat so the other user sees it
         await addDoc(collection(db, 'chats', chatId, 'messages'), {
             chatId: chatId,
             senderId: currentUser.id,
@@ -470,7 +563,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             });
             await updateDoc(doc(db, 'chats', currentChatId), { 
                 lastMessage: { text: `${gift.icon} ${gift.name}`, senderId: currentUser.id, timestamp: serverTimestamp() }, 
-                [`unreadCount.${partnerId}`]: increment(1) 
+                [`unreadCount.${partnerId}`]: increment(1),
+                deletedFor: arrayRemove(partnerId, currentUser.id)
             });
         } catch(error) { console.error(error); } finally { setIsSending(false); }
     };
@@ -585,8 +679,9 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                         <textarea
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
-                            placeholder="Chat"
-                            className="flex-1 bg-transparent border-none focus:outline-none px-4 py-3 max-h-32 resize-none dark:text-gray-200 text-base"
+                            placeholder={isRecording ? "Recording..." : "Chat"}
+                            disabled={isRecording}
+                            className={`flex-1 bg-transparent border-none focus:outline-none px-4 py-3 max-h-32 resize-none dark:text-gray-200 text-base ${isRecording ? 'text-red-500 animate-pulse font-bold' : ''}`}
                             rows={1}
                             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
                         />
@@ -599,13 +694,18 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                     </div>
 
                     <button 
-                        className={`p-3 rounded-full transition-all ${newMessage.trim() ? 'bg-flame-orange text-white' : 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300'}`}
+                        className={`p-3 rounded-full transition-all ${newMessage.trim() || isRecording ? 'bg-flame-orange text-white' : 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300'}`}
                         onClick={() => newMessage.trim() ? handleSendMessage() : null}
+                        // Mouse/Touch events for recording
+                        onMouseDown={!newMessage.trim() ? startRecording : undefined}
+                        onMouseUp={!newMessage.trim() ? stopRecording : undefined}
+                        onTouchStart={!newMessage.trim() ? startRecording : undefined}
+                        onTouchEnd={!newMessage.trim() ? stopRecording : undefined}
                     >
                         {newMessage.trim() ? (
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-0.5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
                         ) : (
-                             <MicIcon className="w-5 h-5" />
+                             <MicIcon className={`w-5 h-5 ${isRecording ? 'animate-pulse scale-110' : ''}`} />
                         )}
                     </button>
                 </div>
