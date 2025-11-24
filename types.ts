@@ -1,3 +1,4 @@
+
 import { Timestamp } from 'firebase/firestore';
 
 export enum Tab {
@@ -14,6 +15,8 @@ export enum NotificationType {
     Match = 'match',
     SuperLike = 'superlike',
 }
+
+export type RetentionPolicy = 'forever' | '5min' | 'read';
 
 export interface User {
   id: string;
@@ -78,7 +81,6 @@ export interface Story {
     };
 }
 
-// FIX: Define and export the Gift interface for reusability.
 export interface Gift {
     name: string;
     icon: string;
@@ -91,8 +93,14 @@ export interface Message {
     senderId: string;
     text: string;
     timestamp: Timestamp;
-    // FIX: Use the exported Gift interface.
     gift?: Gift;
+    
+    // New Media Fields
+    mediaUrl?: string;
+    mediaType?: 'image' | 'video';
+    isViewOnce?: boolean;
+    viewedAt?: Timestamp; // For View Once logic
+
     reactions?: { [key: string]: string[] }; // emoji: array of user IDs
     replyTo?: {
         messageId: string;
@@ -120,6 +128,7 @@ export interface Chat {
         [key: string]: number;
     };
     deletedFor?: string[]; // array of user IDs who deleted the chat
+    retentionPolicy?: RetentionPolicy; // 'forever' | '5min' | 'read'
 }
 
 export interface Comment {
