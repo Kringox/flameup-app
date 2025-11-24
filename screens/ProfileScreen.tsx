@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 // FIX: Added file extension to types and other component/screen imports
 import { User, Post } from '../types.ts';
@@ -29,6 +30,47 @@ interface ProfileScreenProps {
   onViewProfile: (userId: string) => void;
   theme: Theme;
   setTheme: (theme: Theme) => void;
+}
+
+// Helper to assign icons based on keywords
+const getIconForKeyword = (keyword: string): string => {
+    const lower = keyword.toLowerCase();
+    if (lower.includes('sport') || lower.includes('fitness') || lower.includes('gym') || lower.includes('workout')) return '🏋️';
+    if (lower.includes('music') || lower.includes('musik')) return '🎵';
+    if (lower.includes('travel') || lower.includes('reisen') || lower.includes('wanderlust')) return '✈️';
+    if (lower.includes('food') || lower.includes('essen') || lower.includes('cooking') || lower.includes('kochen')) return '🍳';
+    if (lower.includes('art') || lower.includes('kunst') || lower.includes('drawing')) return '🎨';
+    if (lower.includes('game') || lower.includes('zocken') || lower.includes('gaming')) return '🎮';
+    if (lower.includes('movie') || lower.includes('film') || lower.includes('netflix')) return '🎬';
+    if (lower.includes('tech') || lower.includes('code') || lower.includes('software')) return '💻';
+    if (lower.includes('nature') || lower.includes('natur') || lower.includes('hiking') || lower.includes('wandern')) return '🌲';
+    if (lower.includes('book') || lower.includes('lesen') || lower.includes('reading')) return '📚';
+    if (lower.includes('photo') || lower.includes('foto')) return '📸';
+    if (lower.includes('animal') || lower.includes('tier') || lower.includes('dog') || lower.includes('hund') || lower.includes('cat')) return '🐾';
+    if (lower.includes('coffee') || lower.includes('kaffee')) return '☕';
+    if (lower.includes('drink') || lower.includes('beer') || lower.includes('bier') || lower.includes('party')) return '🍻';
+    return '✨';
+};
+
+const ChipList: React.FC<{ items: string, themeClasses: any }> = ({ items, themeClasses }) => {
+    if (!items) return null;
+    const list = items.split(',').map(i => i.trim()).filter(i => i.length > 0);
+    
+    if (list.length === 0) return null;
+
+    return (
+        <div className="flex flex-wrap gap-2 mt-2">
+            {list.map((item, index) => (
+                <span 
+                    key={index} 
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium flex items-center shadow-sm transition-transform hover:scale-105 bg-gray-100 dark:bg-zinc-800 ${themeClasses.text} border border-gray-200 dark:border-zinc-700`}
+                >
+                    <span className="mr-1.5">{getIconForKeyword(item)}</span>
+                    {item}
+                </span>
+            ))}
+        </div>
+    );
 }
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser, onViewProfile, theme, setTheme }) => {
@@ -104,7 +146,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
             <div className="flex-1 overflow-y-auto p-4">
                 <div className="flex items-center">
                     <button onClick={() => setIsImageViewerOpen(true)}>
-                        <img src={currentUser.profilePhotos[0]} alt={currentUser.name} className="w-24 h-24 rounded-full object-cover border-4 border-flame-orange" />
+                        <img src={currentUser.profilePhotos[0]} alt={currentUser.name} className="w-24 h-24 rounded-full object-cover border-4 border-flame-orange shadow-md" />
                     </button>
                     <div className="flex-1 ml-6 flex justify-around text-center">
                         <div>
@@ -122,37 +164,39 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                     </div>
                 </div>
 
-                <div className="mt-4">
-                    <p className={`font-semibold ${themeClasses.text}`}>{currentUser.name}</p>
-                    <div className="mt-2 space-y-4">
-                        {currentUser.aboutMe && (
-                            <div>
-                                <h3 className={`font-bold text-sm uppercase ${themeClasses.subtext} mb-1`}>{t('aboutMe')}</h3>
-                                <p className={`${themeClasses.text} whitespace-pre-wrap`}>{currentUser.aboutMe}</p>
-                            </div>
-                        )}
-                        {currentUser.interests && (
-                            <div>
-                                <h3 className={`font-bold text-sm uppercase ${themeClasses.subtext} mb-1`}>{t('interests')}</h3>
-                                <p className={`${themeClasses.text} whitespace-pre-wrap`}>{currentUser.interests}</p>
-                            </div>
-                        )}
-                        {currentUser.lifestyle && (
-                            <div>
-                                <h3 className={`font-bold text-sm uppercase ${themeClasses.subtext} mb-1`}>{t('lifestyle')}</h3>
-                                <p className={`${themeClasses.text} whitespace-pre-wrap`}>{currentUser.lifestyle}</p>
-                            </div>
+                <div className="mt-6 space-y-6">
+                    <div>
+                        <p className={`font-semibold text-lg ${themeClasses.text} flex items-center`}>
+                            {currentUser.name}, {currentUser.age}
+                            {currentUser.isPremium && <VerifiedIcon className="ml-1.5 w-5 h-5" />}
+                        </p>
+                         {currentUser.aboutMe && (
+                            <p className={`${themeClasses.text} whitespace-pre-wrap mt-1 text-sm leading-relaxed`}>{currentUser.aboutMe}</p>
                         )}
                     </div>
+
+                    {currentUser.interests && (
+                        <div>
+                            <h3 className={`font-bold text-xs uppercase tracking-wider ${themeClasses.subtext} mb-2`}>{t('interests')}</h3>
+                            <ChipList items={currentUser.interests} themeClasses={themeClasses} />
+                        </div>
+                    )}
+                    
+                    {currentUser.lifestyle && (
+                        <div>
+                            <h3 className={`font-bold text-xs uppercase tracking-wider ${themeClasses.subtext} mb-2`}>{t('lifestyle')}</h3>
+                            <ChipList items={currentUser.lifestyle} themeClasses={themeClasses} />
+                        </div>
+                    )}
                 </div>
                 
-                 <div className="my-4">
+                 <div className="my-6">
                     <LevelProgressBar xp={currentUser.xp} />
                 </div>
 
                 <button 
                     onClick={() => setIsWalletOpen(true)} 
-                    className={`w-full flex items-center justify-between p-3 mb-4 ${themeClasses.bg} border ${themeClasses.border} rounded-lg shadow-sm transition-transform hover:scale-105`}
+                    className={`w-full flex items-center justify-between p-3 mb-4 ${themeClasses.bg} border ${themeClasses.border} rounded-xl shadow-sm transition-transform hover:scale-102 active:scale-98`}
                 >
                     <div>
                         <p className={`font-semibold ${themeClasses.text}`}>{t('wallet')}</p>
@@ -164,14 +208,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                     </div>
                 </button>
 
-                <button onClick={() => setIsEditing(true)} className={`w-full py-2 ${themeClasses.border} border rounded-lg font-semibold ${themeClasses.text}`}>
+                <button onClick={() => setIsEditing(true)} className={`w-full py-2.5 ${themeClasses.border} border rounded-xl font-semibold ${themeClasses.text} bg-transparent active:bg-gray-50 dark:active:bg-zinc-800 transition-colors`}>
                     {t('editProfile')}
                 </button>
                 
-                <div className="grid grid-cols-3 gap-1 mt-4">
+                <div className="grid grid-cols-3 gap-1 mt-6">
                     {posts.map(post => (
-                        <button key={post.id} onClick={() => setViewingPost(post)} className="aspect-square">
+                        <button key={post.id} onClick={() => setViewingPost(post)} className="aspect-square relative group overflow-hidden">
                             <img src={post.mediaUrls[0]} alt="post" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </button>
                     ))}
                 </div>
