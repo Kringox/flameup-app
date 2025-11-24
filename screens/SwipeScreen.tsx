@@ -357,7 +357,7 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
         }
 
         return (
-            <div className="flex-1 flex flex-col justify-between items-center p-4">
+            <div className="flex-1 flex flex-col justify-between items-center p-4 pb-24">
                 <div className="relative w-full h-full flex-1">
                     {users[currentIndex + 1] && (
                         <SwipeCard

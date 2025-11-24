@@ -61,14 +61,14 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, onOpenCr
           onClick={() => setActiveTab(Tab.Swipe)}
         />
         
-        {/* Floating Center Button */}
-        <div className="relative -top-6">
+        {/* Floating Center Button - Slightly smaller now */}
+        <div className="relative -top-5">
             <button
                 onClick={onOpenCreate}
-                className="w-16 h-16 flex items-center justify-center bg-gradient-to-br from-flame-orange to-flame-red text-white rounded-2xl shadow-[0_10px_20px_rgba(255,107,53,0.4)] transform transition-all duration-300 hover:scale-105 active:scale-95 hover:shadow-[0_15px_25px_rgba(255,107,53,0.5)] ring-4 ring-gray-50 dark:ring-black"
+                className="w-14 h-14 flex items-center justify-center bg-gradient-to-br from-flame-orange to-flame-red text-white rounded-2xl shadow-[0_8px_16px_rgba(255,107,53,0.4)] transform transition-all duration-300 hover:scale-105 active:scale-95 hover:shadow-[0_12px_20px_rgba(255,107,53,0.5)] ring-4 ring-gray-50 dark:ring-black"
                 aria-label="Create"
             >
-                <PlusIcon className="w-8 h-8" strokeWidth={2.5}/>
+                <PlusIcon className="w-7 h-7" strokeWidth={2.5}/>
             </button>
         </div>
 
