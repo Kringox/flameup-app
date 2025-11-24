@@ -135,7 +135,8 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
     const isSubscribed = currentUser?.subscriptions?.includes(user.id);
 
     return (
-        <div className={`absolute inset-0 ${themeClass.bg} z-[70] flex flex-col animate-slide-in`}>
+        // Changed positioning: uses absolute inset-0 relative to the <main> container in App.tsx
+        <div className={`absolute inset-0 ${themeClass.bg} z-[40] flex flex-col animate-slide-in`}>
             {isImageViewerOpen && <ImageViewer images={user.profilePhotos} onClose={() => setIsImageViewerOpen(false)} />}
             {viewingPost && currentUser && (
                 <PostDetailView 
@@ -231,12 +232,12 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                                 <img 
                                     src={post.mediaUrls[0]} 
                                     alt="post" 
-                                    className={`w-full h-full object-cover transition-all duration-300 ${!isUnlocked ? 'filter blur-md scale-110 brightness-75' : ''}`} 
+                                    className={`w-full h-full object-cover transition-all duration-300 ${!isUnlocked ? 'filter blur-md scale-105 brightness-90' : ''}`} 
                                 />
                                 {!isUnlocked && (
                                     <div className="absolute inset-0 flex items-center justify-center z-10">
-                                        <div className="bg-black/50 p-2 rounded-full backdrop-blur-sm">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <div className="bg-black/30 p-2 rounded-full backdrop-blur-sm">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                             </svg>
                                         </div>

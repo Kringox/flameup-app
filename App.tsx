@@ -239,21 +239,36 @@ const App: React.FC = () => {
         <XpContext.Provider value={{ showXpToast }}>
           <div className="relative w-screen h-screen max-w-md mx-auto flex flex-col bg-gray-50 dark:bg-black md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)] overflow-hidden">
             {xpToast && <XPToast key={xpToast.key} amount={xpToast.amount} />}
-            <main className="flex-1 overflow-y-auto">
+            
+            {/* Main Content Area - Relative positioning allows UserProfile to overlay content but not BottomNav */}
+            <main className="flex-1 overflow-y-auto relative">
               {activeTab === Tab.Home && <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} onUpdateUser={handleUpdateUser} onOpenSearch={() => setIsSearchOpen(true)} onCreateStory={openStoryCreator} />}
               {activeTab === Tab.Swipe && <SwipeScreen currentUser={currentUser} onNewMatch={handleNewMatch} onUpdateUser={handleUpdateUser}/>}
               {activeTab === Tab.Chat && <ChatScreen currentUser={currentUser} activeChatPartnerId={activeChatPartnerId} onStartChat={handleStartChat} onCloseChat={() => setActiveChatPartnerId(null)} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} />}
               {activeTab === Tab.Profile && <ProfileScreen currentUser={currentUser} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} theme={theme} setTheme={setTheme} localTint={localTint} setLocalTint={setLocalTint} />}
+              
+              {/* User Profile Overlay - Renders INSIDE main, covering content but not Nav */}
+              {viewingUserId && (
+                <UserProfileScreen 
+                    currentUserId={currentUser.id} 
+                    viewingUserId={viewingUserId} 
+                    onClose={() => setViewingUserId(null)} 
+                    onStartChat={handleStartChat} 
+                />
+              )}
             </main>
 
             <BottomNav 
               activeTab={activeTab} 
-              setActiveTab={setActiveTab} 
+              setActiveTab={(tab) => {
+                  setActiveTab(tab);
+                  setViewingUserId(null); // Clear viewing user when switching main tabs
+              }} 
               onOpenCreate={() => setCreateScreenMode('select')} 
               hasUnreadMessages={hasUnreadMessages}
             />
 
-            {/* Modals and Overlays */}
+            {/* Modals and Full Screen Overlays (Cover Nav) */}
             {createScreenMode && <CreateScreen user={currentUser} onClose={() => setCreateScreenMode(null)} initialMode={createScreenMode} />}
             {viewingPostComments && <CommentScreen post={viewingPostComments} currentUser={currentUser} onClose={() => setViewingPostComments(null)} onViewProfile={handleViewProfile} />}
             {isNotificationsOpen && <NotificationsScreen user={currentUser} onClose={() => setIsNotificationsOpen(false)} onShowMatch={handleShowMatch} onViewProfile={handleViewProfile} />}
@@ -282,7 +297,7 @@ const App: React.FC = () => {
                 onViewProfile={handleViewProfile}
                 onUpdateUser={handleUpdateUser}
             />}
-            {viewingUserId && <UserProfileScreen currentUserId={currentUser.id} viewingUserId={viewingUserId} onClose={() => setViewingUserId(null)} onStartChat={handleStartChat} />}
+            
             {matchNotification && authState.currentUser && (
                 <MatchModal 
                     currentUser={authState.currentUser}

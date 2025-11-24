@@ -181,7 +181,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
     }
   };
 
-  const handleUnlockPost = async () => {
+  const handleUnlockPost = async (e: React.MouseEvent) => {
+      e.stopPropagation();
       if (!db || isProcessingTransaction || !post.price) return;
       
       const currentCoins = Number(currentUser.coins) || 0;
@@ -222,7 +223,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
       }
   };
 
-  const handleSubscribe = async () => {
+  const handleSubscribe = async (e: React.MouseEvent) => {
+      e.stopPropagation();
       if (!db || isProcessingTransaction || !posterSubscriptionPrice) return;
       
       const currentCoins = Number(currentUser.coins) || 0;
@@ -362,49 +364,42 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
         )}
       </div>
 
-      <div className="relative overflow-hidden bg-gray-100 dark:bg-zinc-900">
+      <div className="relative overflow-hidden bg-gray-100 dark:bg-zinc-900 group">
+          {/* Changed blur-2xl to blur-lg for better visibility of shapes */}
           <img 
-            className={`w-full h-auto object-cover transition-all duration-700 ${isLocked ? 'blur-2xl scale-110 brightness-75 contrast-125' : ''}`} 
+            className={`w-full h-auto object-cover transition-all duration-700 ${isLocked ? 'blur-lg scale-105 brightness-90' : ''}`} 
             src={post.mediaUrls[0]} 
             alt="Post content" 
           />
           
           {isLocked && (
-              <div className="absolute inset-0 z-10 flex flex-col justify-end p-6 bg-gradient-to-t from-black/80 via-black/20 to-transparent">
-                  <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20 text-center shadow-xl">
-                      <div className="w-10 h-10 bg-flame-orange rounded-full flex items-center justify-center mx-auto mb-2 text-white shadow-lg shadow-flame-orange/40">
-                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                            <path fillRule="evenodd" d="M12 1.5a5.25 5.25 0 00-5.25 5.25v3a3 3 0 00-3 3v6.75a3 3 0 003 3h10.5a3 3 0 003-3v-6.75a3 3 0 00-3-3v-3c0-2.9-2.35-5.25-5.25-5.25zm3.75 8.25v-3a3.75 3.75 0 10-7.5 0v3h7.5z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <h3 className="text-white font-black uppercase tracking-wider text-sm mb-1">Exclusive Content</h3>
-                      <p className="text-xs text-gray-200 mb-4 opacity-90">
-                          Unlock to see what's hidden behind the blur.
-                      </p>
-
-                      <button 
+              <div className="absolute inset-0 z-10 flex flex-col justify-end items-center pb-4 bg-gradient-to-t from-black/80 via-transparent to-transparent">
+                  {/* Minimalist Unlock Button */}
+                  <div className="w-full px-8 flex flex-col gap-2">
+                       <button 
                         onClick={handleUnlockPost}
                         disabled={isProcessingTransaction}
-                        className="w-full py-2.5 bg-gradient-to-r from-flame-orange to-red-600 text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform flex justify-center items-center gap-2"
+                        className="w-full bg-white/90 dark:bg-zinc-800/90 backdrop-blur-md text-black dark:text-white py-2 rounded-full font-bold shadow-lg border border-white/20 flex items-center justify-center gap-2 transform active:scale-95 transition-all"
                       >
-                          {isProcessingTransaction ? 'Processing...' : (
+                          {isProcessingTransaction ? '...' : (
                             <>
-                                <span>Unlock</span>
-                                <span className="bg-white/20 px-1.5 py-0.5 rounded text-xs">{post.price} Coins</span>
+                                <span className="text-sm">Unlock Post</span>
+                                <div className="bg-flame-orange text-white text-xs px-2 py-0.5 rounded-full font-bold flex items-center">
+                                    <FlameIcon className="w-3 h-3 mr-0.5" />
+                                    {post.price}
+                                </div>
                             </>
                           )}
                       </button>
 
                       {posterSubscriptionPrice && posterSubscriptionPrice > 0 && (
-                          <div className="mt-3">
-                              <button 
-                                onClick={handleSubscribe}
-                                disabled={isProcessingTransaction}
-                                className="w-full py-2 bg-white/20 text-white font-semibold rounded-xl text-xs hover:bg-white/30 transition-colors"
-                              >
-                                  Subscribe for {posterSubscriptionPrice} Coins/mo
-                              </button>
-                          </div>
+                          <button 
+                            onClick={handleSubscribe}
+                            disabled={isProcessingTransaction}
+                            className="text-xs text-white/90 font-medium hover:underline shadow-sm"
+                          >
+                              Or subscribe for {posterSubscriptionPrice} Coins/mo
+                          </button>
                       )}
                   </div>
               </div>
