@@ -130,67 +130,84 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
         <div className={`absolute inset-0 ${themeClass.bg} z-[70] flex flex-col animate-slide-in`}>
             {isImageViewerOpen && <ImageViewer images={user.profilePhotos} onClose={() => setIsImageViewerOpen(false)} />}
             <style>{`.animate-slide-in { animation: slideInFromRight 0.3s ease-out; } @keyframes slideInFromRight { from { transform: translateX(100%); } to { transform: translateX(0); } }`}</style>
-            <header className="flex items-center p-4 border-b">
+            
+            <header className="flex items-center p-4 border-b flex-shrink-0">
                  <button onClick={onClose} className="w-8">
                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 </button>
-                <h1 className="text-xl font-bold text-center flex-1">{user.name}</h1>
+                <h1 className="text-xl font-bold text-center flex-1 truncate">{user.name}</h1>
                 <div className="w-8"></div>
             </header>
 
             <div className="flex-1 overflow-y-auto p-4">
                 <div className="flex items-center">
-                    <button onClick={() => setIsImageViewerOpen(true)}>
-                        <img src={user.profilePhotos[0]} alt={user.name} className="w-24 h-24 rounded-full object-cover border-4 border-flame-orange" />
+                    <button 
+                        type="button"
+                        onClick={() => setIsImageViewerOpen(true)}
+                        className="relative group flex-shrink-0"
+                    >
+                        <img src={user.profilePhotos[0]} alt={user.name} className="w-24 h-24 rounded-full object-cover border-4 border-flame-orange shadow-md" />
+                        <div className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/10 transition-colors" />
                     </button>
+                    
                     <div className="flex-1 ml-6 flex justify-around text-center">
-                        <div><p className="text-xl font-bold">{posts.length}</p><p>Posts</p></div>
-                        <div><p className="text-xl font-bold">{user.followers.length}</p><p>Followers</p></div>
-                        <div><p className="text-xl font-bold">{user.following.length}</p><p>Following</p></div>
+                        <div><p className="text-xl font-bold">{posts.length}</p><p className="text-sm text-gray-500">Posts</p></div>
+                        <div><p className="text-xl font-bold">{user.followers.length}</p><p className="text-sm text-gray-500">Followers</p></div>
+                        <div><p className="text-xl font-bold">{user.following.length}</p><p className="text-sm text-gray-500">Following</p></div>
                     </div>
                 </div>
 
-                <div className="mt-4">
+                <div className="mt-6">
                     <div className="flex justify-between items-start">
                         <p className="font-semibold flex items-center text-lg">
-                            {user.name} 
-                            {user.isPremium && <VerifiedIcon className="ml-1 w-5 h-5 text-blue-500" />}
+                            {user.name}, {user.age}
+                            {user.isPremium && <VerifiedIcon className="ml-1 w-5 h-5" />}
                         </p>
                         <HotnessDisplay score={user.hotnessScore || 0} />
                     </div>
-                    <div className="mt-2 space-y-4">
+                    
+                    <div className="mt-4 space-y-4">
                         {user.aboutMe && (
                             <div>
-                                <h3 className={`font-bold text-sm uppercase ${themeClass.subtext} mb-1`}>About Me</h3>
-                                <p className={`${themeClass.text} whitespace-pre-wrap`}>{user.aboutMe}</p>
+                                <h3 className={`font-bold text-xs uppercase tracking-wider ${themeClass.subtext} mb-1`}>About Me</h3>
+                                <p className={`${themeClass.text} whitespace-pre-wrap text-sm leading-relaxed`}>{user.aboutMe}</p>
                             </div>
                         )}
                         {user.interests && (
                             <div>
-                                <h3 className={`font-bold text-sm uppercase ${themeClass.subtext} mb-1`}>Interests</h3>
-                                <p className={`${themeClass.text} whitespace-pre-wrap`}>{user.interests}</p>
+                                <h3 className={`font-bold text-xs uppercase tracking-wider ${themeClass.subtext} mb-1`}>Interests</h3>
+                                <p className={`${themeClass.text} whitespace-pre-wrap text-sm`}>{user.interests}</p>
                             </div>
                         )}
                         {user.lifestyle && (
                             <div>
-                                <h3 className={`font-bold text-sm uppercase ${themeClass.subtext} mb-1`}>Lifestyle</h3>
-                                <p className={`${themeClass.text} whitespace-pre-wrap`}>{user.lifestyle}</p>
+                                <h3 className={`font-bold text-xs uppercase tracking-wider ${themeClass.subtext} mb-1`}>Lifestyle</h3>
+                                <p className={`${themeClass.text} whitespace-pre-wrap text-sm`}>{user.lifestyle}</p>
                             </div>
                         )}
                     </div>
                 </div>
 
-                <div className="flex space-x-2 mt-4">
-                    <button onClick={handleFollowToggle} className={`flex-1 py-2 rounded-lg font-semibold ${isFollowing ? 'bg-gray-200 text-gray-800' : 'bg-flame-orange text-white'}`}>
+                <div className="flex space-x-3 mt-6">
+                    <button 
+                        onClick={handleFollowToggle} 
+                        className={`flex-1 py-2.5 rounded-xl font-bold transition-all transform active:scale-95 ${isFollowing ? 'bg-gray-200 text-gray-800' : 'bg-flame-orange text-white shadow-md'}`}
+                    >
                         {isFollowing ? 'Following' : 'Follow'}
                     </button>
-                     <button onClick={() => onStartChat(user.id)} className="flex-1 py-2 border border-gray-300 rounded-lg font-semibold">Message</button>
+                     <button 
+                        onClick={() => onStartChat(user.id)} 
+                        className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                        Message
+                    </button>
                 </div>
                 
-                <div className="grid grid-cols-3 gap-1 mt-4">
+                <div className="grid grid-cols-3 gap-1 mt-6">
                     {posts.map(post => (
-                        <div key={post.id} className="aspect-square bg-gray-200">
+                        <div key={post.id} className="aspect-square bg-gray-200 relative group">
                             <img src={post.mediaUrls[0]} alt="post" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
                         </div>
                     ))}
                 </div>
