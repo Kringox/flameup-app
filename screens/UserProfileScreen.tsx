@@ -1,9 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
-// FIX: Added file extension to types import
 import { User, Post, NotificationType } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
 import { doc, getDoc, collection, query, where, orderBy, onSnapshot, updateDoc, arrayUnion, arrayRemove, addDoc, serverTimestamp } from 'firebase/firestore';
-// FIX: Added missing component imports
 import LevelProgressBar from '../components/LevelProgressBar.tsx';
 import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
 import ImageViewer from '../components/ImageViewer.tsx';
@@ -72,9 +71,8 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
         const currentUserRef = doc(db, 'users', currentUserId);
 
         const newFollowingState = !isFollowing;
-        setIsFollowing(newFollowingState); // Optimistic UI update for button
+        setIsFollowing(newFollowingState);
 
-        // Optimistic UI update for follower count
         setUser(prevUser => {
             if (!prevUser) return null;
             const currentFollowers = prevUser.followers || [];
@@ -85,8 +83,6 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
         });
 
         try {
-            // Update only the current user's 'following' list.
-            // This adheres to the security rule: a user can only write to their own document.
             await updateDoc(currentUserRef, {
                 following: newFollowingState ? arrayUnion(viewingUserId) : arrayRemove(viewingUserId)
             });
@@ -105,7 +101,6 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
 
         } catch (error) {
             console.error("Error updating follow status:", error);
-            // Revert UI on error
             setIsFollowing(!newFollowingState); 
             setUser(prevUser => {
                  if (!prevUser) return null;
@@ -149,7 +144,10 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                 </div>
 
                 <div className="mt-4">
-                    <p className="font-semibold flex items-center">{user.name} {user.isPremium && <VerifiedIcon className="ml-1" />}</p>
+                    <p className="font-semibold flex items-center text-lg">
+                        {user.name} 
+                        {user.isPremium && <VerifiedIcon className="ml-1 w-5 h-5 text-blue-500" />}
+                    </p>
                     <div className="mt-2 space-y-4">
                         {user.aboutMe && (
                             <div>

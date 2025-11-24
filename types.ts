@@ -100,6 +100,7 @@ export interface Message {
     mediaType?: 'image' | 'video';
     isViewOnce?: boolean;
     viewedAt?: Timestamp; // For View Once logic and Retention Logic
+    viewCount?: number; // 0 = new, 1 = viewed once, 2 = viewed & replayed (max)
     isSaved?: boolean; // For saving messages in Snapchat style
     isSystemMessage?: boolean; // For status updates like changing retention policy
 

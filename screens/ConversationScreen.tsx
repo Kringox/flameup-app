@@ -38,7 +38,7 @@ const MessageBubble: React.FC<{
     message: Message, 
     isOwnMessage: boolean, 
     onLongPress: (e: React.MouseEvent, msg: Message) => void, 
-    onViewMedia: (msgId: string) => void,
+    onViewMedia: (msgId: string, currentCount: number) => void,
     onToggleSave: (msg: Message) => void,
 }> = ({ message, isOwnMessage, onLongPress, onViewMedia, onToggleSave }) => {
     
@@ -77,16 +77,14 @@ const MessageBubble: React.FC<{
     }
 
     const handleClick = (e: React.MouseEvent) => {
-        // Prevent saving if clicking on media that handles its own click
-        if (isMedia) {
-             // For View Once, the component handles clicks. For permanent media, allow saving?
-             // Let's allow saving by tapping the bubble container area or text, but viewing media takes precedence.
+        if (!isViewOnce) {
+            onToggleSave(message);
         }
-        onToggleSave(message);
     };
 
     // Check if viewed
     const viewed = !!message.viewedAt;
+    const viewCount = message.viewCount || (viewed ? 1 : 0);
 
     if (message.isRecalled) {
         return (
@@ -131,7 +129,8 @@ const MessageBubble: React.FC<{
                                 mediaType={message.mediaType || 'image'} 
                                 isSender={isOwnMessage}
                                 viewed={viewed}
-                                onView={() => onViewMedia(message.id)}
+                                viewCount={viewCount}
+                                onView={() => onViewMedia(message.id, viewCount)}
                             />
                         </div>
                     ) : (
@@ -170,7 +169,6 @@ const MessageBubble: React.FC<{
 const MessageContextMenu: React.FC<{ message: Message; position: { x: number; y: number }; onClose: () => void; onReply: () => void; onReact: (emoji: string) => void; onRecall: () => void; isOwnMessage: boolean }> = ({ message, position, onClose, onReply, onReact, onRecall, isOwnMessage }) => {
     const isRecallable = isOwnMessage && message.timestamp && (Date.now() - message.timestamp.toDate().getTime()) < 5 * 60 * 1000;
     
-    // Adjust position to stay on screen
     const safeX = Math.min(position.x, window.innerWidth - 200);
     const safeY = Math.min(position.y, window.innerHeight - 150);
 
@@ -225,7 +223,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const [isCameraOpen, setIsCameraOpen] = useState(false);
     
-    // Media States
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Initial Load: Partner & Chat
@@ -277,14 +274,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
             const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
             setMessages(msgs);
-            
-            // Mark unread messages as viewed if I am the recipient
-            const unreadByMe = msgs.filter(m => m.senderId !== currentUser.id && !m.viewedAt && !m.isSystemMessage);
-            if (unreadByMe.length > 0) {
-                const batchUpdates = unreadByMe.map(m => updateDoc(doc(db, 'chats', chatId, 'messages', m.id), { viewedAt: serverTimestamp() }));
-                // We fire and forget these updates
-                Promise.all(batchUpdates).catch(e => console.error("Error marking viewed:", e));
-            }
         });
         return () => unsubscribe();
     }, [chatId, currentUser.id]);
@@ -300,15 +289,20 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             // Saved messages are ALWAYS kept
             if (msg.isSaved) return true;
             
-            // System messages are kept for context, or we could expire them too. keeping for context.
+            // System messages are kept for context
             if (msg.isSystemMessage) return true;
 
-            // Retention: 5 minutes
+            // Retention Logic
             if (retentionPolicy === '5min') {
                 if (!msg.viewedAt) return true; // Not viewed yet, keep it.
                 // If viewed, check time diff
                 const viewTime = msg.viewedAt.toDate().getTime();
                 return (now - viewTime) < 5 * 60 * 1000;
+            }
+
+            if (retentionPolicy === 'read') {
+                 if (!msg.viewedAt) return true;
+                 return false; // Deleted immediately after read
             }
             
             return true;
@@ -316,7 +310,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         
         setFilteredMessages(validMessages);
         
-        // Auto-scroll logic
         if (messages.length > 0) {
            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
         }
@@ -325,11 +318,11 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     
     // Re-run filter periodically to hide expired messages without needing a db update
     useEffect(() => {
-        if (retentionPolicy !== '5min') return;
+        if (retentionPolicy === 'forever') return;
         const interval = setInterval(() => {
-             // Force re-render of filter
+             // Trigger re-render by creating a new array reference
              setMessages(prev => [...prev]);
-        }, 10000); // Check every 10 seconds
+        }, 5000); 
         return () => clearInterval(interval);
     }, [retentionPolicy]);
 
@@ -367,7 +360,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         const textToSend = customText !== undefined ? customText : newMessage.trim();
         const replyContext = replyingTo ? { messageId: replyingTo.id, senderName: replyingTo.senderId === currentUser.id ? currentUser.name : partner.name, text: replyingTo.text || 'Media' } : null;
         
-        // Reset UI
         setNewMessage('');
         setReplyingTo(null);
 
@@ -388,7 +380,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 mediaUrl: mediaUrl || null,
                 mediaType: mediaType || null,
                 isViewOnce: !!isViewOnce,
-                isSaved: false // New messages start unsaved
+                isSaved: false 
             };
             
             if (replyContext) messagePayload.replyTo = replyContext;
@@ -411,37 +403,38 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         }
     };
     
-    // View Once Logic
-    const handleViewMedia = async (msgId: string) => {
+    const handleViewMedia = async (msgId: string, currentCount: number) => {
         if (!chatId || !db) return;
+        
+        // Max 2 views allowed (Original + 1 Replay)
+        if (currentCount >= 2) return;
+
         const msgRef = doc(db, 'chats', chatId, 'messages', msgId);
         await updateDoc(msgRef, {
-            viewedAt: serverTimestamp()
+            viewedAt: serverTimestamp(), // Update timestamp on latest view
+            viewCount: increment(1)
         });
     };
     
     const handleToggleSave = async (msg: Message) => {
         if (!chatId || !db) return;
         const msgRef = doc(db, 'chats', chatId, 'messages', msg.id);
-        // Toggle saved status
         await updateDoc(msgRef, { isSaved: !msg.isSaved });
     };
 
     const updateRetention = async (policy: RetentionPolicy) => {
         if (!chatId || !db) return;
         
-        // 1. Update the chat document (Applies to both users via listener)
-        setRetentionPolicy(policy); // Optimistic
+        setRetentionPolicy(policy);
         await updateDoc(doc(db, 'chats', chatId), { retentionPolicy: policy });
         
-        // 2. Send a system message to notify both users
         let policyText = 'Messages are kept forever';
         if (policy === '5min') policyText = 'Messages expire 5 minutes after reading';
         if (policy === 'read') policyText = 'Messages expire immediately after reading';
 
         await addDoc(collection(db, 'chats', chatId, 'messages'), {
             chatId: chatId,
-            senderId: currentUser.id, // Needed for permission rules
+            senderId: currentUser.id,
             text: `${currentUser.name} set chat to: ${policyText}`,
             timestamp: serverTimestamp(),
             isSystemMessage: true
@@ -457,12 +450,11 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             const type = file.type.startsWith('video') ? 'video' : 'image';
-            // Gallery uploads are PERMANENT by default (viewOnce = false)
+            // Gallery uploads are PERMANENT by default
             handleSendMessage('', file, type, false);
         }
     };
 
-    // ... Standard actions ...
     const handleSendGift = async (gift: Gift) => { 
          const currentCoins = Number(currentUser.coins) || 0;
         if (!db || !partner || isSending || currentCoins < gift.cost) return;
@@ -531,7 +523,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             {isGiftModalOpen && <GiftModal onClose={() => setIsGiftModalOpen(false)} currentUser={currentUser} onSendGift={handleSendGift}/>}
             {isCameraOpen && <ChatCamera onClose={() => setIsCameraOpen(false)} onCapture={handleCameraCapture} />}
             
-            {/* Header */}
             <header className="flex items-center px-4 py-3 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 backdrop-blur-md sticky top-0 z-20">
                 <button onClick={onClose} className="mr-3 text-dark-gray dark:text-gray-200">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
@@ -564,7 +555,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 </div>
             </header>
 
-            {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 flex flex-col space-y-1 bg-[#efeae2] dark:bg-black/50">
                 {filteredMessages.map(msg => (
                     <MessageBubble 
@@ -579,12 +569,10 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 <div ref={messagesEndRef} />
             </div>
             
-            {/* Input Area - Snapchat Style */}
             <div className="bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 pb-safe">
                 {replyingTo && <ReplyPreview messageText={replyingTo.text} senderName={replyingTo.senderId === currentUser.id ? 'You' : partner.name} onCancel={() => setReplyingTo(null)} />}
                 
                 <div className="flex items-end space-x-2 p-2 px-3">
-                    {/* Camera Button */}
                     <button 
                         onClick={() => setIsCameraOpen(true)}
                         className="p-2 bg-gray-100 dark:bg-zinc-800 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors"
@@ -592,7 +580,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                         <CameraIcon className="w-6 h-6" />
                     </button>
 
-                    {/* Input Field + Gallery Icon */}
                     <div className="flex-1 bg-gray-100 dark:bg-zinc-800 rounded-2xl flex items-center relative">
                         <input type="file" ref={fileInputRef} onChange={handleGallerySelect} className="hidden" accept="image/*,video/*" />
                         <textarea
@@ -611,7 +598,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                         </button>
                     </div>
 
-                    {/* Mic Button (Logic placeholder for recording) */}
                     <button 
                         className={`p-3 rounded-full transition-all ${newMessage.trim() ? 'bg-flame-orange text-white' : 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300'}`}
                         onClick={() => newMessage.trim() ? handleSendMessage() : null}
