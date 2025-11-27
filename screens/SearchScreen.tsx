@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig.ts';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
@@ -57,7 +56,6 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
         posts: 'Search posts by keyword, #hashtag...',
     };
     
-    // Pre-warm the posts cache for searching after the screen has animated in
     useEffect(() => {
         const timer = setTimeout(() => {
             const fetchAllPosts = async () => {
@@ -90,14 +88,14 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
                     setPostsCache(allPosts);
                 } catch (error) {
                     console.error("Error pre-fetching posts for search:", error);
-                    setPostsCache([]); // Set to empty array on error to stop loading
+                    setPostsCache([]); 
                 }
             };
             fetchAllPosts();
-        }, 350); // Delay should be slightly longer than the slide-in animation (300ms)
+        }, 350); 
 
         return () => clearTimeout(timer);
-    }, []); // Run only on mount
+    }, []); 
 
     useEffect(() => {
         const performSearch = async () => {
@@ -106,12 +104,11 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
             const term = debouncedSearchTerm.trim();
 
             if (searchType === 'posts') {
-                setIsLoading(postsCache === null); // Show loading only if cache is not ready
-                if (postsCache === null) return; // Wait for cache to be loaded
+                setIsLoading(postsCache === null); 
+                if (postsCache === null) return; 
                 
                 if (term === '') {
-                    // Show recommended posts if search is empty
-                    setResults(postsCache.slice(0, 24)); // Show first 24 as recommendations
+                    setResults(postsCache.slice(0, 24)); 
                 } else {
                     const lowercasedTerm = term.toLowerCase();
                     const postsFound = postsCache.filter(post => 
@@ -123,7 +120,6 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
                 return;
             }
 
-            // User Search Logic
             if (term === '') {
                 setResults([]);
                 setIsLoading(false);

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { auth, db, firebaseInitializationError } from './firebaseConfig.ts';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
@@ -28,9 +27,6 @@ import PostGridViewer from './components/PostGridViewer.tsx';
 import DailyBonusWheel from './components/DailyBonusWheel.tsx';
 import CallOverlay from './components/CallOverlay.tsx';
 
-
-type Theme = 'light' | 'dark' | 'system';
-
 const App: React.FC = () => {
   const [authState, setAuthState] = useState<{
     isLoading: boolean;
@@ -51,13 +47,11 @@ const App: React.FC = () => {
   const [matchNotification, setMatchNotification] = useState<Notification | null>(null);
   const [inAppNotification, setInAppNotification] = useState<any | null>(null);
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
-  const [theme, setTheme] = useState<Theme>((localStorage.getItem('theme') as Theme) || 'system');
   const [localTint, setLocalTint] = useState<AppTint>((localStorage.getItem('appTint') as AppTint) || 'white');
   const [xpToast, setXpToast] = useState<{ amount: number; key: number } | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [viewingPostGrid, setViewingPostGrid] = useState<{ posts: Post[], startIndex: number } | null>(null);
   const [showDailyBonus, setShowDailyBonus] = useState(false);
-
 
   const showXpToast = (amount: number) => {
     setXpToast({ amount, key: Date.now() });
@@ -67,36 +61,13 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    const root = window.document.documentElement;
-    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
+    // Force Dark Mode Class
+    document.documentElement.classList.add('dark');
+  }, []);
 
-    const applyTheme = (t: Theme) => {
-      const isDark = t === 'dark' || (t === 'system' && systemTheme.matches);
-      root.classList.toggle('dark', isDark);
-      localStorage.setItem('theme', t);
-    };
-
-    applyTheme(theme);
-
-    const handleSystemThemeChange = (e: MediaQueryListEvent) => {
-        if (theme === 'system') {
-            root.classList.toggle('dark', e.matches);
-        }
-    };
-
-    systemTheme.addEventListener('change', handleSystemThemeChange);
-    return () => systemTheme.removeEventListener('change', handleSystemThemeChange);
-}, [theme]);
-
-  // Handle Local Tint Application
+  // Handle Local Tint Application (Optional preference, kept as it modifies colors within dark mode)
   useEffect(() => {
       localStorage.setItem('appTint', localTint);
-      const root = window.document.documentElement;
-      if (localTint === 'black') {
-          root.classList.add('dark');
-      } else if (localTint === 'white') {
-          root.classList.remove('dark');
-      }
   }, [localTint]);
 
 
@@ -118,30 +89,25 @@ const App: React.FC = () => {
   }, []);
 
   // --- ONLINE STATUS HEARTBEAT ---
-  // Depends ONLY on ID, not the whole user object to prevent infinite loops
   useEffect(() => {
       if (!authState.currentUser || typeof authState.currentUser === 'string') return;
-      
       const userId = authState.currentUser.id;
       if (!userId || !db) return;
 
       const userRef = doc(db, 'users', userId);
-
-      // Set online initially
-      updateDoc(userRef, { isOnline: true, lastOnline: serverTimestamp() }).catch(e => console.error(e));
+      updateDoc(userRef, { isOnline: true, lastOnline: serverTimestamp() }).catch(console.error);
 
       const interval = setInterval(() => {
-          updateDoc(userRef, { lastOnline: serverTimestamp() }).catch(e => console.error("Heartbeat fail", e));
-      }, 120000); // Update every 2 mins
+          updateDoc(userRef, { lastOnline: serverTimestamp() }).catch(console.error);
+      }, 120000);
 
       return () => {
           clearInterval(interval);
-          // Set offline when unmounting/closing (best effort)
-          updateDoc(userRef, { isOnline: false, lastOnline: serverTimestamp() }).catch(e => console.error(e));
+          updateDoc(userRef, { isOnline: false, lastOnline: serverTimestamp() }).catch(console.error);
       }
   }, [authState.currentUser?.id]); 
 
-  // --- LOCATION UPDATE (Separate Effect) ---
+  // --- LOCATION UPDATE ---
   useEffect(() => {
       if (!authState.currentUser || typeof authState.currentUser === 'string') return;
       if (!('geolocation' in navigator) || !db) return;
@@ -157,7 +123,6 @@ const App: React.FC = () => {
               const newLat = position.coords.latitude;
               const newLng = position.coords.longitude;
               
-              // Only update if moved significantly (> 100m approx) to save writes
               const dist = Math.sqrt(Math.pow((newLat - (currentLat || 0)), 2) + Math.pow((newLng - (currentLng || 0)), 2));
               
               if (!currentLocation || dist > 0.001) {
@@ -175,10 +140,10 @@ const App: React.FC = () => {
               }
           },
           (error) => {
-              console.log("Location permission denied or error:", error);
+              console.log("Location error:", error);
           }
       );
-  }, [authState.currentUser?.id]); // Only runs once per user session start
+  }, [authState.currentUser?.id]);
 
   useEffect(() => {
     let unsubscribeUser: () => void = () => {};
@@ -191,7 +156,6 @@ const App: React.FC = () => {
         if (snapshot.exists()) {
           const userData = { id: snapshot.id, ...snapshot.data() } as User;
           
-          // Check for Daily Bonus Availability on initial load
           if (!authState.currentUser) {
               if (!userData.lastDailyBonus) {
                   setShowDailyBonus(true);
@@ -206,7 +170,6 @@ const App: React.FC = () => {
 
           setAuthState(prev => ({ ...prev, currentUser: userData, isLoading: false }));
 
-          // Listen for unread messages
           const chatsRef = collection(db, 'chats');
           const q = query(
               chatsRef, 
@@ -222,10 +185,7 @@ const App: React.FC = () => {
                 });
                 setHasUnreadMessages(anyUnread);
             },
-            (error) => {
-                console.error("Firestore permission error fetching chats for unread status:", error);
-                setHasUnreadMessages(false);
-            }
+            (error) => { console.error(error); setHasUnreadMessages(false); }
           );
 
         } else {
@@ -292,48 +252,30 @@ const App: React.FC = () => {
   };
 
   const renderContent = () => {
-    if (authState.isLoading) {
-      return <LoadingScreen />;
-    }
-
-    if (firebaseInitializationError) {
-      return <AuthScreen preloadedError={firebaseInitializationError} />;
-    }
-
-    if (!authState.firebaseUser) {
-      return <AuthScreen />;
-    }
-
-    if (authState.currentUser === 'not_found') {
-      return <ProfileSetupScreen user={authState.firebaseUser} onSetupComplete={handleUpdateUser} />;
-    }
-    
-    if (!authState.currentUser) {
-        return <LoadingScreen />;
-    }
+    if (authState.isLoading) return <LoadingScreen />;
+    if (firebaseInitializationError) return <AuthScreen preloadedError={firebaseInitializationError} />;
+    if (!authState.firebaseUser) return <AuthScreen />;
+    if (authState.currentUser === 'not_found') return <ProfileSetupScreen user={authState.firebaseUser} onSetupComplete={handleUpdateUser} />;
+    if (!authState.currentUser) return <LoadingScreen />;
     
     const { currentUser } = authState;
 
     return (
       <I18nProvider language={currentUser.language || 'en'}>
         <XpContext.Provider value={{ showXpToast }}>
-          <div className="relative w-screen h-screen max-w-md mx-auto flex flex-col bg-gray-50 dark:bg-black md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)] overflow-hidden">
+          <div className="relative w-screen h-screen max-w-md mx-auto flex flex-col bg-black md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)] overflow-hidden">
             {xpToast && <XPToast key={xpToast.key} amount={xpToast.amount} />}
             
-            {/* Global Call Overlay */}
             <CallOverlay currentUser={currentUser} />
 
-            {/* Main Content Area */}
-            <main className="flex-1 relative overflow-hidden">
-              {/* Active Tab Content */}
+            <main className="flex-1 relative overflow-hidden bg-black">
               <div className={`w-full h-full overflow-y-auto ${viewingUserId ? 'hidden' : 'block'}`}>
                   {activeTab === Tab.Home && <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} onUpdateUser={handleUpdateUser} onOpenSearch={() => setIsSearchOpen(true)} onCreateStory={openStoryCreator} />}
                   {activeTab === Tab.Swipe && <SwipeScreen currentUser={currentUser} onNewMatch={handleNewMatch} onUpdateUser={handleUpdateUser}/>}
                   {activeTab === Tab.Chat && <ChatScreen currentUser={currentUser} activeChatPartnerId={activeChatPartnerId} onStartChat={handleStartChat} onCloseChat={() => setActiveChatPartnerId(null)} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} />}
-                  {activeTab === Tab.Profile && <ProfileScreen currentUser={currentUser} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} theme={theme} setTheme={setTheme} localTint={localTint} setLocalTint={setLocalTint} />}
+                  {activeTab === Tab.Profile && <ProfileScreen currentUser={currentUser} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} localTint={localTint} setLocalTint={setLocalTint} onViewPostGrid={(posts, index) => setViewingPostGrid({posts, startIndex: index})} />}
               </div>
               
-              {/* User Profile Overlay */}
               {viewingUserId && (
                 <UserProfileScreen 
                     currentUserId={currentUser.id} 
@@ -344,7 +286,6 @@ const App: React.FC = () => {
               )}
             </main>
 
-            {/* Bottom Nav - Hidden ONLY when in a specific chat conversation */}
             {!activeChatPartnerId && (
                 <BottomNav 
                   activeTab={activeTab} 
@@ -358,10 +299,10 @@ const App: React.FC = () => {
                 />
             )}
 
-            {/* Modals and Full Screen Overlays (Cover Nav) */}
             {createScreenMode && <CreateScreen user={currentUser} onClose={() => setCreateScreenMode(null)} initialMode={createScreenMode} />}
             {viewingPostComments && <CommentScreen post={viewingPostComments} currentUser={currentUser} onClose={() => setViewingPostComments(null)} onViewProfile={handleViewProfile} />}
             {isNotificationsOpen && <NotificationsScreen user={currentUser} onClose={() => setIsNotificationsOpen(false)} onShowMatch={handleShowMatch} onViewProfile={handleViewProfile} />}
+            
             {isSearchOpen && <SearchScreen 
                 currentUser={currentUser} 
                 onClose={() => setIsSearchOpen(false)}
@@ -378,6 +319,7 @@ const App: React.FC = () => {
                 }}
                 onUpdateUser={handleUpdateUser}
             />}
+            
             {viewingPostGrid && <PostGridViewer 
                 posts={viewingPostGrid.posts}
                 startIndex={viewingPostGrid.startIndex}
@@ -407,7 +349,6 @@ const App: React.FC = () => {
                 />
             )}
             
-            {/* Daily Bonus Wheel */}
             {showDailyBonus && authState.currentUser && (
                 <DailyBonusWheel 
                     currentUser={authState.currentUser as User} 

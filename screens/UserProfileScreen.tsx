@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { User, Post, NotificationType } from '../types.ts';
 import { db } from '../firebaseConfig.ts';

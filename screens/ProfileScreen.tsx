@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { User, Post, AppTint } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
@@ -7,7 +6,6 @@ import SettingsIcon from '../components/icons/SettingsIcon.tsx';
 import EditProfileScreen from './EditProfileScreen.tsx';
 import SettingsScreen from './SettingsScreen.tsx';
 import FollowListScreen from './FollowListScreen.tsx';
-import PostDetailView from '../components/PostDetailView.tsx';
 import ImageViewer from '../components/ImageViewer.tsx';
 import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
 import WalletScreen from './WalletScreen.tsx';
@@ -15,87 +13,43 @@ import FlameIcon from '../components/icons/FlameIcon.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
 import HotnessDisplay from '../components/HotnessDisplay.tsx';
 
-// --- Profile Skeleton ---
 const ProfileSkeleton = () => (
     <div className="animate-pulse p-4">
         <div className="flex items-center mb-6">
-            <div className="w-24 h-24 bg-gray-200 dark:bg-zinc-800 rounded-full"></div>
+            <div className="w-24 h-24 bg-zinc-800 rounded-full"></div>
             <div className="flex-1 ml-6 flex justify-around">
-                <div className="h-12 w-12 bg-gray-200 dark:bg-zinc-800 rounded"></div>
-                <div className="h-12 w-12 bg-gray-200 dark:bg-zinc-800 rounded"></div>
-                <div className="h-12 w-12 bg-gray-200 dark:bg-zinc-800 rounded"></div>
+                <div className="h-12 w-12 bg-zinc-800 rounded"></div>
+                <div className="h-12 w-12 bg-zinc-800 rounded"></div>
+                <div className="h-12 w-12 bg-zinc-800 rounded"></div>
             </div>
         </div>
         <div className="space-y-3 mb-8">
-            <div className="h-6 w-48 bg-gray-200 dark:bg-zinc-800 rounded"></div>
-            <div className="h-4 w-full bg-gray-200 dark:bg-zinc-800 rounded"></div>
-            <div className="h-4 w-2/3 bg-gray-200 dark:bg-zinc-800 rounded"></div>
-        </div>
-        <div className="flex gap-4 mb-6">
-            <div className="h-12 flex-1 bg-gray-200 dark:bg-zinc-800 rounded-2xl"></div>
-            <div className="h-12 flex-1 bg-gray-200 dark:bg-zinc-800 rounded-2xl"></div>
+            <div className="h-6 w-48 bg-zinc-800 rounded"></div>
+            <div className="h-4 w-full bg-zinc-800 rounded"></div>
         </div>
         <div className="grid grid-cols-3 gap-1">
-            {Array.from({ length: 9 }).map((_, i) => (
-                <div key={i} className="aspect-square bg-gray-200 dark:bg-zinc-800"></div>
-            ))}
+            {Array.from({ length: 9 }).map((_, i) => <div key={i} className="aspect-square bg-zinc-800"></div>)}
         </div>
     </div>
 );
-// --- End Skeleton ---
-
-const THEME_CLASSES: { [key: string]: { bg: string; text: string; subtext: string; border: string; }} = {
-    white: { bg: 'bg-white', text: 'text-gray-900', subtext: 'text-gray-500', border: 'border-gray-200' },
-    black: { bg: 'bg-black', text: 'text-gray-100', subtext: 'text-gray-400', border: 'border-zinc-800' },
-    red: { bg: 'bg-gradient-to-b from-red-900 to-black', text: 'text-white', subtext: 'text-red-200', border: 'border-red-800' },
-    // Fallback
-    default: { bg: 'bg-white dark:bg-black', text: 'text-dark-gray dark:text-gray-200', subtext: 'text-gray-500 dark:text-gray-400', border: 'border-gray-200 dark:border-gray-800' },
-}
-
-type Theme = 'light' | 'dark' | 'system';
 
 interface ProfileScreenProps {
   currentUser: User;
   onUpdateUser: (updatedUser: User) => void;
   onViewProfile: (userId: string) => void;
-  theme: Theme;
-  setTheme: (theme: Theme) => void;
   localTint: AppTint;
   setLocalTint: (tint: AppTint) => void;
+  onViewPostGrid: (posts: Post[], index: number) => void;
 }
 
-const getIconForKeyword = (keyword: string): string => {
-    const lower = keyword.toLowerCase();
-    if (lower.includes('sport') || lower.includes('fitness') || lower.includes('gym') || lower.includes('workout')) return '🏋️';
-    if (lower.includes('music') || lower.includes('musik')) return '🎵';
-    if (lower.includes('travel') || lower.includes('reisen') || lower.includes('wanderlust')) return '✈️';
-    if (lower.includes('food') || lower.includes('essen') || lower.includes('cooking') || lower.includes('kochen')) return '🍳';
-    if (lower.includes('art') || lower.includes('kunst') || lower.includes('drawing')) return '🎨';
-    if (lower.includes('game') || lower.includes('zocken') || lower.includes('gaming')) return '🎮';
-    if (lower.includes('movie') || lower.includes('film') || lower.includes('netflix')) return '🎬';
-    if (lower.includes('tech') || lower.includes('code') || lower.includes('software')) return '💻';
-    if (lower.includes('nature') || lower.includes('natur') || lower.includes('hiking') || lower.includes('wandern')) return '🌲';
-    if (lower.includes('book') || lower.includes('lesen') || lower.includes('reading')) return '📚';
-    if (lower.includes('photo') || lower.includes('foto')) return '📸';
-    if (lower.includes('animal') || lower.includes('tier') || lower.includes('dog') || lower.includes('hund') || lower.includes('cat')) return '🐾';
-    if (lower.includes('coffee') || lower.includes('kaffee')) return '☕';
-    if (lower.includes('drink') || lower.includes('beer') || lower.includes('bier') || lower.includes('party')) return '🍻';
-    return '✨';
-};
-
-const ChipList: React.FC<{ items: string, themeClasses: any }> = ({ items, themeClasses }) => {
+const ChipList: React.FC<{ items: string }> = ({ items }) => {
     if (!items) return null;
     const list = items.split(',').map(i => i.trim()).filter(i => i.length > 0);
     if (list.length === 0) return null;
-
     return (
         <div className="flex flex-wrap gap-2 mt-2">
             {list.map((item, index) => (
-                <span 
-                    key={index} 
-                    className={`px-3 py-1.5 rounded-full text-sm font-medium flex items-center shadow-sm transition-transform hover:scale-105 bg-white/10 ${themeClasses.text} border ${themeClasses.border}`}
-                >
-                    <span className="mr-1.5">{getIconForKeyword(item)}</span>
+                <span key={index} className="px-3 py-1.5 rounded-full text-sm font-medium bg-zinc-800 text-gray-200 border border-zinc-700">
                     {item}
                 </span>
             ))}
@@ -103,13 +57,12 @@ const ChipList: React.FC<{ items: string, themeClasses: any }> = ({ items, theme
     );
 }
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser, onViewProfile, theme, setTheme, localTint, setLocalTint }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser, onViewProfile, localTint, setLocalTint, onViewPostGrid }) => {
     const [posts, setPosts] = useState<Post[]>([]);
     const [isEditing, setIsEditing] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isWalletOpen, setIsWalletOpen] = useState(false);
     const [viewingFollowList, setViewingFollowList] = useState<'followers' | 'following' | null>(null);
-    const [viewingPost, setViewingPost] = useState<Post | null>(null);
     const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const { t } = useI18n();
@@ -121,17 +74,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const userPosts = snapshot.docs.map(doc => {
                 const data = doc.data();
-                const postUser = data.user || {
-                    id: data.userId,
-                    name: data.userName,
-                    profilePhoto: data.userProfilePhoto,
-                    isPremium: data.isPremium || false,
-                };
-                return {
-                    id: doc.id,
-                    ...data,
-                    user: postUser,
-                } as Post;
+                return { id: doc.id, ...data, user: data.user || { id: data.userId, name: data.userName, profilePhoto: data.userProfilePhoto } } as Post;
             });
             setPosts(userPosts);
             setIsLoading(false);
@@ -144,124 +87,76 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
         setIsEditing(false);
     };
 
-    const handlePostDeleted = (postId: string) => {
-        setPosts(current => current.filter(p => p.id !== postId));
-        setViewingPost(null);
-    };
-
-    const handlePostUpdated = (updatedPost: Post) => {
-        setPosts(current => current.map(p => p.id === updatedPost.id ? updatedPost : p));
-        setViewingPost(updatedPost);
-    };
-    
-    const themeClasses = THEME_CLASSES[localTint || 'white'] || THEME_CLASSES.default;
-
     return (
-        <div className={`w-full h-full flex flex-col ${themeClasses.bg}`}>
+        <div className="w-full h-full flex flex-col bg-black text-white">
             {isEditing && <EditProfileScreen user={currentUser} onSave={handleSaveProfile} onClose={() => setIsEditing(false)} />}
-            {isSettingsOpen && <SettingsScreen user={currentUser} onClose={() => setIsSettingsOpen(false)} onUpdateUser={onUpdateUser} theme={theme} setTheme={setTheme} localTint={localTint} setLocalTint={setLocalTint} />}
+            {isSettingsOpen && <SettingsScreen user={currentUser} onClose={() => setIsSettingsOpen(false)} onUpdateUser={onUpdateUser} localTint={localTint} setLocalTint={setLocalTint} />}
             {isWalletOpen && <WalletScreen user={currentUser} onClose={() => setIsWalletOpen(false)} onUpdateUser={onUpdateUser} />}
             {viewingFollowList && <FollowListScreen title={viewingFollowList === 'followers' ? 'Followers' : 'Following'} userIds={currentUser[viewingFollowList]} currentUser={currentUser} onClose={() => setViewingFollowList(null)} onViewProfile={onViewProfile} />}
-            {viewingPost && <PostDetailView post={viewingPost} currentUser={currentUser} onClose={() => setViewingPost(null)} onPostDeleted={handlePostDeleted} onPostUpdated={handlePostUpdated} onOpenComments={() => {}} />}
             {isImageViewerOpen && <ImageViewer images={currentUser.profilePhotos} onClose={() => setIsImageViewerOpen(false)} />}
             
-            <header className={`flex justify-between items-center p-4 ${themeClasses.border} border-b sticky top-0 backdrop-blur z-10`}>
+            <header className="flex justify-between items-center p-4 border-b border-zinc-800 sticky top-0 bg-black/80 backdrop-blur z-10">
                 <div className="w-8"></div>
-                <div className={`flex items-center space-x-2`}>
-                    <h1 className={`text-xl font-bold ${themeClasses.text}`}>{currentUser.name}</h1>
+                <div className="flex items-center space-x-2">
+                    <h1 className="text-xl font-bold">{currentUser.name}</h1>
                     {currentUser.isPremium && <VerifiedIcon />}
                 </div>
                 <button onClick={() => setIsSettingsOpen(true)}>
-                    <SettingsIcon className={`w-6 h-6 ${themeClasses.text}`} />
+                    <SettingsIcon className="w-6 h-6 text-white" />
                 </button>
             </header>
             
-            <div className="flex-1 overflow-y-auto pb-32"> {/* Bottom padding for floating nav */}
+            <div className="flex-1 overflow-y-auto pb-32">
                 {isLoading ? <ProfileSkeleton /> : (
                     <div className="p-4">
                         <div className="flex items-center">
                             <button onClick={() => setIsImageViewerOpen(true)} className="flex-shrink-0">
-                                <img src={currentUser.profilePhotos[0]} alt={currentUser.name} className="w-24 h-24 rounded-full object-cover border-4 border-flame-orange shadow-md" />
+                                <img src={currentUser.profilePhotos[0]} alt={currentUser.name} className="w-24 h-24 rounded-full object-cover border-2 border-zinc-800" />
                             </button>
                             <div className="flex-1 ml-6 flex justify-around text-center">
-                                <div>
-                                    <p className={`text-xl font-bold ${themeClasses.text}`}>{posts.length}</p>
-                                    <p className={`${themeClasses.subtext}`}>{t('posts')}</p>
-                                </div>
+                                <div><p className="text-xl font-bold text-white">{posts.length}</p><p className="text-gray-500 text-sm">{t('posts')}</p></div>
                                 <button onClick={() => setViewingFollowList('followers')}>
-                                    <p className={`text-xl font-bold ${themeClasses.text}`}>{currentUser.followers.length}</p>
-                                    <p className={`${themeClasses.subtext}`}>{t('followers')}</p>
+                                    <p className="text-xl font-bold text-white">{currentUser.followers.length}</p><p className="text-gray-500 text-sm">{t('followers')}</p>
                                 </button>
                                 <button onClick={() => setViewingFollowList('following')}>
-                                    <p className={`text-xl font-bold ${themeClasses.text}`}>{currentUser.following.length}</p>
-                                    <p className={`${themeClasses.subtext}`}>{t('following')}</p>
+                                    <p className="text-xl font-bold text-white">{currentUser.following.length}</p><p className="text-gray-500 text-sm">{t('following')}</p>
                                 </button>
                             </div>
                         </div>
 
-                        <div className="mt-6 space-y-6">
+                        <div className="mt-6 space-y-4">
                             <div>
                                 <div className="flex justify-between items-start">
-                                    <p className={`font-semibold text-xl ${themeClasses.text} flex items-center`}>
+                                    <p className="font-semibold text-xl flex items-center">
                                         {currentUser.name}, {currentUser.age}
                                         {currentUser.isPremium && <VerifiedIcon className="ml-1.5 w-5 h-5" />}
                                     </p>
                                     <HotnessDisplay score={currentUser.hotnessScore || 0} />
                                 </div>
-                                {currentUser.aboutMe && (
-                                    <p className={`${themeClasses.text} whitespace-pre-wrap mt-2 text-sm leading-relaxed`}>{currentUser.aboutMe}</p>
-                                )}
+                                {currentUser.aboutMe && <p className="text-gray-300 whitespace-pre-wrap mt-2 text-sm leading-relaxed">{currentUser.aboutMe}</p>}
                             </div>
-
-                            {currentUser.interests && (
-                                <div>
-                                    <h3 className={`font-bold text-xs uppercase tracking-wider ${themeClasses.subtext} mb-2`}>{t('interests')}</h3>
-                                    <ChipList items={currentUser.interests} themeClasses={themeClasses} />
-                                </div>
-                            )}
-                            
-                            {currentUser.lifestyle && (
-                                <div>
-                                    <h3 className={`font-bold text-xs uppercase tracking-wider ${themeClasses.subtext} mb-2`}>{t('lifestyle')}</h3>
-                                    <ChipList items={currentUser.lifestyle} themeClasses={themeClasses} />
-                                </div>
-                            )}
+                            {currentUser.interests && <div><h3 className="font-bold text-xs uppercase text-gray-500 mb-2">{t('interests')}</h3><ChipList items={currentUser.interests} /></div>}
+                            {currentUser.lifestyle && <div><h3 className="font-bold text-xs uppercase text-gray-500 mb-2">{t('lifestyle')}</h3><ChipList items={currentUser.lifestyle} /></div>}
                         </div>
 
                         <div className="flex gap-4 mt-8 mb-6">
-                            <button 
-                                onClick={() => setIsEditing(true)}
-                                className={`flex-1 py-3 px-4 rounded-2xl font-bold text-base shadow-[0_2px_8px_rgba(0,0,0,0.1)] border ${themeClasses.border} ${localTint === 'white' ? 'bg-white text-gray-800' : 'bg-zinc-800 text-white'} active:scale-95 transition-all duration-200 flex items-center justify-center gap-2`}
-                            >
-                                <span>✏️</span> {t('editProfile')}
+                            <button onClick={() => setIsEditing(true)} className="flex-1 py-3 px-4 rounded-xl font-bold text-base bg-zinc-800 text-white border border-zinc-700 active:scale-95 transition-all">
+                                {t('editProfile')}
                             </button>
-                            
-                            <button 
-                                onClick={() => setIsWalletOpen(true)} 
-                                className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl shadow-[0_4px_12px_rgba(0,0,0,0.2)] active:scale-95 transition-all duration-200 ${localTint === 'white' ? 'bg-black text-white' : 'bg-white text-black'}`}
-                            >
-                                <span className="font-bold">{t('wallet')}</span>
-                                <div className={`flex items-center text-flame-orange font-extrabold px-2 py-0.5 rounded-full text-sm ${localTint === 'white' ? 'bg-white' : 'bg-black'}`}>
+                            <button onClick={() => setIsWalletOpen(true)} className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-white text-black active:scale-95 transition-all font-bold">
+                                <span>{t('wallet')}</span>
+                                <div className="flex items-center bg-black text-flame-orange px-2 py-0.5 rounded-full text-sm">
                                     <FlameIcon isGradient className="w-3.5 h-3.5 mr-1" />
                                     <span>{Number(currentUser.coins) || 0}</span>
                                 </div>
                             </button>
                         </div>
                         
-                        <div className="grid grid-cols-3 gap-1 rounded-xl overflow-hidden">
-                            {posts.map(post => (
-                                <button key={post.id} onClick={() => setViewingPost(post)} className="aspect-square relative group overflow-hidden bg-gray-100 dark:bg-zinc-800">
-                                    <img 
-                                        src={post.mediaUrls[0]} 
-                                        alt="post" 
-                                        className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-110 ${post.isPaid ? 'border-2 border-flame-orange/50' : ''}`} 
-                                    />
-                                    {post.isPaid && (
-                                        <div className="absolute top-1 right-1 bg-flame-orange text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm">
-                                            PAID
-                                        </div>
-                                    )}
-                                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="grid grid-cols-3 gap-0.5">
+                            {posts.map((post, index) => (
+                                <button key={post.id} onClick={() => onViewPostGrid(posts, index)} className="aspect-square relative group overflow-hidden bg-zinc-900">
+                                    <img src={post.mediaUrls[0]} alt="post" className="w-full h-full object-cover" />
+                                    {post.isPaid && <div className="absolute top-1 right-1 bg-flame-orange text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm">PAID</div>}
                                 </button>
                             ))}
                         </div>
