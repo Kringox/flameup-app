@@ -28,7 +28,6 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
     const [user, setUser] = useState<User | null>(null);
     const [posts, setPosts] = useState<Post[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isFollowing, setIsFollowing] = useState(false);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
     const [viewingPost, setViewingPost] = useState<Post | null>(null);
@@ -64,7 +63,6 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                         following: docSnap.data().following || []
                     } as User;
                     setCurrentUser(data);
-                    setIsFollowing(data.following.includes(viewingUserId));
                 }
             });
             
@@ -96,6 +94,9 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
         };
         fetchUserData();
     }, [viewingUserId, currentUserId]);
+
+    // Derived state for following status
+    const isFollowing = currentUser?.following?.includes(viewingUserId) || false;
 
     const handleFollowToggle = async () => {
         if (!db || !user || !currentUser) return;

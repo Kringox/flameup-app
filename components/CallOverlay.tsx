@@ -72,7 +72,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         } catch (error: any) {
             console.error("Error accessing media devices:", error);
             if (error.name === 'NotAllowedError' || error.name === 'NotFoundError') {
-                setErrorMsg("Microphone/Camera access denied or missing. You can still listen.");
+                setErrorMsg("Microphone/Camera access issue. You can still listen.");
                 // Return null so the call can proceed as receive-only
                 return null;
             }
@@ -175,12 +175,22 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
             });
         }
 
+        // Robust Track Handling for PC Audio/Video
         newPc.ontrack = (event) => {
-            if (event.streams && event.streams[0]) {
-                remoteStream.current = event.streams[0];
-                if (remoteVideoRef.current) {
+            console.log("Track received:", event.track.kind);
+            
+            // Always set srcObject to ensure the element plays the stream
+            if (remoteVideoRef.current) {
+                if (event.streams && event.streams[0]) {
                     remoteVideoRef.current.srcObject = event.streams[0];
+                } else {
+                    // Fallback: Create new stream from track if streams[] is empty
+                    const inboundStream = new MediaStream();
+                    inboundStream.addTrack(event.track);
+                    remoteVideoRef.current.srcObject = inboundStream;
                 }
+                // Ensure audio isn't muted on the receiving end
+                remoteVideoRef.current.muted = false;
             }
         };
 
@@ -203,8 +213,8 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     }
 
     const startCall = async (callId: string, isVideo: boolean) => {
-        // Setup media but don't block. If null (error), we proceed receive-only.
-        await setupSources(isVideo);
+        const stream = await setupSources(isVideo);
+        // We proceed even if stream is null (receive only)
         
         pc.current = createPeerConnection();
         
@@ -308,9 +318,11 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         if (localStream.current) {
             const videoTracks = localStream.current.getVideoTracks();
             if (videoTracks.length > 0) {
+                // Just toggle existing
                 videoTracks.forEach(track => track.enabled = !track.enabled);
                 setIsVideoEnabled(!isVideoEnabled);
             } else {
+                // Try to add video track if started as audio-only
                 try {
                     const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
                     const videoTrack = videoStream.getVideoTracks()[0];
@@ -324,7 +336,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
                     setIsVideoEnabled(true);
                 } catch(e) {
                     console.error("Failed to enable camera", e);
-                    setErrorMsg("Could not access camera.");
+                    setErrorMsg("Camera unavailable.");
                 }
             }
         }

@@ -142,7 +142,7 @@ const MessageBubble: React.FC<{
     
     if (message.isSystemMessage) {
         return (
-            <div className="flex justify-center my-4 opacity-70">
+            <div className="flex justify-center my-4 opacity-70 w-full">
                 <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 text-center bg-gray-100 dark:bg-zinc-800 px-3 py-1 rounded-full shadow-sm">
                     {message.text}
                 </p>
@@ -157,8 +157,8 @@ const MessageBubble: React.FC<{
     const isFavorite = !!message.isFavorite;
     
     let bubbleClass = isOwnMessage 
-        ? 'self-end rounded-2xl rounded-tr-sm ' 
-        : 'self-start rounded-2xl rounded-tl-sm ';
+        ? 'rounded-2xl rounded-tr-sm ' 
+        : 'rounded-2xl rounded-tl-sm ';
     
     if (isSaved) {
         bubbleClass += 'bg-gray-200 dark:bg-zinc-700 text-dark-gray dark:text-gray-200 border-l-4 border-flame-orange ';
@@ -189,7 +189,7 @@ const MessageBubble: React.FC<{
 
     if (message.gift) {
         return (
-             <div onContextMenu={(e) => onLongPress(e, message)} className={`p-3 rounded-2xl max-w-[70%] text-center flex flex-col items-center my-1 ${bubbleClass}`}>
+             <div onContextMenu={(e) => onLongPress(e, message)} className={`p-3 rounded-2xl max-w-[70%] text-center flex flex-col items-center my-1 ${bubbleClass} self-center`}>
                 <span className="text-4xl animate-bounce">{message.gift.icon}</span>
                 <p className="font-semibold mt-1 text-sm">Sent a {message.gift.name}</p>
             </div>
@@ -201,13 +201,13 @@ const MessageBubble: React.FC<{
     );
     
     return (
-        <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} my-0.5 group transition-all duration-200 w-full`}>
-            <div className={`flex items-center gap-1 relative ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+        <div className={`w-full flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} my-0.5 group`}>
+            <div className={`flex items-center gap-1 relative max-w-[85%] ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
                 {isFavorite && <StarIcon className={`w-3 h-3 absolute ${isOwnMessage ? '-left-4' : '-right-4'} ${isOwnMessage ? 'text-flame-orange' : 'text-gray-400'}`} />}
                 <div 
                     onContextMenu={(e) => onLongPress(e, message)} 
                     onClick={handleClick}
-                    className={`relative max-w-[85%] md:max-w-[70%] cursor-pointer w-fit ${isMedia && !isViewOnce && !isAudio ? 'p-1' : 'px-4 py-2'} ${bubbleClass}`}
+                    className={`relative cursor-pointer w-fit ${isMedia && !isViewOnce && !isAudio ? 'p-1' : 'px-4 py-2'} ${bubbleClass}`}
                 >
                     {message.replyTo && (
                         <div className={`p-2 rounded-lg mb-1 text-xs border-l-2 ${isOwnMessage && !isSaved ? 'bg-black/10 border-white/50' : 'bg-gray-100 dark:bg-zinc-700 border-flame-orange'}`}>
@@ -238,12 +238,12 @@ const MessageBubble: React.FC<{
                                     ) : (
                                         <img src={message.mediaUrl} alt="sent media" className="max-h-64 w-full object-cover" />
                                     )}
-                                    {message.text && <p className={`mt-2 text-sm px-2 pb-1 ${isOwnMessage && !isSaved ? 'text-white' : 'text-gray-800 dark:text-gray-200'}`}>{message.text}</p>}
+                                    {message.text && <p className={`mt-2 text-sm px-2 pb-1 whitespace-pre-wrap break-words ${isOwnMessage && !isSaved ? 'text-white' : 'text-gray-800 dark:text-gray-200'}`}>{message.text}</p>}
                                 </div>
                             )
                         )
                     ) : (
-                        <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words min-w-0">{message.text}</p>
+                        <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{message.text}</p>
                     )}
                     
                     {isSaved && (
@@ -447,10 +447,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
     useEffect(() => {
         if (!db) return;
-        
         const chatsRef = collection(db, 'chats');
         const q = query(chatsRef, where('userIds', 'array-contains', currentUser.id));
-        
         const unsubscribe = onSnapshot(q, async (snapshot) => {
             const foundChatDoc = snapshot.docs.find(doc => {
                 const data = doc.data();
@@ -463,7 +461,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 const data = foundChatDoc.data() as Chat;
                 if (data.retentionPolicy) setRetentionPolicy(data.retentionPolicy);
                 setStreak(data.streak || 0);
-                
                 if ((data.unreadCount?.[currentUser.id] || 0) > 0) {
                     updateDoc(doc(db, 'chats', foundChatDoc.id), {
                         [`unreadCount.${currentUser.id}`]: 0
@@ -477,11 +474,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     }, [currentUser.id, partnerId]);
 
     useEffect(() => {
-        if (!chatId || !db) {
-            setMessages([]);
-            return;
-        };
-        
+        if (!chatId || !db) { setMessages([]); return; };
         const messagesQuery = query(collection(db, 'chats', chatId, 'messages'), orderBy('timestamp', 'asc'));
         const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
             const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
@@ -491,16 +484,13 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     }, [chatId]);
     
     useEffect(() => {
-        const messagesToMarkViewed: string[] = [];
-
         const validMessages = messages.filter(msg => {
             const isDeleted = msg.deletedFor && Array.isArray(msg.deletedFor) && msg.deletedFor.includes(currentUser.id);
-            if (isDeleted) return false;
-            return true;
+            return !isDeleted;
         });
-        
         setFilteredMessages(validMessages);
         
+        const messagesToMarkViewed: string[] = [];
         validMessages.forEach(msg => {
             if (msg.senderId !== currentUser.id && !msg.viewedAt) {
                 messagesToMarkViewed.push(msg.id);
@@ -520,10 +510,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         if (messages.length > 0) {
            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
         }
-
     }, [messages, chatId, currentUser.id]);
     
-    // Swipe to Back
     const onTouchStart = (e: React.TouchEvent) => setTouchStart(e.targetTouches[0].clientX);
     const onTouchMove = (e: React.TouchEvent) => {
         if (touchStart === null) return;
@@ -536,7 +524,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const getOrCreateChat = async (): Promise<string> => {
         if (chatId) return chatId;
         const userIds = [currentUser.id, partnerId].sort();
-        
         const chatsRef = collection(db, 'chats');
         const q = query(chatsRef, where('userIds', 'array-contains', currentUser.id));
         const snapshot = await getDocs(q);
@@ -544,14 +531,11 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
              const uIds = doc.data().userIds;
              return Array.isArray(uIds) && uIds.length === 2 && uIds.includes(partnerId);
         });
-
         if (existingChat) {
             setChatId(existingChat.id);
             return existingChat.id;
         }
-
         if (!partner) throw new Error("Partner data not available");
-        
         const newChatData: any = {
             userIds,
             users: {
@@ -589,22 +573,18 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const handleSendMessage = async (customText?: string, mediaFile?: File, mediaType?: 'image' | 'video' | 'audio', isViewOnce?: boolean, duration?: number) => {
         if ((!newMessage.trim() && !customText && !mediaFile) || !db || !partner || isSending) return;
         setIsSending(true);
-        
         const textToSend = customText !== undefined ? customText : newMessage.trim();
         const replyContext = replyingTo ? { messageId: replyingTo.id, senderName: replyingTo.senderId === currentUser.id ? currentUser.name : partner.name, text: replyingTo.text || 'Media' } : null;
-        
         setNewMessage('');
         setReplyingTo(null);
 
         try {
             const currentChatId = await getOrCreateChat();
             let mediaUrl = '';
-
             if (mediaFile) {
                 const urls = await uploadPhotos([mediaFile]);
                 mediaUrl = urls[0];
             }
-
             const messagePayload: any = {
                 chatId: currentChatId,
                 senderId: currentUser.id,
@@ -618,11 +598,9 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 deletedFor: [],
                 isFavorite: false
             };
-            
             if (replyContext) messagePayload.replyTo = replyContext;
             
             const msgRef = await addDoc(collection(db, 'chats', currentChatId, 'messages'), messagePayload);
-            
             let lastMsgText = textToSend;
             if (mediaUrl) {
                 if (mediaType === 'audio') lastMsgText = '🎤 Voice Message';
@@ -630,98 +608,59 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 else lastMsgText = '📷 Media';
             }
 
-            // Streak Logic
             const chatRef = doc(db, 'chats', currentChatId);
             const chatSnap = await getDoc(chatRef);
             const chatData = chatSnap.data() as Chat;
-            
             let newStreak = chatData.streak || 0;
             const lastUpdate = chatData.lastStreakUpdate?.toDate();
             const now = new Date();
-            
             if (lastUpdate) {
                 const diffTime = Math.abs(now.getTime() - lastUpdate.getTime());
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-                
-                if (diffDays === 1) {
-                    newStreak += 1; 
-                } else if (diffDays > 1) {
-                    newStreak = 1; 
-                }
+                if (diffDays === 1) { newStreak += 1; } else if (diffDays > 1) { newStreak = 1; }
             } else {
                 newStreak = 1;
             }
 
             await updateDoc(chatRef, {
-                lastMessage: { 
-                    id: msgRef.id,
-                    text: lastMsgText, 
-                    senderId: currentUser.id, 
-                    timestamp: serverTimestamp(),
-                    deletedFor: [] 
-                },
+                lastMessage: { id: msgRef.id, text: lastMsgText, senderId: currentUser.id, timestamp: serverTimestamp(), deletedFor: [] },
                 [`unreadCount.${partnerId}`]: increment(1),
                 deletedFor: arrayRemove(partnerId, currentUser.id),
                 streak: newStreak,
                 lastStreakUpdate: serverTimestamp()
             });
-
-        } catch (error) {
-            console.error("Error sending:", error);
-        } finally {
-            setIsSending(false);
-        }
+        } catch (error) { console.error("Error sending:", error); } finally { setIsSending(false); }
     };
 
     const startRecording = async (e: React.MouseEvent | React.TouchEvent) => {
         e.preventDefault();
         if(isRecording) return;
-
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const recorder = new MediaRecorder(stream);
             audioChunksRef.current = [];
-            
-            recorder.ondataavailable = (e) => {
-                if (e.data.size > 0) audioChunksRef.current.push(e.data);
-            };
-            
+            recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
             recorder.start();
             mediaRecorderRef.current = recorder;
             setIsRecording(true);
             setRecordingDuration(0);
-            
-            timerIntervalRef.current = window.setInterval(() => {
-                setRecordingDuration(prev => prev + 1);
-            }, 1000);
-            
-        } catch (err) {
-            console.error("Error starting microphone:", err);
-            alert("Could not access microphone.");
-        }
+            timerIntervalRef.current = window.setInterval(() => { setRecordingDuration(prev => prev + 1); }, 1000);
+        } catch (err) { console.error("Error starting microphone:", err); alert("Could not access microphone."); }
     };
 
     const stopRecording = (e: React.MouseEvent | React.TouchEvent) => {
         e.preventDefault();
         if (mediaRecorderRef.current && isRecording) {
             const finalDuration = recordingDuration;
-            
             mediaRecorderRef.current.onstop = () => {
                 const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/mp4' });
                 const audioFile = new File([audioBlob], `voice_${Date.now()}.m4a`, { type: 'audio/mp4' });
-                
                 mediaRecorderRef.current?.stream.getTracks().forEach(track => track.stop());
-                
-                if (finalDuration > 0) {
-                   handleSendMessage('', audioFile, 'audio', false, finalDuration);
-                }
+                if (finalDuration > 0) { handleSendMessage('', audioFile, 'audio', false, finalDuration); }
             };
             mediaRecorderRef.current.stop();
             setIsRecording(false);
-            if (timerIntervalRef.current) {
-                clearInterval(timerIntervalRef.current);
-                timerIntervalRef.current = null;
-            }
+            if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
             setRecordingDuration(0);
         }
     };
@@ -729,12 +668,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const handleViewMedia = async (msgId: string, currentCount: number) => {
         if (!chatId || !db) return;
         if (currentCount >= 2) return;
-
-        const msgRef = doc(db, 'chats', chatId, 'messages', msgId);
-        await updateDoc(msgRef, {
-            viewedAt: serverTimestamp(),
-            viewCount: increment(1)
-        });
+        await updateDoc(doc(db, 'chats', chatId, 'messages', msgId), { viewedAt: serverTimestamp(), viewCount: increment(1) });
     };
     
     const handleToggleSave = async (msg: Message) => {
@@ -750,27 +684,17 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
     const updateRetention = async (policy: RetentionPolicy) => {
         if (!chatId || !db) return;
-        
         await updateDoc(doc(db, 'chats', chatId), { retentionPolicy: policy });
         setRetentionPolicy(policy);
-        
         let policyText = 'Messages are kept forever';
         if (policy === '5min') policyText = 'Messages expire 5 minutes after reading';
         if (policy === 'read') policyText = 'Messages expire immediately after reading';
-
         await addDoc(collection(db, 'chats', chatId, 'messages'), {
-            chatId: chatId,
-            senderId: currentUser.id,
-            text: `${currentUser.name} set chat to: ${policyText}`,
-            timestamp: serverTimestamp(),
-            isSystemMessage: true
+            chatId: chatId, senderId: currentUser.id, text: `${currentUser.name} set chat to: ${policyText}`, timestamp: serverTimestamp(), isSystemMessage: true
         });
     };
 
-    const handleCameraCapture = (file: File, type: 'image' | 'video') => {
-        handleSendMessage('', file, type, true);
-    };
-
+    const handleCameraCapture = (file: File, type: 'image' | 'video') => { handleSendMessage('', file, type, true); };
     const handleGallerySelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
@@ -778,20 +702,16 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             handleSendMessage('', file, type, false);
         }
     };
-
     const handleSendGift = async (gift: Gift) => { 
          const currentCoins = Number(currentUser.coins) || 0;
         if (!db || !partner || isSending || currentCoins < gift.cost) return;
-        setIsSending(true);
-        setIsGiftModalOpen(false);
+        setIsSending(true); setIsGiftModalOpen(false);
         try {
             const currentChatId = await getOrCreateChat();
             const userRef = doc(db, 'users', currentUser.id);
             await updateDoc(userRef, { coins: increment(-gift.cost) });
             onUpdateUser({...currentUser, coins: (currentCoins - gift.cost) }); 
-            const msgRef = await addDoc(collection(db, 'chats', currentChatId, 'messages'), { 
-                chatId: currentChatId, senderId: currentUser.id, gift, timestamp: serverTimestamp() 
-            });
+            const msgRef = await addDoc(collection(db, 'chats', currentChatId, 'messages'), { chatId: currentChatId, senderId: currentUser.id, gift, timestamp: serverTimestamp() });
             await updateDoc(doc(db, 'chats', currentChatId), { 
                 lastMessage: { id: msgRef.id, text: `${gift.icon} ${gift.name}`, senderId: currentUser.id, timestamp: serverTimestamp(), deletedFor: [] }, 
                 [`unreadCount.${partnerId}`]: increment(1),
@@ -799,27 +719,9 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             });
         } catch(error) { console.error(error); } finally { setIsSending(false); }
     };
-
-    const handleBlock = async () => {
-        if(!db || !partner) return;
-        await updateDoc(doc(db, 'users', currentUser.id), { blockedUsers: arrayUnion(partner.id) });
-        onClose();
-    };
-    
-    const handleDeleteChat = async () => {
-        if (!chatId || !db) return;
-        if (window.confirm("Delete this chat?")) {
-             await updateDoc(doc(db, 'chats', chatId), { deletedFor: arrayUnion(currentUser.id) });
-            onClose();
-        }
-    }
-
-    const handleReport = async (reason: string, details: string) => {
-        if(!db || !partner) return;
-        await addDoc(collection(db, 'reports'), { reportedUserId: partner.id, reportingUserId: currentUser.id, reason, details, timestamp: serverTimestamp() });
-        setIsReportOpen(false); setIsOptionsOpen(false);
-    };
-
+    const handleBlock = async () => { if(!db || !partner) return; await updateDoc(doc(db, 'users', currentUser.id), { blockedUsers: arrayUnion(partner.id) }); onClose(); };
+    const handleDeleteChat = async () => { if (!chatId || !db) return; if (window.confirm("Delete this chat?")) { await updateDoc(doc(db, 'chats', chatId), { deletedFor: arrayUnion(currentUser.id) }); onClose(); } }
+    const handleReport = async (reason: string, details: string) => { if(!db || !partner) return; await addDoc(collection(db, 'reports'), { reportedUserId: partner.id, reportingUserId: currentUser.id, reason, details, timestamp: serverTimestamp() }); setIsReportOpen(false); setIsOptionsOpen(false); };
     const handleReact = async (message: Message, emoji: string) => {
         if (!chatId || !db) return;
         const msgRef = doc(db, 'chats', chatId, 'messages', message.id);
@@ -829,26 +731,20 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         await updateDoc(msgRef, { reactions: newReactions });
         setContextMenu(null);
     };
-    
     const handleRecall = async (message: Message) => {
          if (!chatId || !db) return;
          if (window.confirm("Recall this message?")) {
             await updateDoc(doc(db, 'chats', chatId, 'messages', message.id), { isRecalled: true, text: '', mediaUrl: null });
-            await updateDoc(doc(db, 'chats', chatId), {
-                lastMessage: { text: 'Message recalled', senderId: currentUser.id, timestamp: serverTimestamp(), deletedFor: [] }
-            });
+            await updateDoc(doc(db, 'chats', chatId), { lastMessage: { text: 'Message recalled', senderId: currentUser.id, timestamp: serverTimestamp(), deletedFor: [] } });
          }
          setContextMenu(null);
     }
-    
     const getStatusText = () => {
         if (partner?.isOnline) return 'Online';
         if (partner?.lastOnline && partner.privacySettings?.showLastOnline !== false) {
             const date = partner.lastOnline.toDate();
             const diff = Date.now() - date.getTime();
-            if (diff < 60 * 60 * 1000) {
-                return `Last seen ${Math.floor(diff / 60000)}m ago`;
-            }
+            if (diff < 60 * 60 * 1000) { return `Last seen ${Math.floor(diff / 60000)}m ago`; }
             return `Last seen ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
         }
         return '';
@@ -906,7 +802,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 </div>
             </header>
 
-            {/* FIXED: flex-1 and overflow-y-auto ensures scrolling works within the fixed container */}
             <div className="flex-1 overflow-y-auto p-4 flex flex-col space-y-1 bg-[#efeae2] dark:bg-black/50">
                 {filteredMessages.map(msg => (
                     <MessageBubble 
