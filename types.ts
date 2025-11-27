@@ -220,3 +220,14 @@ export interface Notification {
     timestamp: Timestamp;
     coinsSpent?: number; // Optional context for purchases
 }
+
+export interface Call {
+    id: string;
+    callerId: string;
+    callerName: string;
+    callerPhoto: string;
+    calleeId: string;
+    status: 'ringing' | 'connected' | 'ended' | 'declined';
+    type: 'audio' | 'video';
+    timestamp: Timestamp;
+}

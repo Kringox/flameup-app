@@ -15,7 +15,6 @@ import ViewOnceMedia from '../components/ViewOnceMedia.tsx';
 import ChatCamera from '../components/ChatCamera.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
 import { uploadPhotos } from '../utils/photoUploader.ts';
-import CallModal from '../components/CallModal.tsx';
 import StarIcon from '../components/icons/StarIcon.tsx';
 
 const REACTION_EMOJIS = ['🔥', '❤️', '😂', '😮', '👍', '😢'];
@@ -244,7 +243,8 @@ const MessageBubble: React.FC<{
                             )
                         )
                     ) : (
-                        <p className="text-[15px] leading-relaxed break-words">{message.text}</p>
+                        // Fix for "buchstabe für buchstabe" bug: use break-words and whitespace-pre-wrap correctly
+                        <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap">{message.text}</p>
                     )}
                     
                     {isSaved && (
@@ -335,9 +335,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const [contextMenu, setContextMenu] = useState<{ message: Message; position: { x: number; y: number } } | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const [isCameraOpen, setIsCameraOpen] = useState(false);
-    
-    // Calls
-    const [callType, setCallType] = useState<'audio' | 'video' | null>(null);
     
     // Audio Rec
     const [isRecording, setIsRecording] = useState(false);
@@ -571,6 +568,25 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         await setDoc(newChatRef, newChatData);
         setChatId(newChatRef.id);
         return newChatRef.id;
+    };
+
+    const initiateCall = async (type: 'audio' | 'video') => {
+        if (!db || !partner) return;
+        // Create a call document in Firestore to signal the callee
+        try {
+            await addDoc(collection(db, 'calls'), {
+                callerId: currentUser.id,
+                callerName: currentUser.name,
+                callerPhoto: currentUser.profilePhotos[0],
+                calleeId: partner.id,
+                status: 'ringing',
+                type: type,
+                timestamp: serverTimestamp()
+            });
+            // The active call state is handled by the global CallOverlay via the Firestore listener
+        } catch (error) {
+            console.error("Error starting call:", error);
+        }
     };
 
     const handleSendMessage = async (customText?: string, mediaFile?: File, mediaType?: 'image' | 'video' | 'audio', isViewOnce?: boolean, duration?: number) => {
@@ -847,7 +863,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
     return (
         <div 
-            className="absolute inset-0 bg-gray-50 dark:bg-black z-50 flex flex-col animate-slide-in-right"
+            className="absolute inset-0 bg-gray-50 dark:bg-black z-50 flex flex-col animate-slide-in-right h-[100dvh]"
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
         >
@@ -856,7 +872,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             {isReportOpen && <ReportModal reportedUser={partner} onClose={() => setIsReportOpen(false)} onSubmit={handleReport} />}
             {isGiftModalOpen && <GiftModal onClose={() => setIsGiftModalOpen(false)} currentUser={currentUser} onSendGift={handleSendGift}/>}
             {isCameraOpen && <ChatCamera onClose={() => setIsCameraOpen(false)} onCapture={handleCameraCapture} />}
-            {callType && <CallModal partnerName={partner.name} partnerPhoto={partner.profilePhotos[0]} isVideo={callType === 'video'} onEndCall={() => setCallType(null)} />}
             
             <header className="flex items-center px-4 py-3 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 backdrop-blur-md sticky top-0 z-20">
                 <button onClick={onClose} className="mr-3 text-dark-gray dark:text-gray-200">
@@ -884,10 +899,10 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                     </div>
                 </button>
                 <div className="flex items-center space-x-3">
-                    <button onClick={() => setCallType('audio')} className="text-gray-500 dark:text-gray-400 hover:text-flame-orange">
+                    <button onClick={() => initiateCall('audio')} className="text-gray-500 dark:text-gray-400 hover:text-flame-orange">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                     </button>
-                    <button onClick={() => setCallType('video')} className="text-gray-500 dark:text-gray-400 hover:text-flame-orange">
+                    <button onClick={() => initiateCall('video')} className="text-gray-500 dark:text-gray-400 hover:text-flame-orange">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                     </button>
                     <button onClick={() => setIsOptionsOpen(true)} className="text-gray-500 dark:text-gray-400">
@@ -910,7 +925,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 <div ref={messagesEndRef} />
             </div>
             
-            <div className="bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 pb-safe">
+            <div className="bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 pb-[env(safe-area-inset-bottom)]">
                 {replyingTo && <ReplyPreview messageText={replyingTo.text} senderName={replyingTo.senderId === currentUser.id ? 'You' : partner.name} onCancel={() => setReplyingTo(null)} />}
                 
                 <div className="flex items-end space-x-2 p-2 px-3">

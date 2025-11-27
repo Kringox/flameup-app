@@ -7,6 +7,7 @@ import ConversationScreen from './ConversationScreen.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
 import SearchIcon from '../components/icons/SearchIcon.tsx';
 import FlameIcon from '../components/icons/FlameIcon.tsx';
+import MoreVerticalIcon from '../components/icons/MoreVerticalIcon.tsx'; // Ensure we have this icon
 
 const formatTimestamp = (timestamp: Timestamp | undefined): string => {
     if (!timestamp) return '';
@@ -28,9 +29,10 @@ const ChatListItem: React.FC<{
     chat: Chat; 
     currentUser: User; 
     onSelect: (partnerId: string) => void; 
-    onAction: (chatId: string, action: 'pin' | 'archive' | 'mute') => void;
-    isPinned: boolean; 
-}> = ({ chat, currentUser, onSelect, onAction, isPinned }) => {
+    onAction: (chatId: string, action: 'pin' | 'archive' | 'unarchive' | 'mute') => void;
+    isPinned: boolean;
+    isArchived: boolean;
+}> = ({ chat, currentUser, onSelect, onAction, isPinned, isArchived }) => {
   const { t } = useI18n();
   const partnerId = chat.userIds.find(id => id !== currentUser.id);
   if (!partnerId) return null;
@@ -65,57 +67,71 @@ const ChatListItem: React.FC<{
       setShowMenu(true);
   };
 
+  const toggleMenu = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setShowMenu(!showMenu);
+  };
+
   return (
-    <div className="relative">
-        <button 
+    <div className="relative border-b border-gray-100 dark:border-zinc-800/50">
+        <div 
             onClick={() => onSelect(partnerId)} 
             onContextMenu={handleContextMenu} 
-            className={`w-full flex items-center p-4 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer transition-colors text-left ${isPinned ? 'bg-gray-50 dark:bg-zinc-900/50' : ''}`}
+            className={`w-full flex items-center p-4 hover:bg-gray-50 dark:hover:bg-zinc-800 cursor-pointer transition-colors ${isPinned ? 'bg-gray-50 dark:bg-zinc-900/50' : ''}`}
         >
-        <div className="relative">
-            <img className="w-14 h-14 rounded-full object-cover" src={partner.profilePhoto} alt={partner.name} />
-            {hasStreak && (
-                <div className="absolute -bottom-1 -right-1 bg-white dark:bg-black rounded-full p-0.5 border border-white dark:border-black">
-                    <span className="text-xs">🔥</span>
-                </div>
-            )}
-        </div>
-        <div className="flex-1 ml-4 border-b border-gray-200 dark:border-zinc-700 pb-4 min-w-0">
-            <div className="flex justify-between items-center">
-            <h3 className={`text-lg truncate pr-2 transition-all ${isUnread ? 'font-bold text-dark-gray dark:text-gray-100' : 'font-semibold text-gray-800 dark:text-gray-300'}`}>
-                {partner.name}
-            </h3>
-            <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">{formatTimestamp(chat.lastMessage?.timestamp)}</span>
-            </div>
-            <div className="flex justify-between items-center mt-1">
-            <p className={`text-sm truncate w-10/12 transition-all ${isUnread ? 'font-semibold text-dark-gray dark:text-gray-200' : 'text-gray-600 dark:text-gray-400'} ${previewText === 'Message expired' ? 'italic opacity-60' : ''}`}>
-                {previewText}
-            </p>
-            <div className="flex items-center space-x-2 flex-shrink-0">
-                {isMuted && <span className="text-xs text-gray-400">🔇</span>}
-                {isPinned && <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-gray-400 transform rotate-45" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" /></svg>}
-                {isUnread && !isMuted && (
-                <span className="w-2.5 h-2.5 bg-flame-red rounded-full flex-shrink-0" aria-label="Unread message"></span>
+            <div className="relative">
+                <img className="w-14 h-14 rounded-full object-cover" src={partner.profilePhoto} alt={partner.name} />
+                {hasStreak && (
+                    <div className="absolute -bottom-1 -right-1 bg-white dark:bg-black rounded-full p-0.5 border border-white dark:border-black">
+                        <span className="text-xs">🔥</span>
+                    </div>
                 )}
             </div>
+            <div className="flex-1 ml-4 min-w-0">
+                <div className="flex justify-between items-center">
+                    <h3 className={`text-lg truncate pr-2 transition-all ${isUnread ? 'font-bold text-dark-gray dark:text-gray-100' : 'font-semibold text-gray-800 dark:text-gray-300'}`}>
+                        {partner.name}
+                    </h3>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">{formatTimestamp(chat.lastMessage?.timestamp)}</span>
+                </div>
+                <div className="flex justify-between items-center mt-1">
+                    <p className={`text-sm truncate w-10/12 transition-all ${isUnread ? 'font-semibold text-dark-gray dark:text-gray-200' : 'text-gray-600 dark:text-gray-400'} ${previewText === 'Message expired' ? 'italic opacity-60' : ''}`}>
+                        {previewText}
+                    </p>
+                    <div className="flex items-center space-x-2 flex-shrink-0">
+                        {isMuted && <span className="text-xs text-gray-400">🔇</span>}
+                        {isPinned && <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-gray-400 transform rotate-45" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" /></svg>}
+                        {isUnread && !isMuted && (
+                            <span className="w-2.5 h-2.5 bg-flame-red rounded-full flex-shrink-0" aria-label="Unread message"></span>
+                        )}
+                    </div>
+                </div>
             </div>
+            <button onClick={toggleMenu} className="ml-2 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full active:bg-gray-200 dark:active:bg-zinc-700">
+                <MoreVerticalIcon className="w-5 h-5" />
+            </button>
         </div>
-        </button>
         
-        {/* Simple Context Menu Overlay */}
+        {/* Context Menu Overlay */}
         {showMenu && (
             <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)}></div>
-                <div className="absolute right-4 top-10 z-20 bg-white dark:bg-zinc-700 rounded-lg shadow-xl border border-gray-100 dark:border-zinc-600 w-32 overflow-hidden animate-fade-in-fast">
-                    <button onClick={() => { onAction(chat.id, 'pin'); setShowMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-zinc-600 dark:text-gray-200">
-                        {isPinned ? 'Unpin' : 'Pin'}
+                <div className="absolute right-4 top-12 z-20 bg-white dark:bg-zinc-800 rounded-xl shadow-2xl border border-gray-100 dark:border-zinc-700 w-40 overflow-hidden animate-fade-in-fast">
+                    <button onClick={() => { onAction(chat.id, 'pin'); setShowMenu(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-gray-100 dark:hover:bg-zinc-700 dark:text-gray-200 border-b border-gray-100 dark:border-zinc-700">
+                        {isPinned ? 'Unpin Chat' : 'Pin Chat'}
                     </button>
-                    <button onClick={() => { onAction(chat.id, 'mute'); setShowMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-zinc-600 dark:text-gray-200">
-                        {isMuted ? 'Unmute' : 'Mute'}
+                    <button onClick={() => { onAction(chat.id, 'mute'); setShowMenu(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-gray-100 dark:hover:bg-zinc-700 dark:text-gray-200 border-b border-gray-100 dark:border-zinc-700">
+                        {isMuted ? 'Unmute' : 'Mute Notifications'}
                     </button>
-                    <button onClick={() => { onAction(chat.id, 'archive'); setShowMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-zinc-600 dark:text-gray-200">
-                        Archive
-                    </button>
+                    {isArchived ? (
+                        <button onClick={() => { onAction(chat.id, 'unarchive'); setShowMenu(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-gray-100 dark:hover:bg-zinc-700 dark:text-gray-200">
+                            Unarchive Chat
+                        </button>
+                    ) : (
+                        <button onClick={() => { onAction(chat.id, 'archive'); setShowMenu(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-gray-100 dark:hover:bg-zinc-700 dark:text-gray-200">
+                            Archive Chat
+                        </button>
+                    )}
                 </div>
             </>
         )}
@@ -189,7 +205,7 @@ const ChatList: React.FC<{
         return () => unsubscribe();
     }, [currentUser.id, currentUser.pinnedChats, viewArchived, filterText]);
 
-    const handleAction = async (chatId: string, action: 'pin' | 'archive' | 'mute') => {
+    const handleAction = async (chatId: string, action: 'pin' | 'archive' | 'unarchive' | 'mute') => {
         if (!db) return;
         const userRef = doc(db, 'users', currentUser.id);
         const chatRef = doc(db, 'chats', chatId);
@@ -211,6 +227,9 @@ const ChatList: React.FC<{
             } 
             else if (action === 'archive') {
                 await updateDoc(chatRef, { archivedBy: arrayUnion(currentUser.id) });
+            }
+            else if (action === 'unarchive') {
+                await updateDoc(chatRef, { archivedBy: arrayRemove(currentUser.id) });
             }
             else if (action === 'mute') {
                 const chat = chats.find(c => c.id === chatId);
@@ -240,6 +259,7 @@ const ChatList: React.FC<{
                     onSelect={onStartChat} 
                     onAction={handleAction}
                     isPinned={currentUser.pinnedChats?.includes(chat.id) || false}
+                    isArchived={viewArchived}
                 />
             ))}
         </div>

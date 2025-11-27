@@ -31,6 +31,7 @@ import { XpContext } from './contexts/XpContext.ts';
 import SearchScreen from './screens/SearchScreen.tsx';
 import PostGridViewer from './components/PostGridViewer.tsx';
 import DailyBonusWheel from './components/DailyBonusWheel.tsx';
+import CallOverlay from './components/CallOverlay.tsx';
 
 
 type Theme = 'light' | 'dark' | 'system';
@@ -125,7 +126,7 @@ const App: React.FC = () => {
 
   // Online Status Heartbeat
   useEffect(() => {
-      if (!authState.currentUser || !db) return;
+      if (!authState.currentUser || !db || typeof authState.currentUser === 'string') return;
       const userRef = doc(db, 'users', authState.currentUser.id);
 
       // Set online initially
@@ -138,11 +139,9 @@ const App: React.FC = () => {
       return () => {
           clearInterval(interval);
           // Set offline when unmounting/closing (best effort)
-          // Note: Reliable offline detection usually needs Realtime Database 'onDisconnect', 
-          // but specifically for Firestore this is the manual approach.
           updateDoc(userRef, { isOnline: false, lastOnline: serverTimestamp() }).catch(e => console.error(e));
       }
-  }, [authState.currentUser?.id]);
+  }, [authState.currentUser]);
 
   useEffect(() => {
     let unsubscribeUser: () => void = () => {};
@@ -212,8 +211,6 @@ const App: React.FC = () => {
                   .filter(doc => !doc.data().deletedFor?.includes(userData.id))
                   .some(doc => {
                     const chatData = doc.data() as Chat;
-                    // Also check if chat is muted/archived if you want to suppress badge? 
-                    // For now, badge shows for all unread.
                     return (chatData.unreadCount?.[userData.id] || 0) > 0;
                 });
                 setHasUnreadMessages(anyUnread);
@@ -241,7 +238,7 @@ const App: React.FC = () => {
   };
   
   const handleViewProfile = (userId: string) => {
-    if (authState.currentUser && userId === authState.currentUser.id) {
+    if (authState.currentUser && typeof authState.currentUser !== 'string' && userId === authState.currentUser.id) {
         setActiveTab(Tab.Profile);
         setViewingUserId(null);
     } else {
@@ -268,7 +265,7 @@ const App: React.FC = () => {
   };
 
   const handleNewMatch = (matchedUser: User) => {
-    if (!authState.currentUser) return;
+    if (!authState.currentUser || typeof authState.currentUser === 'string') return;
     const pseudoNotification: Notification = {
       id: `match-${matchedUser.id}-${Date.now()}`,
       type: NotificationType.Match,
@@ -316,6 +313,8 @@ const App: React.FC = () => {
           <div className="relative w-screen h-screen max-w-md mx-auto flex flex-col bg-gray-50 dark:bg-black md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)] overflow-hidden">
             {xpToast && <XPToast key={xpToast.key} amount={xpToast.amount} />}
             
+            <CallOverlay currentUser={currentUser} />
+
             {/* Main Content Area */}
             <main className="flex-1 relative overflow-hidden">
               {/* Active Tab Content - Hidden when viewing a user profile to prevent background scrolling */}
@@ -383,7 +382,7 @@ const App: React.FC = () => {
             
             {matchNotification && authState.currentUser && (
                 <MatchModal 
-                    currentUser={authState.currentUser}
+                    currentUser={authState.currentUser as User}
                     matchedUser={{id: matchNotification.fromUser.id, name: matchNotification.fromUser.name, profilePhotos: [matchNotification.fromUser.profilePhoto]} as any}
                     onSendMessage={handleSendMessageFromMatch}
                     onClose={() => setMatchNotification(null)}
@@ -403,7 +402,7 @@ const App: React.FC = () => {
             {/* Daily Bonus Wheel */}
             {showDailyBonus && authState.currentUser && (
                 <DailyBonusWheel 
-                    currentUser={authState.currentUser} 
+                    currentUser={authState.currentUser as User} 
                     onClose={() => setShowDailyBonus(false)} 
                     onUpdateUser={handleUpdateUser}
                 />
