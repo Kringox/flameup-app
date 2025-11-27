@@ -117,12 +117,14 @@ const App: React.FC = () => {
     return () => unsubscribeAuth();
   }, []);
 
-  // --- CRITICAL FIX: ONLINE STATUS HEARTBEAT ---
+  // --- ONLINE STATUS HEARTBEAT ---
   // Depends ONLY on ID, not the whole user object to prevent infinite loops
   useEffect(() => {
-      if (!authState.currentUser || !db || typeof authState.currentUser === 'string') return;
+      if (!authState.currentUser || typeof authState.currentUser === 'string') return;
       
       const userId = authState.currentUser.id;
+      if (!userId || !db) return;
+
       const userRef = doc(db, 'users', userId);
 
       // Set online initially
@@ -137,7 +139,46 @@ const App: React.FC = () => {
           // Set offline when unmounting/closing (best effort)
           updateDoc(userRef, { isOnline: false, lastOnline: serverTimestamp() }).catch(e => console.error(e));
       }
-  }, [authState.currentUser?.id]); // FIX: Only re-run if ID changes, not on every user update
+  }, [authState.currentUser?.id]); 
+
+  // --- LOCATION UPDATE (Separate Effect) ---
+  useEffect(() => {
+      if (!authState.currentUser || typeof authState.currentUser === 'string') return;
+      if (!('geolocation' in navigator) || !db) return;
+
+      const userId = authState.currentUser.id;
+      const userRef = doc(db, 'users', userId);
+      const currentLocation = authState.currentUser.location;
+
+      navigator.geolocation.getCurrentPosition(
+          async (position) => {
+              const currentLat = currentLocation?.latitude;
+              const currentLng = currentLocation?.longitude;
+              const newLat = position.coords.latitude;
+              const newLng = position.coords.longitude;
+              
+              // Only update if moved significantly (> 100m approx) to save writes
+              const dist = Math.sqrt(Math.pow((newLat - (currentLat || 0)), 2) + Math.pow((newLng - (currentLng || 0)), 2));
+              
+              if (!currentLocation || dist > 0.001) {
+                  try {
+                      await updateDoc(userRef, {
+                          location: {
+                              latitude: newLat,
+                              longitude: newLng,
+                              cityName: currentLocation?.cityName || "Unknown" 
+                          }
+                      });
+                  } catch (e) {
+                      console.error("Error updating location", e);
+                  }
+              }
+          },
+          (error) => {
+              console.log("Location permission denied or error:", error);
+          }
+      );
+  }, [authState.currentUser?.id]); // Only runs once per user session start
 
   useEffect(() => {
     let unsubscribeUser: () => void = () => {};
@@ -145,6 +186,7 @@ const App: React.FC = () => {
 
     if (authState.firebaseUser && db) {
       const userRef = doc(db, 'users', authState.firebaseUser.uid);
+      
       unsubscribeUser = onSnapshot(userRef, (snapshot) => {
         if (snapshot.exists()) {
           const userData = { id: snapshot.id, ...snapshot.data() } as User;
@@ -163,37 +205,6 @@ const App: React.FC = () => {
           }
 
           setAuthState(prev => ({ ...prev, currentUser: userData, isLoading: false }));
-
-          // Request Location Permission on Load
-          if ('geolocation' in navigator) {
-              navigator.geolocation.getCurrentPosition(
-                  async (position) => {
-                      const currentLat = userData.location?.latitude;
-                      const currentLng = userData.location?.longitude;
-                      const newLat = position.coords.latitude;
-                      const newLng = position.coords.longitude;
-                      
-                      const dist = Math.sqrt(Math.pow((newLat - (currentLat || 0)), 2) + Math.pow((newLng - (currentLng || 0)), 2));
-                      
-                      if (!userData.location || dist > 0.001) {
-                          try {
-                              await updateDoc(userRef, {
-                                  location: {
-                                      latitude: newLat,
-                                      longitude: newLng,
-                                      cityName: userData.location?.cityName || "Unknown" 
-                                  }
-                              });
-                          } catch (e) {
-                              console.error("Error updating location", e);
-                          }
-                      }
-                  },
-                  (error) => {
-                      console.log("Location permission denied or error:", error);
-                  }
-              );
-          }
 
           // Listen for unread messages
           const chatsRef = collection(db, 'chats');

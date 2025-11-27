@@ -66,6 +66,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
                         // Showing "Calling..." UI is handled in ConversationScreen mostly, 
                         // but we could promote it here to be global. 
                         // For now, let's just catch the connection.
+                        setActiveCall(myCall); // Show active call UI immediately for caller too
                     }
                 }
             });
@@ -185,8 +186,8 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
 
     if (activeCall) {
         const isCaller = activeCall.callerId === currentUser?.id;
-        const partnerName = isCaller ? 'Connected' : activeCall.callerName; 
-        const partnerPhoto = isCaller ? (currentUser?.profilePhotos[0] || activeCall.callerPhoto) : activeCall.callerPhoto; // Visual placeholder logic
+        const partnerName = isCaller ? (activeCall.status === 'connected' ? 'Connected' : 'Calling...') : activeCall.callerName; 
+        const partnerPhoto = isCaller ? (currentUser?.profilePhotos[0] || activeCall.callerPhoto) : activeCall.callerPhoto; // Visual placeholder
 
         return (
             <div className="fixed inset-0 z-[200] bg-gray-900 flex flex-col items-center pt-20 pb-10 px-6 animate-fade-in">
@@ -197,10 +198,16 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
                             alt="Call Partner" 
                             className="w-32 h-32 rounded-full object-cover border-4 border-white/10 shadow-2xl relative z-10" 
                         />
+                        {!activeCall.status || activeCall.status === 'ringing' ? (
+                             <>
+                                <div className="absolute inset-0 rounded-full bg-flame-orange/20 animate-ping" style={{ animationDuration: '2s' }}></div>
+                                <div className="absolute inset-0 rounded-full bg-flame-orange/10 animate-ping" style={{ animationDuration: '2s', animationDelay: '0.5s' }}></div>
+                            </>
+                        ) : null}
                     </div>
-                    <h2 className="text-3xl font-bold text-white mb-2">{activeCall.status === 'connected' ? partnerName : 'Calling...'}</h2>
+                    <h2 className="text-3xl font-bold text-white mb-2">{partnerName}</h2>
                     <p className="text-gray-400 font-medium tracking-wide">
-                        {activeCall.status === 'connected' ? formatTime(duration) : 'Connecting...'}
+                        {activeCall.status === 'connected' ? formatTime(duration) : (isCaller ? 'Waiting for answer...' : 'Connecting...')}
                     </p>
                 </div>
                 <div className="w-full flex justify-around items-center max-w-sm">

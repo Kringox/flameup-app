@@ -263,13 +263,13 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
             setCurrentIndex(0);
             setIsLoading(false);
         }
-    }, [currentUser, filters]); // Refetch when filters change
+    }, [currentUser.id, filters]); // Optimization: Use currentUser.id to prevent loops
 
     useEffect(() => {
         if (currentUser && currentUser.id) {
             fetchUsers();
         }
-    }, [fetchUsers, currentUser]);
+    }, [fetchUsers]);
 
     const handleSwipe = async (direction: 'left' | 'right' | 'super') => {
         if (currentIndex >= users.length || !db) return;

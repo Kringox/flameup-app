@@ -201,13 +201,13 @@ const MessageBubble: React.FC<{
     );
     
     return (
-        <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} my-0.5 group transition-all duration-200`}>
-            <div className="flex items-center gap-1 w-full relative">
-                {isFavorite && <StarIcon className={`w-3 h-3 absolute -left-4 ${isOwnMessage ? 'text-flame-orange' : 'text-gray-400'}`} />}
+        <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} my-0.5 group transition-all duration-200 w-full`}>
+            <div className={`flex items-center gap-1 relative ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+                {isFavorite && <StarIcon className={`w-3 h-3 absolute ${isOwnMessage ? '-left-4' : '-right-4'} ${isOwnMessage ? 'text-flame-orange' : 'text-gray-400'}`} />}
                 <div 
                     onContextMenu={(e) => onLongPress(e, message)} 
                     onClick={handleClick}
-                    className={`relative max-w-[85%] md:max-w-[70%] cursor-pointer min-w-0 ${isMedia && !isViewOnce && !isAudio ? 'p-1' : 'px-4 py-2'} ${bubbleClass}`}
+                    className={`relative max-w-[85%] md:max-w-[70%] cursor-pointer w-fit ${isMedia && !isViewOnce && !isAudio ? 'p-1' : 'px-4 py-2'} ${bubbleClass}`}
                 >
                     {message.replyTo && (
                         <div className={`p-2 rounded-lg mb-1 text-xs border-l-2 ${isOwnMessage && !isSaved ? 'bg-black/10 border-white/50' : 'bg-gray-100 dark:bg-zinc-700 border-flame-orange'}`}>
@@ -244,7 +244,7 @@ const MessageBubble: React.FC<{
                         )
                     ) : (
                         // Fix for text rendering: whitespace-pre-wrap preserves newlines, break-words handles long words
-                        <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap">{message.text}</p>
+                        <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap min-w-[20px]">{message.text}</p>
                     )}
                     
                     {isSaved && (

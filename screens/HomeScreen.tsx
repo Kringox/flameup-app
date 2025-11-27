@@ -95,7 +95,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
       setIsLoading(false);
       return;
     }
-    setIsLoading(true);
+    // Don't set loading to true here to avoid flickering on re-fetch
     setError(null);
 
     try {
@@ -160,7 +160,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser]);
+  }, [currentUser.id]); // Optimization: Only refetch if ID changes, ignore other user object changes
 
   useEffect(() => {
     fetchData();
@@ -174,7 +174,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
     return () => {
       unsubscribeNotifications();
     };
-  }, [fetchData, currentUser]);
+  }, [fetchData, currentUser.id]);
   
   const handlePostDeleted = (postId: string) => {
     setPosts(currentPosts => currentPosts.filter(p => p.id !== postId));
