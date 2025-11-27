@@ -243,8 +243,7 @@ const MessageBubble: React.FC<{
                             )
                         )
                     ) : (
-                        // Fix for text rendering: whitespace-pre-wrap preserves newlines, break-words handles long words, min-w-0 for flex
-                        <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap min-w-0">{message.text}</p>
+                        <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words min-w-0">{message.text}</p>
                     )}
                     
                     {isSaved && (
@@ -859,7 +858,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
     return (
         <div 
-            className="absolute inset-0 bg-gray-50 dark:bg-black z-50 flex flex-col animate-slide-in-right h-[100dvh] w-full max-w-md mx-auto"
+            className="fixed inset-0 z-50 flex flex-col bg-gray-50 dark:bg-black h-[100dvh] w-full max-w-md mx-auto shadow-2xl animate-slide-in-right"
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
         >
@@ -907,6 +906,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 </div>
             </header>
 
+            {/* FIXED: flex-1 and overflow-y-auto ensures scrolling works within the fixed container */}
             <div className="flex-1 overflow-y-auto p-4 flex flex-col space-y-1 bg-[#efeae2] dark:bg-black/50">
                 {filteredMessages.map(msg => (
                     <MessageBubble 

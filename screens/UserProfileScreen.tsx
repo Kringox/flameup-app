@@ -42,7 +42,14 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
             // Listen for changes to the VIEWED user to keep follower count fresh
             const unsubscribeUser = onSnapshot(userRef, (docSnap) => {
                 if (docSnap.exists()) {
-                    setUser({ id: docSnap.id, ...docSnap.data() } as User);
+                    // Ensure arrays are initialized
+                    const data = docSnap.data();
+                    setUser({ 
+                        id: docSnap.id, 
+                        ...data,
+                        followers: data.followers || [],
+                        following: data.following || [] 
+                    } as User);
                 }
             });
 
@@ -51,7 +58,11 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
             const currentUserRef = doc(db, 'users', currentUserId);
             const unsubscribeCurrentUser = onSnapshot(currentUserRef, (docSnap) => {
                 if (docSnap.exists()) {
-                    const data = { id: docSnap.id, ...docSnap.data() } as User;
+                    const data = { 
+                        id: docSnap.id, 
+                        ...docSnap.data(),
+                        following: docSnap.data().following || []
+                    } as User;
                     setCurrentUser(data);
                     setIsFollowing(data.following.includes(viewingUserId));
                 }
@@ -93,10 +104,6 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
         const targetUserRef = doc(db, 'users', viewingUserId);
 
         const newFollowingState = !isFollowing;
-        // Optimistic UI updates are handled by the snapshot listener on currentUser now,
-        // but for immediate feedback we can toggle state.
-        // However, relying on the snapshot is safer for consistency. 
-        // We will perform the write and let the snapshot update the UI.
         
         try {
             // Update Current User (Following list)
@@ -104,8 +111,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                 following: newFollowingState ? arrayUnion(viewingUserId) : arrayRemove(viewingUserId)
             });
 
-            // Update Target User (Hotness & Followers list if we were storing it, usually just count matters for hotness)
-            // Note: If we want to display follower count accurately on the profile, we should add to 'followers' array on target.
+            // Update Target User (Followers list + Hotness)
             await updateDoc(targetUserRef, {
                 hotnessScore: increment(newFollowingState ? HotnessWeight.FOLLOW : -HotnessWeight.FOLLOW),
                 followers: newFollowingState ? arrayUnion(currentUserId) : arrayRemove(currentUserId)
@@ -125,7 +131,6 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
 
         } catch (error) {
             console.error("Error updating follow status:", error);
-            // Revert handled by snapshot consistency naturally
         }
     };
 
@@ -157,7 +162,6 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                 });
             });
 
-            // Notify Creator
             const notificationsRef = collection(db, 'users', user.id, 'notifications');
             await addDoc(notificationsRef, {
                 type: NotificationType.Subscribe,
@@ -222,8 +226,9 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                     
                     <div className="flex-1 ml-6 flex justify-around text-center">
                         <div><p className={`text-xl font-bold ${themeClass.text}`}>{posts.length}</p><p className="text-sm text-gray-500">Posts</p></div>
-                        <div><p className={`text-xl font-bold ${themeClass.text}`}>{user.followers.length}</p><p className="text-sm text-gray-500">Followers</p></div>
-                        <div><p className={`text-xl font-bold ${themeClass.text}`}>{user.following.length}</p><p className="text-sm text-gray-500">Following</p></div>
+                        {/* Ensure safe access to array length */}
+                        <div><p className={`text-xl font-bold ${themeClass.text}`}>{user.followers?.length || 0}</p><p className="text-sm text-gray-500">Followers</p></div>
+                        <div><p className={`text-xl font-bold ${themeClass.text}`}>{user.following?.length || 0}</p><p className="text-sm text-gray-500">Following</p></div>
                     </div>
                 </div>
 
@@ -273,7 +278,6 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                     </button>
                 </div>
                 
-                {/* Subscription Button Section */}
                 {hasSubscriptionPrice && !isSubscribed && (
                     <div className="mt-6">
                         <button

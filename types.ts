@@ -20,7 +20,6 @@ export enum NotificationType {
 
 export type RetentionPolicy = 'forever' | '5min' | 'read';
 
-// Updated AppTint to strictly White, Black, Red
 export type AppTint = 'white' | 'black' | 'red';
 
 export interface UserLocation {
@@ -43,37 +42,32 @@ export interface User {
   followers: string[]; // array of user IDs
   following: string[]; // array of user IDs
   coins?: number;
-  freeSuperLikes?: number; // New field for earned super likes
+  freeSuperLikes?: number;
   
-  // Online Status
   isOnline?: boolean;
   lastOnline?: Timestamp;
   
-  // Location Data
   location?: UserLocation;
   
-  // New System
   hotnessScore?: number;
   
-  // Creator Economy
-  subscriptionPrice?: number; // Cost in coins to subscribe to this user
-  subscriptions?: string[]; // Array of user IDs this user is subscribed to
+  subscriptionPrice?: number;
+  subscriptions?: string[];
 
-  // Legacy (kept for type safety during migration, but effectively unused logic-wise)
   xp: number;
   level: number;
   
   createdAt: Timestamp;
-  isPremium?: boolean; // Legacy generic premium
-  profileTheme?: AppTint; // Use the new restricted type
+  isPremium?: boolean;
+  profileTheme?: AppTint;
   lastDailyBonus?: Timestamp;
-  swipedLeft?: string[]; // array of user IDs
-  swipedRight?: string[]; // array of user IDs
+  swipedLeft?: string[];
+  swipedRight?: string[];
   dailySwipesUsed?: number;
   lastSwipeReset?: Timestamp;
   boostEndTime?: Timestamp;
-  blockedUsers?: string[]; // array of user IDs
-  pinnedChats?: string[]; // array of chat IDs
+  blockedUsers?: string[];
+  pinnedChats?: string[];
   privacySettings?: {
     showTyping: boolean;
     sendReadReceipts: boolean;
@@ -84,7 +78,7 @@ export interface User {
 export interface SwipeFilters {
     useMyLocation: boolean;
     manualLocation?: string;
-    maxDistance: number; // in km
+    maxDistance: number;
     ageRange: [number, number];
     requiredInterests: string[];
 }
@@ -94,16 +88,13 @@ export interface Post {
     userId: string;
     mediaUrls: string[];
     caption: string;
-    likedBy: string[]; // array of user IDs
+    likedBy: string[];
     commentCount: number;
     timestamp: Timestamp;
-    
-    // Flame-Post Fields
     isPaid?: boolean;
-    price?: number; // Cost in coins
-    unlockedBy?: string[]; // Array of user IDs who purchased this post
-
-    user: { // denormalized user data
+    price?: number;
+    unlockedBy?: string[];
+    user: {
         id: string;
         name: string;
         profilePhoto: string;
@@ -114,9 +105,9 @@ export interface Post {
 export interface Story {
     id: string;
     mediaUrl: string;
-    viewed: string[] | boolean; // Can be array of user IDs who viewed or a simple boolean for own story viewed status
+    viewed: string[] | boolean;
     timestamp: Timestamp | null;
-    likedBy?: string[]; // array of user IDs
+    likedBy?: string[];
     user: {
         id: string;
         name: string;
@@ -137,20 +128,17 @@ export interface Message {
     text: string;
     timestamp: Timestamp;
     gift?: Gift;
-    
-    // New Media Fields
     mediaUrl?: string;
     mediaType?: 'image' | 'video' | 'audio';
-    duration?: number; // Duration in seconds for audio/video
+    duration?: number;
     isViewOnce?: boolean;
-    viewedAt?: Timestamp; // For View Once logic and Retention Logic
-    viewCount?: number; // 0 = new, 1 = viewed once, 2 = viewed & replayed (max)
-    isSaved?: boolean; // For saving messages in Snapchat style
-    isFavorite?: boolean; // New: Favorite message
-    isSystemMessage?: boolean; // For status updates like changing retention policy
-    deletedFor?: string[]; // Array of user IDs for whom this message is deleted
-
-    reactions?: { [key: string]: string[] }; // emoji: array of user IDs
+    viewedAt?: Timestamp;
+    viewCount?: number;
+    isSaved?: boolean;
+    isFavorite?: boolean;
+    isSystemMessage?: boolean;
+    deletedFor?: string[];
+    reactions?: { [key: string]: string[] };
     replyTo?: {
         messageId: string;
         senderName: string;
@@ -169,26 +157,21 @@ export interface Chat {
         }
     };
     lastMessage?: {
-        id?: string; // Add ID to track specific message deletion status
+        id?: string;
         text: string;
         senderId: string;
         timestamp: Timestamp;
-        deletedFor?: string[]; // Array of user IDs who have deleted this specific last message
+        deletedFor?: string[];
     };
     unreadCount?: {
         [key: string]: number;
     };
-    
-    // Chat 2.0 Organization
-    deletedFor?: string[]; // array of user IDs who deleted the chat
-    archivedBy?: string[]; // array of user IDs who archived the chat
-    mutedBy?: string[]; // array of user IDs who muted the chat
-    
-    // Streaks
+    deletedFor?: string[];
+    archivedBy?: string[];
+    mutedBy?: string[];
     streak?: number;
     lastStreakUpdate?: Timestamp;
-
-    retentionPolicy?: RetentionPolicy; // 'forever' | '5min' | 'read'
+    retentionPolicy?: RetentionPolicy;
 }
 
 export interface Comment {
@@ -218,7 +201,7 @@ export interface Notification {
     commentText?: string;
     read: boolean;
     timestamp: Timestamp;
-    coinsSpent?: number; // Optional context for purchases
+    coinsSpent?: number;
 }
 
 export interface Call {
@@ -230,7 +213,7 @@ export interface Call {
     status: 'ringing' | 'connected' | 'ended' | 'declined';
     type: 'audio' | 'video';
     timestamp: Timestamp;
-    // WebRTC Signaling Fields
+    // WebRTC Signaling
     offer?: any;
     answer?: any;
 }
