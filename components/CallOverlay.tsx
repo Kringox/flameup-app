@@ -15,7 +15,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     const [activeCall, setActiveCall] = useState<Call | null>(null);
     const [duration, setDuration] = useState(0);
 
-    // Listen for Incoming Calls
+    // Listen for Incoming Calls where I am the Callee
     useEffect(() => {
         if (!currentUser || !db) return;
 
@@ -43,7 +43,37 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         return () => unsubscribe();
     }, [currentUser?.id, activeCall]);
 
-    // Listen for updates on the active call or the specific incoming call document
+    // Listen for updates on the active call OR if I am the Caller listening for acceptance
+    useEffect(() => {
+        if (!currentUser || !db) return;
+
+        // If I started a call, I need to listen to it to see if it gets accepted
+        if (!activeCall && !incomingCall) {
+             const callsRef = collection(db, 'calls');
+             const q = query(
+                callsRef, 
+                where('callerId', '==', currentUser.id),
+                where('status', 'in', ['ringing', 'connected'])
+            );
+            
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+                const calls = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Call));
+                if (calls.length > 0) {
+                    const myCall = calls[0];
+                    if (myCall.status === 'connected') {
+                        setActiveCall(myCall);
+                    } else {
+                        // Showing "Calling..." UI is handled in ConversationScreen mostly, 
+                        // but we could promote it here to be global. 
+                        // For now, let's just catch the connection.
+                    }
+                }
+            });
+            return () => unsubscribe();
+        }
+    }, [currentUser?.id, activeCall, incomingCall]);
+
+    // Listen to the specific active/incoming call document for changes (end/decline)
     useEffect(() => {
         const targetCall = activeCall || incomingCall;
         if (!targetCall || !db) return;
@@ -58,14 +88,13 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
             } else {
                 const updatedCall = { id: docSnap.id, ...docSnap.data() } as Call;
                 
-                // Handle Status Changes
                 if (updatedCall.status === 'ended' || updatedCall.status === 'declined') {
                     setIncomingCall(null);
                     setActiveCall(null);
                     setDuration(0);
-                    // Automatically clean up ended calls after a moment if I'm the caller
+                    // Automatically clean up ended calls after a moment
                     if (updatedCall.callerId === currentUser?.id) {
-                         deleteDoc(callRef).catch(console.error);
+                         setTimeout(() => deleteDoc(callRef).catch(console.error), 1000);
                     }
                 } else if (updatedCall.status === 'connected') {
                     setIncomingCall(null);
@@ -156,10 +185,8 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
 
     if (activeCall) {
         const isCaller = activeCall.callerId === currentUser?.id;
-        // In a real app we'd fetch the partner name/photo if we are the caller
-        // Here we simplify by using what's in the call object or a placeholder
-        const partnerName = isCaller ? 'Connected...' : activeCall.callerName; 
-        const partnerPhoto = isCaller ? activeCall.callerPhoto : activeCall.callerPhoto; // Just showing caller photo for now to keep simple
+        const partnerName = isCaller ? 'Connected' : activeCall.callerName; 
+        const partnerPhoto = isCaller ? (currentUser?.profilePhotos[0] || activeCall.callerPhoto) : activeCall.callerPhoto; // Visual placeholder logic
 
         return (
             <div className="fixed inset-0 z-[200] bg-gray-900 flex flex-col items-center pt-20 pb-10 px-6 animate-fade-in">
@@ -171,9 +198,9 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
                             className="w-32 h-32 rounded-full object-cover border-4 border-white/10 shadow-2xl relative z-10" 
                         />
                     </div>
-                    <h2 className="text-3xl font-bold text-white mb-2">{activeCall.status === 'connected' ? 'Connected' : 'Calling...'}</h2>
+                    <h2 className="text-3xl font-bold text-white mb-2">{activeCall.status === 'connected' ? partnerName : 'Calling...'}</h2>
                     <p className="text-gray-400 font-medium tracking-wide">
-                        {activeCall.status === 'connected' ? formatTime(duration) : 'Ringing...'}
+                        {activeCall.status === 'connected' ? formatTime(duration) : 'Connecting...'}
                     </p>
                 </div>
                 <div className="w-full flex justify-around items-center max-w-sm">

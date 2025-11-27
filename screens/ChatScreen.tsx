@@ -7,7 +7,7 @@ import ConversationScreen from './ConversationScreen.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
 import SearchIcon from '../components/icons/SearchIcon.tsx';
 import FlameIcon from '../components/icons/FlameIcon.tsx';
-import MoreVerticalIcon from '../components/icons/MoreVerticalIcon.tsx'; // Ensure we have this icon
+import MoreVerticalIcon from '../components/icons/MoreVerticalIcon.tsx';
 
 const formatTimestamp = (timestamp: Timestamp | undefined): string => {
     if (!timestamp) return '';

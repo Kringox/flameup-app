@@ -1,16 +1,12 @@
 
-// FIX: Corrected import statement for React and its hooks.
 import React, { useState, useEffect } from 'react';
-// FIX: Added file extension to firebaseConfig import
 import { auth, db, firebaseInitializationError } from './firebaseConfig.ts';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, onSnapshot, getDoc, collection, query, where, Timestamp, updateDoc, serverTimestamp } from 'firebase/firestore';
 
-// FIX: Added file extension to types import
 import { User, Tab, Post, Notification, Chat, NotificationType, AppTint } from './types.ts';
 import { I18nProvider } from './contexts/I18nContext.ts';
 
-// FIX: Added file extension to screen and component imports
 import AuthScreen from './screens/AuthScreen.tsx';
 import ProfileSetupScreen from './screens/ProfileSetupScreen.tsx';
 import LoadingScreen from './components/LoadingScreen.tsx';
@@ -20,7 +16,6 @@ import SwipeScreen from './screens/SwipeScreen.tsx';
 import ChatScreen from './screens/ChatScreen.tsx';
 import ProfileScreen from './screens/ProfileScreen.tsx';
 import CreateScreen from './screens/CreateScreen.tsx';
-// FIX: Add file extension to CommentScreen import to resolve module not found error.
 import CommentScreen from './screens/CommentScreen.tsx';
 import NotificationsScreen from './screens/NotificationsScreen.tsx';
 import UserProfileScreen from './screens/UserProfileScreen.tsx';
@@ -68,7 +63,7 @@ const App: React.FC = () => {
     setXpToast({ amount, key: Date.now() });
     setTimeout(() => {
         setXpToast(null);
-    }, 2500); // Hide after 2.5 seconds
+    }, 2500); 
   };
 
   useEffect(() => {
@@ -96,14 +91,12 @@ const App: React.FC = () => {
   // Handle Local Tint Application
   useEffect(() => {
       localStorage.setItem('appTint', localTint);
-      // Apply tint-based classes to body for global feel if needed, mostly handled in components
       const root = window.document.documentElement;
       if (localTint === 'black') {
           root.classList.add('dark');
       } else if (localTint === 'white') {
           root.classList.remove('dark');
       }
-      // 'red' can be either, usually we keep it separate or map it to dark
   }, [localTint]);
 
 
@@ -124,10 +117,13 @@ const App: React.FC = () => {
     return () => unsubscribeAuth();
   }, []);
 
-  // Online Status Heartbeat
+  // --- CRITICAL FIX: ONLINE STATUS HEARTBEAT ---
+  // Depends ONLY on ID, not the whole user object to prevent infinite loops
   useEffect(() => {
       if (!authState.currentUser || !db || typeof authState.currentUser === 'string') return;
-      const userRef = doc(db, 'users', authState.currentUser.id);
+      
+      const userId = authState.currentUser.id;
+      const userRef = doc(db, 'users', userId);
 
       // Set online initially
       updateDoc(userRef, { isOnline: true, lastOnline: serverTimestamp() }).catch(e => console.error(e));
@@ -141,7 +137,7 @@ const App: React.FC = () => {
           // Set offline when unmounting/closing (best effort)
           updateDoc(userRef, { isOnline: false, lastOnline: serverTimestamp() }).catch(e => console.error(e));
       }
-  }, [authState.currentUser]);
+  }, [authState.currentUser?.id]); // FIX: Only re-run if ID changes, not on every user update
 
   useEffect(() => {
     let unsubscribeUser: () => void = () => {};
@@ -247,7 +243,7 @@ const App: React.FC = () => {
   };
   
   const handleStartChat = (partnerId: string) => {
-      setViewingUserId(null); // Close profile overlay when starting a chat
+      setViewingUserId(null); 
       setActiveTab(Tab.Chat);
       setActiveChatPartnerId(partnerId);
   }
@@ -313,11 +309,12 @@ const App: React.FC = () => {
           <div className="relative w-screen h-screen max-w-md mx-auto flex flex-col bg-gray-50 dark:bg-black md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)] overflow-hidden">
             {xpToast && <XPToast key={xpToast.key} amount={xpToast.amount} />}
             
+            {/* Global Call Overlay */}
             <CallOverlay currentUser={currentUser} />
 
             {/* Main Content Area */}
             <main className="flex-1 relative overflow-hidden">
-              {/* Active Tab Content - Hidden when viewing a user profile to prevent background scrolling */}
+              {/* Active Tab Content */}
               <div className={`w-full h-full overflow-y-auto ${viewingUserId ? 'hidden' : 'block'}`}>
                   {activeTab === Tab.Home && <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} onUpdateUser={handleUpdateUser} onOpenSearch={() => setIsSearchOpen(true)} onCreateStory={openStoryCreator} />}
                   {activeTab === Tab.Swipe && <SwipeScreen currentUser={currentUser} onNewMatch={handleNewMatch} onUpdateUser={handleUpdateUser}/>}
