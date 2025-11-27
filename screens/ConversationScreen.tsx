@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, increment, arrayUnion, arrayRemove, getDocs, limit, setDoc, writeBatch } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, increment, arrayUnion, arrayRemove, getDocs, writeBatch, setDoc } from 'firebase/firestore';
 import { User, Message, Chat, Gift, RetentionPolicy } from '../types.ts';
 import MoreVerticalIcon from '../components/icons/MoreVerticalIcon.tsx';
 import GiftIcon from '../components/icons/GiftIcon.tsx';
@@ -243,8 +243,8 @@ const MessageBubble: React.FC<{
                             )
                         )
                     ) : (
-                        // Fix for text rendering: whitespace-pre-wrap preserves newlines, break-words handles long words
-                        <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap min-w-[20px]">{message.text}</p>
+                        // Fix for text rendering: whitespace-pre-wrap preserves newlines, break-words handles long words, min-w-0 for flex
+                        <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap min-w-0">{message.text}</p>
                     )}
                     
                     {isSaved && (
@@ -859,7 +859,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
     return (
         <div 
-            className="absolute inset-0 bg-gray-50 dark:bg-black z-50 flex flex-col animate-slide-in-right h-[100dvh]"
+            className="absolute inset-0 bg-gray-50 dark:bg-black z-50 flex flex-col animate-slide-in-right h-[100dvh] w-full max-w-md mx-auto"
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
         >
@@ -869,7 +869,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             {isGiftModalOpen && <GiftModal onClose={() => setIsGiftModalOpen(false)} currentUser={currentUser} onSendGift={handleSendGift}/>}
             {isCameraOpen && <ChatCamera onClose={() => setIsCameraOpen(false)} onCapture={handleCameraCapture} />}
             
-            <header className="flex items-center px-4 py-3 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 backdrop-blur-md sticky top-0 z-20">
+            <header className="flex-shrink-0 flex items-center px-4 py-3 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 backdrop-blur-md sticky top-0 z-20">
                 <button onClick={onClose} className="mr-3 text-dark-gray dark:text-gray-200">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
                 </button>
@@ -921,7 +921,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 <div ref={messagesEndRef} />
             </div>
             
-            <div className="bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 pb-[env(safe-area-inset-bottom)]">
+            <div className="flex-shrink-0 bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 pb-[env(safe-area-inset-bottom)]">
                 {replyingTo && <ReplyPreview messageText={replyingTo.text} senderName={replyingTo.senderId === currentUser.id ? 'You' : partner.name} onCancel={() => setReplyingTo(null)} />}
                 
                 <div className="flex items-end space-x-2 p-2 px-3">

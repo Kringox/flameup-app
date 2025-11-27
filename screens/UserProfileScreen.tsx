@@ -39,21 +39,26 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
         const fetchUserData = async () => {
             setIsLoading(true);
             const userRef = doc(db, 'users', viewingUserId);
-            const userSnap = await getDoc(userRef);
-            if (userSnap.exists()) {
-                setUser({ id: userSnap.id, ...userSnap.data() } as User);
-            }
+            // Listen for changes to the VIEWED user to keep follower count fresh
+            const unsubscribeUser = onSnapshot(userRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    setUser({ id: docSnap.id, ...docSnap.data() } as User);
+                }
+            });
 
+            // Fetch CURRENT user to check following status (one-time or snapshot)
+            // Snapshot is better to keep 'isFollowing' in sync with other tabs
             const currentUserRef = doc(db, 'users', currentUserId);
-            const currentUserSnap = await getDoc(currentUserRef);
-            if(currentUserSnap.exists()){
-                const currentUserData = { id: currentUserSnap.id, ...currentUserSnap.data() } as User;
-                setCurrentUser(currentUserData);
-                setIsFollowing(currentUserData.following.includes(viewingUserId));
-            }
+            const unsubscribeCurrentUser = onSnapshot(currentUserRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = { id: docSnap.id, ...docSnap.data() } as User;
+                    setCurrentUser(data);
+                    setIsFollowing(data.following.includes(viewingUserId));
+                }
+            });
             
             const postsQuery = query(collection(db, 'posts'), where('userId', '==', viewingUserId), orderBy('timestamp', 'desc'));
-            const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
+            const unsubscribePosts = onSnapshot(postsQuery, (snapshot) => {
                 const userPosts = snapshot.docs.map(doc => {
                     const data = doc.data();
                     const postUser = data.user || {
@@ -72,7 +77,11 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
             });
             
             setIsLoading(false);
-            return () => unsubscribe();
+            return () => {
+                unsubscribeUser();
+                unsubscribeCurrentUser();
+                unsubscribePosts();
+            };
         };
         fetchUserData();
     }, [viewingUserId, currentUserId]);
@@ -84,32 +93,22 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
         const targetUserRef = doc(db, 'users', viewingUserId);
 
         const newFollowingState = !isFollowing;
-        setIsFollowing(newFollowingState);
-
-        setUser(prevUser => {
-            if (!prevUser) return null;
-            const currentFollowers = prevUser.followers || [];
-            const newFollowers = newFollowingState
-                ? [...currentFollowers, currentUserId]
-                : currentFollowers.filter(id => id !== currentUserId);
-            
-            // Optimistically update hotness
-            const hotnessDiff = newFollowingState ? HotnessWeight.FOLLOW : -HotnessWeight.FOLLOW;
-            return { 
-                ...prevUser, 
-                followers: newFollowers,
-                hotnessScore: (prevUser.hotnessScore || 0) + hotnessDiff 
-            };
-        });
-
+        // Optimistic UI updates are handled by the snapshot listener on currentUser now,
+        // but for immediate feedback we can toggle state.
+        // However, relying on the snapshot is safer for consistency. 
+        // We will perform the write and let the snapshot update the UI.
+        
         try {
+            // Update Current User (Following list)
             await updateDoc(currentUserRef, {
                 following: newFollowingState ? arrayUnion(viewingUserId) : arrayRemove(viewingUserId)
             });
 
-            // Update Target's Hotness Score
+            // Update Target User (Hotness & Followers list if we were storing it, usually just count matters for hotness)
+            // Note: If we want to display follower count accurately on the profile, we should add to 'followers' array on target.
             await updateDoc(targetUserRef, {
-                hotnessScore: increment(newFollowingState ? HotnessWeight.FOLLOW : -HotnessWeight.FOLLOW)
+                hotnessScore: increment(newFollowingState ? HotnessWeight.FOLLOW : -HotnessWeight.FOLLOW),
+                followers: newFollowingState ? arrayUnion(currentUserId) : arrayRemove(currentUserId)
             });
             
             if (newFollowingState) {
@@ -126,7 +125,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
 
         } catch (error) {
             console.error("Error updating follow status:", error);
-            setIsFollowing(!newFollowingState); 
+            // Revert handled by snapshot consistency naturally
         }
     };
 
@@ -158,9 +157,6 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                 });
             });
 
-            // Optimistic Update
-            setCurrentUser(prev => prev ? ({ ...prev, coins: currentCoins - price, subscriptions: [...(prev.subscriptions || []), user.id] }) : null);
-            
             // Notify Creator
             const notificationsRef = collection(db, 'users', user.id, 'notifications');
             await addDoc(notificationsRef, {

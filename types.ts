@@ -230,4 +230,7 @@ export interface Call {
     status: 'ringing' | 'connected' | 'ended' | 'declined';
     type: 'audio' | 'video';
     timestamp: Timestamp;
+    // WebRTC Signaling Fields
+    offer?: any;
+    answer?: any;
 }
