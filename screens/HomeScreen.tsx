@@ -14,7 +14,7 @@ import { hapticFeedback } from '../utils/haptics.ts';
 import { doc, updateDoc, arrayUnion, arrayRemove, increment, runTransaction } from 'firebase/firestore';
 import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
 
-// --- Single Post View (TikTok Style Item) ---
+// --- Single Post View (Hybrid: TikTok Scroll + Insta Card) ---
 const SinglePostView: React.FC<{ 
     post: Post; 
     currentUser: User; 
@@ -92,77 +92,98 @@ const SinglePostView: React.FC<{
     };
 
     return (
-        <div className="w-full h-full relative snap-start bg-black flex items-center justify-center overflow-hidden">
-            {/* Media Layer */}
-            <img 
-                src={post.mediaUrls[0]} 
-                alt="Post" 
-                className={`absolute w-full h-full object-cover transition-all duration-500 ${isLocked ? 'blur-2xl scale-110 brightness-50' : ''}`} 
-            />
-            
-            {/* Locked Overlay */}
-            {isLocked && (
-                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-8 text-center bg-black/40 backdrop-blur-sm">
-                    <div className="bg-white/10 p-6 rounded-3xl backdrop-blur-md border border-white/20 shadow-2xl">
-                        <FlameIcon isGradient className="w-16 h-16 mx-auto mb-4" />
-                        <h3 className="text-2xl font-bold text-white mb-2">Flame Exclusive</h3>
-                        <p className="text-gray-200 mb-6 text-sm">Unlock to see this exclusive content.</p>
-                        <button 
-                            onClick={handleUnlock}
-                            disabled={isProcessing}
-                            className="w-full py-3 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold rounded-full shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2"
-                        >
-                            <span>Unlock</span>
-                            <span className="bg-black/20 px-2 py-0.5 rounded-full text-xs flex items-center">
-                                <FlameIcon className="w-3 h-3 mr-1" /> {post.price}
-                            </span>
-                        </button>
+        <div className="w-full h-full relative snap-start flex items-center justify-center p-3 md:p-4 bg-black">
+            {/* 
+               Hybrid Card Design: 
+               - "Bisschen Rand" (Padding around the main visual)
+               - Rounded Corners
+               - Blurred background to fill space if photo isn't aspect ratio
+            */}
+            <div className="relative w-full h-full max-h-[85vh] aspect-[9/16] md:aspect-[3/4] bg-gray-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10">
+                
+                {/* 1. Blurred Background Layer (Fill) */}
+                <div className="absolute inset-0 z-0">
+                    <img 
+                        src={post.mediaUrls[0]} 
+                        className="w-full h-full object-cover blur-3xl opacity-60" 
+                        alt=""
+                    />
+                    <div className="absolute inset-0 bg-black/20" />
+                </div>
+
+                {/* 2. Main Content Layer (Contain) */}
+                <div className="absolute inset-0 z-10 flex items-center justify-center">
+                    <img 
+                        src={post.mediaUrls[0]} 
+                        alt="Post" 
+                        className={`max-w-full max-h-full object-contain shadow-lg ${isLocked ? 'blur-2xl scale-110 brightness-50' : ''}`} 
+                    />
+                </div>
+
+                {/* Locked Overlay */}
+                {isLocked && (
+                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-8 text-center bg-black/40 backdrop-blur-sm">
+                        <div className="bg-white/10 p-6 rounded-3xl backdrop-blur-md border border-white/20 shadow-2xl">
+                            <FlameIcon isGradient className="w-16 h-16 mx-auto mb-4" />
+                            <h3 className="text-2xl font-bold text-white mb-2">Flame Exclusive</h3>
+                            <p className="text-gray-200 mb-6 text-sm">Unlock to see this exclusive content.</p>
+                            <button 
+                                onClick={handleUnlock}
+                                disabled={isProcessing}
+                                className="w-full py-3 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold rounded-full shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2"
+                            >
+                                <span>Unlock</span>
+                                <span className="bg-black/20 px-2 py-0.5 rounded-full text-xs flex items-center">
+                                    <FlameIcon className="w-3 h-3 mr-1" /> {post.price}
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Bottom Info Overlay */}
+                <div className="absolute bottom-0 left-0 right-0 p-4 pb-16 pt-24 bg-gradient-to-t from-black/90 via-black/50 to-transparent z-20 pointer-events-none">
+                    <div className="pointer-events-auto max-w-[80%]">
+                        <h3 className="text-white font-bold text-lg flex items-center shadow-black drop-shadow-md cursor-pointer mb-1" onClick={() => onViewProfile(post.userId)}>
+                            @{post.user.name}
+                            {post.user.isPremium && <VerifiedIcon className="w-4 h-4 ml-1" />}
+                        </h3>
+                        <p className="text-white/90 text-sm line-clamp-2 drop-shadow-md">
+                            {post.caption}
+                        </p>
                     </div>
                 </div>
-            )}
 
-            {/* Sidebar Interactions */}
-            <div className="absolute right-2 bottom-32 z-30 flex flex-col items-center gap-6">
-                <div className="relative">
-                    <button onClick={() => onViewProfile(post.userId)} className="relative">
-                        <img src={post.user.profilePhoto} className="w-12 h-12 rounded-full border-2 border-white shadow-md object-cover" />
-                        {!isOwnPost && (
-                            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-flame-red rounded-full p-0.5">
-                                <UserPlusIcon className="w-3 h-3 text-white" />
-                            </div>
-                        )}
+                {/* Floating Sidebar Actions (Right) */}
+                <div className="absolute right-2 bottom-12 z-30 flex flex-col items-center gap-6 pb-4">
+                    <div className="relative">
+                        <button onClick={() => onViewProfile(post.userId)} className="relative">
+                            <img src={post.user.profilePhoto} className="w-12 h-12 rounded-full border-2 border-white shadow-md object-cover" />
+                            {!isOwnPost && (
+                                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-flame-red rounded-full p-0.5">
+                                    <UserPlusIcon className="w-3 h-3 text-white" />
+                                </div>
+                            )}
+                        </button>
+                    </div>
+
+                    <div className="flex flex-col items-center gap-1">
+                        <button onClick={handleLike} className="active:scale-75 transition-transform p-1">
+                            <HeartIcon isLiked={isLiked} className={`w-8 h-8 drop-shadow-lg ${isLiked ? 'text-red-500 fill-red-500' : 'text-white'}`} />
+                        </button>
+                        <span className="text-white text-xs font-bold drop-shadow-md">{likeCount}</span>
+                    </div>
+
+                    <div className="flex flex-col items-center gap-1">
+                        <button onClick={() => onOpenComments(post)} className="active:scale-75 transition-transform p-1">
+                            <CommentIcon className="w-8 h-8 text-white drop-shadow-lg" />
+                        </button>
+                        <span className="text-white text-xs font-bold drop-shadow-md">{post.commentCount}</span>
+                    </div>
+
+                    <button className="active:scale-75 transition-transform p-1">
+                        <ShareIcon className="w-8 h-8 text-white drop-shadow-lg" />
                     </button>
-                </div>
-
-                <div className="flex flex-col items-center gap-1">
-                    <button onClick={handleLike} className="active:scale-75 transition-transform">
-                        <HeartIcon isLiked={isLiked} className={`w-9 h-9 drop-shadow-lg ${isLiked ? 'text-red-500 fill-red-500' : 'text-white'}`} />
-                    </button>
-                    <span className="text-white text-xs font-bold drop-shadow-md">{likeCount}</span>
-                </div>
-
-                <div className="flex flex-col items-center gap-1">
-                    <button onClick={() => onOpenComments(post)} className="active:scale-75 transition-transform">
-                        <CommentIcon className="w-8 h-8 text-white drop-shadow-lg" />
-                    </button>
-                    <span className="text-white text-xs font-bold drop-shadow-md">{post.commentCount}</span>
-                </div>
-
-                <button className="active:scale-75 transition-transform">
-                    <ShareIcon className="w-8 h-8 text-white drop-shadow-lg" />
-                </button>
-            </div>
-
-            {/* Bottom Overlay Info */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 pb-24 bg-gradient-to-t from-black/90 via-black/40 to-transparent z-20 pointer-events-none">
-                <div className="pointer-events-auto">
-                    <h3 className="text-white font-bold text-lg flex items-center shadow-black drop-shadow-md cursor-pointer" onClick={() => onViewProfile(post.userId)}>
-                        @{post.user.name}
-                        {post.user.isPremium && <VerifiedIcon className="w-4 h-4 ml-1" />}
-                    </h3>
-                    <p className="text-white/90 text-sm mt-2 line-clamp-2 drop-shadow-md">
-                        {post.caption}
-                    </p>
                 </div>
             </div>
         </div>
@@ -217,12 +238,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
     return (
         <div className="relative w-full h-full bg-black">
             {/* Floating Header */}
-            <div className="absolute top-0 left-0 right-0 z-40 flex justify-between items-center px-4 py-4 bg-gradient-to-b from-black/60 to-transparent">
-                <button onClick={onOpenNotifications} className="text-white drop-shadow-md">
+            <div className="absolute top-0 left-0 right-0 z-40 flex justify-between items-center px-4 py-4 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
+                <button onClick={onOpenNotifications} className="text-white drop-shadow-md pointer-events-auto">
                     <BellIcon />
                 </button>
                 
-                <div className="flex gap-4 text-base font-bold drop-shadow-md">
+                <div className="flex gap-4 text-base font-bold drop-shadow-md pointer-events-auto">
                     <button 
                         onClick={() => setActiveTab('foryou')}
                         className={`transition-opacity ${activeTab === 'foryou' ? 'text-white opacity-100' : 'text-gray-300 opacity-60'}`}
@@ -238,7 +259,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
                     </button>
                 </div>
 
-                <button onClick={onOpenSearch} className="text-white drop-shadow-md">
+                <button onClick={onOpenSearch} className="text-white drop-shadow-md pointer-events-auto">
                     <SearchIcon className="w-6 h-6" />
                 </button>
             </div>

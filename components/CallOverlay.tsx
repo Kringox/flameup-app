@@ -35,7 +35,6 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     // WebRTC Refs
     const pc = useRef<RTCPeerConnection | null>(null);
     const localStream = useRef<MediaStream | null>(null);
-    const remoteStream = useRef<MediaStream | null>(null);
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -50,7 +49,6 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
             localStream.current.getTracks().forEach(track => track.stop());
             localStream.current = null;
         }
-        remoteStream.current = null;
         setDuration(0);
         setIsMuted(false);
         setErrorMsg(null);
@@ -71,9 +69,8 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
             return stream;
         } catch (error: any) {
             console.error("Error accessing media devices:", error);
-            if (error.name === 'NotAllowedError' || error.name === 'NotFoundError') {
+            if (error.name === 'NotAllowedError' || error.name === 'NotFoundError' || error.name === 'OverconstrainedError') {
                 setErrorMsg("Microphone/Camera access issue. You can still listen.");
-                // Return null so the call can proceed as receive-only
                 return null;
             }
             return null;
@@ -82,7 +79,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
 
     // --- 2. LISTENERS ---
 
-    // Listen for Incoming Calls (Ringing)
+    // Listen for Incoming Calls
     useEffect(() => {
         if (!currentUser || !db) return;
         const callsRef = collection(db, 'calls');
@@ -119,7 +116,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         }
     }, [currentUser?.id, activeCall, incomingCall]);
 
-    // Main Call Logic Listener (Signaling)
+    // Signaling Listener
     useEffect(() => {
         const targetCall = activeCall || incomingCall;
         if (!targetCall || !db) return;
@@ -135,7 +132,6 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
 
             const data = { id: snapshot.id, ...snapshot.data() } as Call;
 
-            // Handle connection status changes
             if (data.status === 'ended' || data.status === 'declined') {
                 cleanup();
                 setIncomingCall(null);
@@ -146,15 +142,11 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
                 return;
             }
 
-            // --- WebRTC Signaling Exchange ---
-            
-            // 1. Caller handles Remote Answer
             if (pc.current && !pc.current.currentRemoteDescription && data.answer && data.callerId === currentUser?.id) {
                 const answer = new RTCSessionDescription(data.answer);
                 await pc.current.setRemoteDescription(answer);
             }
 
-            // Update local state
             if (activeCall && (data.status !== activeCall.status)) {
                 setActiveCall(data);
             }
@@ -164,7 +156,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     }, [activeCall?.id, incomingCall?.id, currentUser?.id]);
 
 
-    // --- 3. ACTIONS ---
+    // --- 3. ACTIONS & WebRTC ---
 
     const createPeerConnection = () => {
         const newPc = new RTCPeerConnection(servers);
@@ -175,22 +167,17 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
             });
         }
 
-        // Robust Track Handling for PC Audio/Video
+        // --- CRITICAL FIX FOR PC AUDIO ---
+        // Explicitly create a MediaStream for inbound tracks to ensure browser compatibility.
         newPc.ontrack = (event) => {
-            console.log("Track received:", event.track.kind);
-            
-            // Always set srcObject to ensure the element plays the stream
             if (remoteVideoRef.current) {
-                if (event.streams && event.streams[0]) {
-                    remoteVideoRef.current.srcObject = event.streams[0];
-                } else {
-                    // Fallback: Create new stream from track if streams[] is empty
-                    const inboundStream = new MediaStream();
-                    inboundStream.addTrack(event.track);
-                    remoteVideoRef.current.srcObject = inboundStream;
-                }
-                // Ensure audio isn't muted on the receiving end
+                const inboundStream = new MediaStream();
+                inboundStream.addTrack(event.track);
+                remoteVideoRef.current.srcObject = inboundStream;
+                // Force unmute
                 remoteVideoRef.current.muted = false;
+                // Try to play immediately
+                remoteVideoRef.current.play().catch(e => console.error("Auto-play failed", e));
             }
         };
 
@@ -214,7 +201,6 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
 
     const startCall = async (callId: string, isVideo: boolean) => {
         const stream = await setupSources(isVideo);
-        // We proceed even if stream is null (receive only)
         
         pc.current = createPeerConnection();
         
@@ -237,7 +223,6 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         subscribeToCandidates(callId);
     };
 
-    // Caller initiation logic
     useEffect(() => {
         if (activeCall && activeCall.callerId === currentUser?.id && activeCall.status === 'ringing' && !pc.current) {
             startCall(activeCall.id, activeCall.type === 'video');
@@ -318,11 +303,9 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         if (localStream.current) {
             const videoTracks = localStream.current.getVideoTracks();
             if (videoTracks.length > 0) {
-                // Just toggle existing
                 videoTracks.forEach(track => track.enabled = !track.enabled);
                 setIsVideoEnabled(!isVideoEnabled);
             } else {
-                // Try to add video track if started as audio-only
                 try {
                     const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
                     const videoTrack = videoStream.getVideoTracks()[0];
@@ -342,7 +325,6 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         }
     };
 
-    // Duration Timer
     useEffect(() => {
         let interval: number;
         if (activeCall?.status === 'connected') {
