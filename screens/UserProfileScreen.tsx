@@ -2,12 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { User, Post, NotificationType } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
-import { doc, getDoc, collection, query, where, orderBy, onSnapshot, updateDoc, arrayUnion, arrayRemove, addDoc, serverTimestamp, increment, runTransaction } from 'firebase/firestore';
+import { doc, collection, query, where, orderBy, onSnapshot, updateDoc, arrayUnion, arrayRemove, addDoc, serverTimestamp, increment, runTransaction } from 'firebase/firestore';
 import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
 import ImageViewer from '../components/ImageViewer.tsx';
 import HotnessDisplay from '../components/HotnessDisplay.tsx';
 import { HotnessWeight } from '../utils/hotnessUtils.ts';
-import PostDetailView from '../components/PostDetailView.tsx';
+import PostGridViewer from '../components/PostGridViewer.tsx';
 import CrownIcon from '../components/icons/CrownIcon.tsx';
 import FlameIcon from '../components/icons/FlameIcon.tsx';
 
@@ -30,7 +30,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
     const [isLoading, setIsLoading] = useState(true);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
-    const [viewingPost, setViewingPost] = useState<Post | null>(null);
+    const [viewingPostIndex, setViewingPostIndex] = useState<number | null>(null);
     const [isProcessingSub, setIsProcessingSub] = useState(false);
 
     useEffect(() => {
@@ -38,10 +38,8 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
         const fetchUserData = async () => {
             setIsLoading(true);
             const userRef = doc(db, 'users', viewingUserId);
-            // Listen for changes to the VIEWED user to keep follower count fresh
             const unsubscribeUser = onSnapshot(userRef, (docSnap) => {
                 if (docSnap.exists()) {
-                    // Ensure arrays are initialized
                     const data = docSnap.data();
                     setUser({ 
                         id: docSnap.id, 
@@ -52,8 +50,6 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                 }
             });
 
-            // Fetch CURRENT user to check following status (one-time or snapshot)
-            // Snapshot is better to keep 'isFollowing' in sync with other tabs
             const currentUserRef = doc(db, 'users', currentUserId);
             const unsubscribeCurrentUser = onSnapshot(currentUserRef, (docSnap) => {
                 if (docSnap.exists()) {
@@ -95,24 +91,18 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
         fetchUserData();
     }, [viewingUserId, currentUserId]);
 
-    // Derived state for following status
     const isFollowing = currentUser?.following?.includes(viewingUserId) || false;
 
     const handleFollowToggle = async () => {
         if (!db || !user || !currentUser) return;
-        
         const currentUserRef = doc(db, 'users', currentUserId);
         const targetUserRef = doc(db, 'users', viewingUserId);
-
         const newFollowingState = !isFollowing;
         
         try {
-            // Update Current User (Following list)
             await updateDoc(currentUserRef, {
                 following: newFollowingState ? arrayUnion(viewingUserId) : arrayRemove(viewingUserId)
             });
-
-            // Update Target User (Followers list + Hotness)
             await updateDoc(targetUserRef, {
                 hotnessScore: increment(newFollowingState ? HotnessWeight.FOLLOW : -HotnessWeight.FOLLOW),
                 followers: newFollowingState ? arrayUnion(currentUserId) : arrayRemove(currentUserId)
@@ -129,7 +119,6 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                     timestamp: serverTimestamp(),
                 });
             }
-
         } catch (error) {
             console.error("Error updating follow status:", error);
         }
@@ -193,14 +182,16 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
     return (
         <div className={`absolute inset-0 h-full w-full overflow-hidden z-[40] flex flex-col animate-slide-in ${themeClass.bg}`}>
             {isImageViewerOpen && <ImageViewer images={user.profilePhotos} onClose={() => setIsImageViewerOpen(false)} />}
-            {viewingPost && currentUser && (
-                <PostDetailView 
-                    post={viewingPost} 
-                    currentUser={currentUser} 
-                    onClose={() => setViewingPost(null)} 
-                    onPostDeleted={() => {}} 
-                    onPostUpdated={() => {}} 
+            
+            {viewingPostIndex !== null && currentUser && (
+                <PostGridViewer 
+                    posts={posts}
+                    startIndex={viewingPostIndex}
+                    currentUser={currentUser}
+                    onClose={() => setViewingPostIndex(null)}
                     onOpenComments={() => {}} 
+                    onViewProfile={() => {}} 
+                    onUpdateUser={() => {}} 
                 />
             )}
             
@@ -227,7 +218,6 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                     
                     <div className="flex-1 ml-6 flex justify-around text-center">
                         <div><p className={`text-xl font-bold ${themeClass.text}`}>{posts.length}</p><p className="text-sm text-gray-500">Posts</p></div>
-                        {/* Ensure safe access to array length */}
                         <div><p className={`text-xl font-bold ${themeClass.text}`}>{user.followers?.length || 0}</p><p className="text-sm text-gray-500">Followers</p></div>
                         <div><p className={`text-xl font-bold ${themeClass.text}`}>{user.following?.length || 0}</p><p className="text-sm text-gray-500">Following</p></div>
                     </div>
@@ -304,11 +294,11 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                 )}
                 
                 <div className="grid grid-cols-3 gap-1 mt-6">
-                    {posts.map(post => {
+                    {posts.map((post, index) => {
                         const isUnlocked = !post.isPaid || post.unlockedBy?.includes(currentUserId) || isSubscribed || post.user.id === currentUserId;
                         
                         return (
-                            <button key={post.id} onClick={() => setViewingPost(post)} className="aspect-square bg-gray-200 dark:bg-zinc-800 relative group overflow-hidden">
+                            <button key={post.id} onClick={() => setViewingPostIndex(index)} className="aspect-square bg-gray-200 dark:bg-zinc-800 relative group overflow-hidden">
                                 <img 
                                     src={post.mediaUrls[0]} 
                                     alt="post" 

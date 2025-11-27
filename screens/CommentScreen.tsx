@@ -6,20 +6,23 @@ import { Post, User, Comment, NotificationType } from '../types.ts';
 import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
 import { XpContext } from '../contexts/XpContext.ts';
 import { HotnessWeight } from '../utils/hotnessUtils.ts';
-
+import XIcon from '../components/icons/XIcon.tsx';
 
 const CommentRow: React.FC<{ comment: Comment; onViewProfile: (userId: string) => void; }> = ({ comment, onViewProfile }) => {
     return (
-        <div className="flex items-start space-x-3 py-2">
+        <div className="flex items-start space-x-3 py-3 animate-fade-in">
             <button onClick={() => onViewProfile(comment.userId)}>
-                <img src={comment.userProfilePhoto} alt={comment.userName} className="w-8 h-8 rounded-full" />
+                <img src={comment.userProfilePhoto} alt={comment.userName} className="w-8 h-8 rounded-full object-cover" />
             </button>
             <div className="flex-1">
-                <p className="text-sm dark:text-gray-200">
-                    <button onClick={() => onViewProfile(comment.userId)} className="font-semibold mr-1 flex items-center dark:text-gray-100">
+                <div className="flex items-center">
+                    <button onClick={() => onViewProfile(comment.userId)} className="text-xs font-bold text-gray-500 dark:text-gray-400 mr-2 flex items-center">
                         {comment.userName}
-                        {comment.isPremium && <VerifiedIcon className="w-4 h-4 ml-1" />}
+                        {comment.isPremium && <VerifiedIcon className="w-3 h-3 ml-1" />}
                     </button>
+                    <span className="text-[10px] text-gray-400">Now</span>
+                </div>
+                <p className="text-sm dark:text-gray-200 mt-0.5 leading-tight">
                     {comment.text}
                 </p>
             </div>
@@ -87,8 +90,6 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
 
         try {
             const batch = writeBatch(db);
-            
-            // 1. Create the new comment document
             const commentRef = doc(collection(db, 'posts', post.id, 'comments'));
             batch.set(commentRef, {
                 postId: post.id,
@@ -101,59 +102,85 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
                 timestamp: serverTimestamp(),
             });
 
-            // 2. Atomically increment the comment count on the post
             const postRef = doc(db, 'posts', post.id);
             batch.update(postRef, { commentCount: increment(1) });
             
-            // 3. Update Hotness for Post Owner
             const ownerRef = doc(db, 'users', post.userId);
             batch.update(ownerRef, { hotnessScore: increment(HotnessWeight.COMMENT) });
 
-            // Commit all writes at once
             await batch.commit();
-
-            showXpToast(20); // Visual flair only
-            
-            // 4. Create notification after the comment is successfully posted
+            showXpToast(20); 
             await createNotification(commentText);
-            
             setNewComment('');
         } catch (error) {
             console.error("Error posting comment: ", error);
-            alert("Could not post comment. Please try again.");
         } finally {
             setIsPosting(false);
         }
     };
 
     return (
-        <div className="absolute inset-0 bg-white dark:bg-zinc-900 z-50 flex flex-col animate-fade-in">
-            <header className="flex items-center p-4 border-b border-gray-200 dark:border-zinc-800">
-                <button onClick={onClose} className="w-8 text-dark-gray dark:text-gray-200">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-                </button>
-                <h1 className="text-xl font-bold text-center flex-1 dark:text-gray-100">Comments</h1>
-                <div className="w-8"></div>
-            </header>
+        <div className="fixed inset-0 z-[100] flex flex-col justify-end" onClick={onClose}>
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/50 transition-opacity" />
+            
+            {/* Drawer */}
+            <div 
+                className="bg-white dark:bg-zinc-900 w-full h-[75vh] rounded-t-3xl shadow-2xl relative flex flex-col animate-slide-in-bottom"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <style>{`
+                    @keyframes slide-in-bottom {
+                        from { transform: translateY(100%); }
+                        to { transform: translateY(0); }
+                    }
+                    .animate-slide-in-bottom { animation: slide-in-bottom 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+                `}</style>
 
-            <div className="flex-1 overflow-y-auto p-4">
-                {comments.map(comment => <CommentRow key={comment.id} comment={comment} onViewProfile={onViewProfile} />)}
-                <div ref={commentsEndRef} />
-            </div>
+                {/* Header */}
+                <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-zinc-800">
+                    <div className="w-8"></div> {/* Spacer */}
+                    <span className="font-bold text-sm dark:text-white">{comments.length} Comments</span>
+                    <button onClick={onClose} className="p-1 rounded-full bg-gray-100 dark:bg-zinc-800 text-gray-500">
+                        <XIcon className="w-5 h-5" />
+                    </button>
+                </div>
 
-            <div className="p-2 border-t border-gray-200 dark:border-zinc-800 flex items-center">
-                <img src={currentUser.profilePhotos[0]} alt="My profile" className="w-10 h-10 rounded-full" />
-                <input
-                    type="text"
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder={`Comment as ${currentUser.name}...`}
-                    className="flex-1 mx-2 p-2 border-none focus:outline-none bg-transparent dark:text-gray-200"
-                    onKeyDown={(e) => e.key === 'Enter' && handlePostComment()}
-                />
-                <button onClick={handlePostComment} disabled={!newComment.trim() || isPosting} className="font-bold text-flame-orange disabled:opacity-50">
-                    Post
-                </button>
+                {/* Comments List */}
+                <div className="flex-1 overflow-y-auto p-4">
+                    {comments.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                            <p className="text-sm">No comments yet. Be the first!</p>
+                        </div>
+                    ) : (
+                        comments.map(comment => (
+                            <CommentRow key={comment.id} comment={comment} onViewProfile={onViewProfile} />
+                        ))
+                    )}
+                    <div ref={commentsEndRef} />
+                </div>
+
+                {/* Input Area */}
+                <div className="p-3 border-t border-gray-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 pb-8">
+                    <div className="flex items-center bg-gray-100 dark:bg-zinc-800 rounded-full px-4 py-2">
+                        <img src={currentUser.profilePhotos[0]} alt="My profile" className="w-8 h-8 rounded-full border border-gray-200 dark:border-zinc-700" />
+                        <input
+                            type="text"
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                            placeholder="Add comment..."
+                            className="flex-1 mx-3 bg-transparent border-none focus:outline-none text-sm dark:text-gray-200"
+                            onKeyDown={(e) => e.key === 'Enter' && handlePostComment()}
+                        />
+                        <button 
+                            onClick={handlePostComment} 
+                            disabled={!newComment.trim() || isPosting} 
+                            className="text-flame-orange font-bold text-sm disabled:opacity-50"
+                        >
+                            Post
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     );
