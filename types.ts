@@ -45,6 +45,10 @@ export interface User {
   coins?: number;
   freeSuperLikes?: number; // New field for earned super likes
   
+  // Online Status
+  isOnline?: boolean;
+  lastOnline?: Timestamp;
+  
   // Location Data
   location?: UserLocation;
   
@@ -142,6 +146,7 @@ export interface Message {
     viewedAt?: Timestamp; // For View Once logic and Retention Logic
     viewCount?: number; // 0 = new, 1 = viewed once, 2 = viewed & replayed (max)
     isSaved?: boolean; // For saving messages in Snapchat style
+    isFavorite?: boolean; // New: Favorite message
     isSystemMessage?: boolean; // For status updates like changing retention policy
     deletedFor?: string[]; // Array of user IDs for whom this message is deleted
 
@@ -173,7 +178,16 @@ export interface Chat {
     unreadCount?: {
         [key: string]: number;
     };
+    
+    // Chat 2.0 Organization
     deletedFor?: string[]; // array of user IDs who deleted the chat
+    archivedBy?: string[]; // array of user IDs who archived the chat
+    mutedBy?: string[]; // array of user IDs who muted the chat
+    
+    // Streaks
+    streak?: number;
+    lastStreakUpdate?: Timestamp;
+
     retentionPolicy?: RetentionPolicy; // 'forever' | '5min' | 'read'
 }
 

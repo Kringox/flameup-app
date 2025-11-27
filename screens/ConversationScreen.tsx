@@ -15,6 +15,8 @@ import ViewOnceMedia from '../components/ViewOnceMedia.tsx';
 import ChatCamera from '../components/ChatCamera.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
 import { uploadPhotos } from '../utils/photoUploader.ts';
+import CallModal from '../components/CallModal.tsx';
+import StarIcon from '../components/icons/StarIcon.tsx';
 
 const REACTION_EMOJIS = ['🔥', '❤️', '😂', '😮', '👍', '😢'];
 
@@ -38,6 +40,7 @@ const AudioPlayer: React.FC<{ src: string, duration?: number, isOwnMessage: bool
     const audioRef = useRef<HTMLAudioElement>(null);
     const [currentTime, setCurrentTime] = useState(0);
     const [loadedDuration, setLoadedDuration] = useState(duration || 0);
+    const [playbackRate, setPlaybackRate] = useState(1);
 
     useEffect(() => {
         const audio = audioRef.current;
@@ -47,6 +50,8 @@ const AudioPlayer: React.FC<{ src: string, duration?: number, isOwnMessage: bool
         const handleEnded = () => {
             setIsPlaying(false);
             setCurrentTime(0);
+            setPlaybackRate(1); 
+            audio.playbackRate = 1;
         };
         const handleMetadata = () => {
             if (!duration && audio.duration !== Infinity) {
@@ -76,6 +81,14 @@ const AudioPlayer: React.FC<{ src: string, duration?: number, isOwnMessage: bool
         setIsPlaying(!isPlaying);
     };
     
+    const toggleSpeed = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!audioRef.current) return;
+        const newRate = playbackRate === 1 ? 1.5 : (playbackRate === 1.5 ? 2 : 1);
+        setPlaybackRate(newRate);
+        audioRef.current.playbackRate = newRate;
+    };
+    
     const formatTime = (seconds: number) => {
         if (!seconds || isNaN(seconds)) return "0:00";
         const m = Math.floor(seconds / 60);
@@ -83,12 +96,11 @@ const AudioPlayer: React.FC<{ src: string, duration?: number, isOwnMessage: bool
         return `${m}:${s < 10 ? '0' : ''}${s}`;
     }
 
-    // Use prop duration if available, otherwise fallback to currentTime/metadata
     const finalDuration = duration || loadedDuration;
     const displayTime = isPlaying ? formatTime(currentTime) : formatTime(finalDuration);
 
     return (
-        <div className="min-w-[150px] p-2 flex items-center space-x-3">
+        <div className="min-w-[170px] p-2 flex items-center space-x-2">
             <audio ref={audioRef} src={src} className="hidden" preload="metadata" />
             <button 
                 onClick={togglePlay}
@@ -100,7 +112,7 @@ const AudioPlayer: React.FC<{ src: string, duration?: number, isOwnMessage: bool
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
                 )}
             </button>
-            <div className="flex-1 flex flex-col justify-center min-w-[80px]">
+            <div className="flex-1 flex flex-col justify-center">
                 <div className={`h-1 w-full rounded-full overflow-hidden ${isOwnMessage ? 'bg-white/30' : 'bg-gray-200'}`}>
                      <div 
                         className={`h-full ${isOwnMessage ? 'bg-white' : 'bg-flame-orange'}`} 
@@ -108,6 +120,12 @@ const AudioPlayer: React.FC<{ src: string, duration?: number, isOwnMessage: bool
                      />
                 </div>
             </div>
+            <button 
+                onClick={toggleSpeed}
+                className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isOwnMessage ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-600'}`}
+            >
+                {playbackRate}x
+            </button>
             <span className={`text-xs font-medium whitespace-nowrap ${isOwnMessage ? 'text-white/80' : 'text-gray-500'}`}>
                 {displayTime}
             </span>
@@ -133,11 +151,11 @@ const MessageBubble: React.FC<{
         );
     }
 
-    // Ensure isMedia is true if url exists, regardless of other flags
     const isMedia = !!message.mediaUrl && message.mediaUrl.length > 0;
     const isAudio = message.mediaType === 'audio';
     const isViewOnce = !!message.isViewOnce;
     const isSaved = !!message.isSaved;
+    const isFavorite = !!message.isFavorite;
     
     let bubbleClass = isOwnMessage 
         ? 'self-end rounded-2xl rounded-tr-sm ' 
@@ -185,51 +203,54 @@ const MessageBubble: React.FC<{
     
     return (
         <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} my-0.5 group transition-all duration-200`}>
-            <div 
-                onContextMenu={(e) => onLongPress(e, message)} 
-                onClick={handleClick}
-                className={`relative max-w-[85%] md:max-w-[70%] cursor-pointer ${isMedia && !isViewOnce && !isAudio ? 'p-1' : 'px-4 py-2'} ${bubbleClass}`}
-            >
-                {message.replyTo && (
-                    <div className={`p-2 rounded-lg mb-1 text-xs border-l-2 ${isOwnMessage && !isSaved ? 'bg-black/10 border-white/50' : 'bg-gray-100 dark:bg-zinc-700 border-flame-orange'}`}>
-                        <p className="font-bold opacity-80">{message.replyTo.senderName}</p>
-                        <p className="opacity-70 truncate">{message.replyTo.text || 'Media'}</p>
-                    </div>
-                )}
-                
-                {isMedia ? (
-                    isAudio ? (
-                        <AudioPlayer src={message.mediaUrl!} duration={message.duration} isOwnMessage={isOwnMessage && !isSaved} />
-                    ) : (
-                        isViewOnce ? (
-                            <div onClick={(e) => e.stopPropagation()}>
-                                <ViewOnceMedia 
-                                    mediaUrl={message.mediaUrl!} 
-                                    mediaType={message.mediaType || 'image'} 
-                                    isSender={isOwnMessage}
-                                    viewed={viewed}
-                                    viewCount={viewCount}
-                                    onView={() => onViewMedia(message.id, viewCount)}
-                                />
-                            </div>
+            <div className="flex items-center gap-1">
+                {isFavorite && <StarIcon className={`w-3 h-3 ${isOwnMessage ? 'text-flame-orange' : 'text-gray-400'}`} />}
+                <div 
+                    onContextMenu={(e) => onLongPress(e, message)} 
+                    onClick={handleClick}
+                    className={`relative max-w-[85%] md:max-w-[70%] cursor-pointer ${isMedia && !isViewOnce && !isAudio ? 'p-1' : 'px-4 py-2'} ${bubbleClass}`}
+                >
+                    {message.replyTo && (
+                        <div className={`p-2 rounded-lg mb-1 text-xs border-l-2 ${isOwnMessage && !isSaved ? 'bg-black/10 border-white/50' : 'bg-gray-100 dark:bg-zinc-700 border-flame-orange'}`}>
+                            <p className="font-bold opacity-80">{message.replyTo.senderName}</p>
+                            <p className="opacity-70 truncate">{message.replyTo.text || 'Media'}</p>
+                        </div>
+                    )}
+                    
+                    {isMedia ? (
+                        isAudio ? (
+                            <AudioPlayer src={message.mediaUrl!} duration={message.duration} isOwnMessage={isOwnMessage && !isSaved} />
                         ) : (
-                            <div className="rounded-xl overflow-hidden">
-                                {message.mediaType === 'video' ? (
-                                    <video src={message.mediaUrl} controls className="max-h-64 w-full object-cover" onClick={(e) => e.stopPropagation()} />
-                                ) : (
-                                    <img src={message.mediaUrl} alt="sent media" className="max-h-64 w-full object-cover" />
-                                )}
-                                {message.text && <p className={`mt-2 text-sm px-2 pb-1 ${isOwnMessage && !isSaved ? 'text-white' : 'text-gray-800 dark:text-gray-200'}`}>{message.text}</p>}
-                            </div>
+                            isViewOnce ? (
+                                <div onClick={(e) => e.stopPropagation()}>
+                                    <ViewOnceMedia 
+                                        mediaUrl={message.mediaUrl!} 
+                                        mediaType={message.mediaType || 'image'} 
+                                        isSender={isOwnMessage}
+                                        viewed={viewed}
+                                        viewCount={viewCount}
+                                        onView={() => onViewMedia(message.id, viewCount)}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="rounded-xl overflow-hidden">
+                                    {message.mediaType === 'video' ? (
+                                        <video src={message.mediaUrl} controls className="max-h-64 w-full object-cover" onClick={(e) => e.stopPropagation()} />
+                                    ) : (
+                                        <img src={message.mediaUrl} alt="sent media" className="max-h-64 w-full object-cover" />
+                                    )}
+                                    {message.text && <p className={`mt-2 text-sm px-2 pb-1 ${isOwnMessage && !isSaved ? 'text-white' : 'text-gray-800 dark:text-gray-200'}`}>{message.text}</p>}
+                                </div>
+                            )
                         )
-                    )
-                ) : (
-                    <p className="text-[15px] leading-relaxed break-words">{message.text}</p>
-                )}
-                
-                {isSaved && (
-                    <span className="text-[10px] font-bold uppercase opacity-50 block mt-1">Saved</span>
-                )}
+                    ) : (
+                        <p className="text-[15px] leading-relaxed break-words">{message.text}</p>
+                    )}
+                    
+                    {isSaved && (
+                        <span className="text-[10px] font-bold uppercase opacity-50 block mt-1">Saved</span>
+                    )}
+                </div>
             </div>
             
              {reactions && reactions.length > 0 && (
@@ -246,11 +267,20 @@ const MessageBubble: React.FC<{
     );
 };
 
-const MessageContextMenu: React.FC<{ message: Message; position: { x: number; y: number }; onClose: () => void; onReply: () => void; onReact: (emoji: string) => void; onRecall: () => void; isOwnMessage: boolean }> = ({ message, position, onClose, onReply, onReact, onRecall, isOwnMessage }) => {
+const MessageContextMenu: React.FC<{ 
+    message: Message; 
+    position: { x: number; y: number }; 
+    onClose: () => void; 
+    onReply: () => void; 
+    onReact: (emoji: string) => void; 
+    onRecall: () => void; 
+    onFavorite: () => void;
+    isOwnMessage: boolean 
+}> = ({ message, position, onClose, onReply, onReact, onRecall, onFavorite, isOwnMessage }) => {
     const isRecallable = isOwnMessage && message.timestamp && (Date.now() - message.timestamp.toDate().getTime()) < 5 * 60 * 1000;
     
     const safeX = Math.min(position.x, window.innerWidth - 200);
-    const safeY = Math.min(position.y, window.innerHeight - 150);
+    const safeY = Math.min(position.y, window.innerHeight - 200);
 
     return (
         <>
@@ -266,6 +296,9 @@ const MessageContextMenu: React.FC<{ message: Message; position: { x: number; y:
                 <div className="flex flex-col text-sm font-medium">
                     <button onClick={onReply} className="p-3 text-left hover:bg-gray-100 dark:hover:bg-zinc-700 dark:text-gray-200 flex items-center">
                          <span className="mr-2">↩️</span> Reply
+                    </button>
+                    <button onClick={onFavorite} className="p-3 text-left hover:bg-gray-100 dark:hover:bg-zinc-700 dark:text-gray-200 flex items-center">
+                         <span className="mr-2">⭐</span> {message.isFavorite ? 'Unfavorite' : 'Favorite'}
                     </button>
                     {isRecallable && (
                         <button onClick={onRecall} className="p-3 text-left text-error-red hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center">
@@ -303,22 +336,25 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const [isCameraOpen, setIsCameraOpen] = useState(false);
     
+    // Calls
+    const [callType, setCallType] = useState<'audio' | 'video' | null>(null);
+    
+    // Audio Rec
     const [isRecording, setIsRecording] = useState(false);
     const [recordingDuration, setRecordingDuration] = useState(0);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
     const timerIntervalRef = useRef<number | null>(null);
     
-    // Refs to hold state for cleanup function (which can't see updated state in closures)
     const messagesRef = useRef<Message[]>([]);
     const retentionPolicyRef = useRef<RetentionPolicy>('forever');
     const chatIdRef = useRef<string | null>(null);
     const currentUserIdRef = useRef<string>(currentUser.id);
-
-    // Track when the user entered this specific session
-    const sessionStartTime = useRef<number>(Date.now());
-    
+    const [touchStart, setTouchStart] = useState<number | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    
+    // Streaks
+    const [streak, setStreak] = useState(0);
 
     useEffect(() => {
         messagesRef.current = messages;
@@ -336,9 +372,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         currentUserIdRef.current = currentUser.id;
     }, [currentUser.id]);
 
-
     useEffect(() => {
-        // Cleanup function for when the component unmounts (user leaves chat)
         return () => {
             const policy = retentionPolicyRef.current;
             const msgs = messagesRef.current;
@@ -347,25 +381,21 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
             if (!cId || !db || msgs.length === 0) return;
 
-            // Determine messages to delete based on strict "Delete After Read" logic
             const messagesToDelete: string[] = [];
             const now = Date.now();
 
             if (policy !== 'forever') {
                 msgs.forEach(msg => {
                     if (msg.isSaved || msg.isSystemMessage || msg.isRecalled) return;
-                    if (msg.deletedFor?.includes(uId)) return; // Already deleted for me
+                    if (msg.deletedFor?.includes(uId)) return;
 
-                    // Has the message been viewed?
                     if (msg.viewedAt) {
                         const viewTime = msg.viewedAt.toDate().getTime();
                         let shouldDelete = false;
 
                         if (policy === 'read') {
-                            // Delete immediately if viewed
                             shouldDelete = true;
                         } else if (policy === '5min') {
-                            // Delete if 5 mins passed since view
                             if ((now - viewTime) > 5 * 60 * 1000) {
                                 shouldDelete = true;
                             }
@@ -379,27 +409,22 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             }
             
             if (messagesToDelete.length > 0) {
-                // Perform batch update to mark messages as deleted for this user
                 const batch = writeBatch(db);
                 let batchCount = 0;
                 let lastMessageDeleted = false;
-                
-                // Find the very last message to check if we need to update Chat List Preview
                 const lastMsgId = msgs[msgs.length - 1]?.id;
 
                 messagesToDelete.forEach(msgId => {
-                    if (batchCount < 490) { // Safety limit
+                    if (batchCount < 490) {
                         const msgRef = doc(db, 'chats', cId, 'messages', msgId);
                         batch.update(msgRef, { deletedFor: arrayUnion(uId) });
                         batchCount++;
-                        
                         if (msgId === lastMsgId) {
                             lastMessageDeleted = true;
                         }
                     }
                 });
 
-                // If the last message is being deleted, update the Chat document so the list view updates in real-time
                 if (lastMessageDeleted) {
                      const chatRef = doc(db, 'chats', cId);
                      batch.update(chatRef, { "lastMessage.deletedFor": arrayUnion(uId) });
@@ -408,16 +433,18 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 batch.commit().catch(err => console.error("Error cleaning up messages on leave:", err));
             }
         };
-    }, []); // Run only on mount/unmount (cleanup logic)
+    }, []);
 
     useEffect(() => {
         if (!db) return;
         const fetchPartnerData = async () => {
             const partnerRef = doc(db, 'users', partnerId);
-            const docSnap = await getDoc(partnerRef);
-            if (docSnap.exists()) {
-                setPartner({ id: docSnap.id, ...docSnap.data() } as User);
-            }
+            const unsubscribe = onSnapshot(partnerRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    setPartner({ id: docSnap.id, ...docSnap.data() } as User);
+                }
+            });
+            return unsubscribe;
         };
         fetchPartnerData();
     }, [partnerId]);
@@ -425,9 +452,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     useEffect(() => {
         if (!db) return;
         
-        // Robust Chat Lookup:
-        // Instead of looking for exact array match (which fails if sorting differs),
-        // we look for chats that contain the current user, then filter for the partner.
         const chatsRef = collection(db, 'chats');
         const q = query(chatsRef, where('userIds', 'array-contains', currentUser.id));
         
@@ -442,6 +466,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 setChatId(foundChatDoc.id);
                 const data = foundChatDoc.data() as Chat;
                 if (data.retentionPolicy) setRetentionPolicy(data.retentionPolicy);
+                setStreak(data.streak || 0);
                 
                 if ((data.unreadCount?.[currentUser.id] || 0) > 0) {
                     updateDoc(doc(db, 'chats', foundChatDoc.id), {
@@ -449,11 +474,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                     });
                 }
             } else {
-                // No chat found
                 setChatId(null);
             }
-        }, (error) => {
-            console.error("Error fetching chat:", error);
         });
         return () => unsubscribe();
     }, [currentUser.id, partnerId]);
@@ -473,12 +495,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     }, [chatId]);
     
     useEffect(() => {
-        const now = Date.now();
         const messagesToMarkViewed: string[] = [];
 
-        // Only filter out messages that are explicitly deleted for THIS user.
-        // Messages that are "expired" according to policy but NOT yet deleted (because user is still in session) 
-        // should REMAIN VISIBLE until the user leaves.
         const validMessages = messages.filter(msg => {
             const isDeleted = msg.deletedFor && Array.isArray(msg.deletedFor) && msg.deletedFor.includes(currentUser.id);
             if (isDeleted) return false;
@@ -487,9 +505,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         
         setFilteredMessages(validMessages);
         
-        // Identify messages that need to be marked as "Viewed"
         validMessages.forEach(msg => {
-            // If I am the receiver and haven't marked it viewed yet
             if (msg.senderId !== currentUser.id && !msg.viewedAt) {
                 messagesToMarkViewed.push(msg.id);
             }
@@ -499,7 +515,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             const batchUpdate = async () => {
                 const timestamp = serverTimestamp();
                 for (const msgId of messagesToMarkViewed) {
-                     // Fire and forget update to avoid UI stutter
                      updateDoc(doc(db, 'chats', chatId, 'messages', msgId), { viewedAt: timestamp }).catch(e => console.error(e));
                 }
             };
@@ -512,23 +527,20 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
     }, [messages, chatId, currentUser.id]);
     
-    useEffect(() => {
-        // Force re-render every few seconds to check for time-based expirations (visual only) if strictly needed,
-        // but since we only delete on leave, this isn't strictly necessary for deletion logic, just for UI.
-        if (retentionPolicy === 'forever') return;
-        const interval = setInterval(() => {
-             setMessages(prev => [...prev]);
-        }, 5000); 
-        return () => clearInterval(interval);
-    }, [retentionPolicy]);
+    // Swipe to Back
+    const onTouchStart = (e: React.TouchEvent) => setTouchStart(e.targetTouches[0].clientX);
+    const onTouchMove = (e: React.TouchEvent) => {
+        if (touchStart === null) return;
+        const currentTouch = e.targetTouches[0].clientX;
+        if (currentTouch - touchStart > 100) {
+            onClose();
+        }
+    };
 
     const getOrCreateChat = async (): Promise<string> => {
         if (chatId) return chatId;
-        // We still use sort here to try and maintain a standard order, 
-        // but the reading logic is now robust enough to handle any order.
         const userIds = [currentUser.id, partnerId].sort();
         
-        // Try to find existing chat first using the robust method
         const chatsRef = collection(db, 'chats');
         const q = query(chatsRef, where('userIds', 'array-contains', currentUser.id));
         const snapshot = await getDocs(q);
@@ -552,7 +564,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             },
             retentionPolicy: 'forever',
             createdAt: serverTimestamp(),
-            deletedFor: []
+            deletedFor: [],
+            streak: 0
         };
         const newChatRef = doc(collection(db, 'chats'));
         await setDoc(newChatRef, newChatData);
@@ -589,7 +602,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 isViewOnce: !!isViewOnce,
                 isSaved: false,
                 duration: duration || 0,
-                deletedFor: []
+                deletedFor: [],
+                isFavorite: false
             };
             
             if (replyContext) messagePayload.replyTo = replyContext;
@@ -603,17 +617,41 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 else lastMsgText = '📷 Media';
             }
 
-            // IMPORTANT: Include the ID and reset deletedFor for the new last message
-            await updateDoc(doc(db, 'chats', currentChatId), {
+            // Streak Logic
+            const chatRef = doc(db, 'chats', currentChatId);
+            const chatSnap = await getDoc(chatRef);
+            const chatData = chatSnap.data() as Chat;
+            
+            let newStreak = chatData.streak || 0;
+            const lastUpdate = chatData.lastStreakUpdate?.toDate();
+            const now = new Date();
+            
+            if (lastUpdate) {
+                const diffTime = Math.abs(now.getTime() - lastUpdate.getTime());
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                
+                if (diffDays === 1) {
+                    newStreak += 1; // Increment if last msg was yesterday
+                } else if (diffDays > 1) {
+                    newStreak = 1; // Reset if gap > 1 day
+                }
+                // If diffDays == 0 (today), do nothing to streak count
+            } else {
+                newStreak = 1;
+            }
+
+            await updateDoc(chatRef, {
                 lastMessage: { 
                     id: msgRef.id,
                     text: lastMsgText, 
                     senderId: currentUser.id, 
                     timestamp: serverTimestamp(),
-                    deletedFor: [] // Reset deleted status for new message
+                    deletedFor: [] 
                 },
                 [`unreadCount.${partnerId}`]: increment(1),
-                deletedFor: arrayRemove(partnerId, currentUser.id) 
+                deletedFor: arrayRemove(partnerId, currentUser.id),
+                streak: newStreak,
+                lastStreakUpdate: serverTimestamp()
             });
 
         } catch (error) {
@@ -691,6 +729,12 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         if (!chatId || !db) return;
         await updateDoc(doc(db, 'chats', chatId, 'messages', msg.id), { isSaved: !msg.isSaved });
     };
+    
+    const handleFavorite = async (msg: Message) => {
+        if (!chatId || !db) return;
+        await updateDoc(doc(db, 'chats', chatId, 'messages', msg.id), { isFavorite: !msg.isFavorite });
+        setContextMenu(null);
+    }
 
     const updateRetention = async (policy: RetentionPolicy) => {
         if (!chatId || !db) return;
@@ -784,16 +828,35 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
          }
          setContextMenu(null);
     }
+    
+    const getStatusText = () => {
+        if (partner?.isOnline) return 'Online';
+        if (partner?.lastOnline && partner.privacySettings?.showLastOnline !== false) {
+            const date = partner.lastOnline.toDate();
+            // Simple logic: if less than 1 hour ago, show minutes, else show time
+            const diff = Date.now() - date.getTime();
+            if (diff < 60 * 60 * 1000) {
+                return `Last seen ${Math.floor(diff / 60000)}m ago`;
+            }
+            return `Last seen ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+        }
+        return '';
+    };
 
     if (!partner) return <div className="absolute inset-0 bg-white dark:bg-black z-50 flex justify-center items-center"><FlameLoader /></div>;
 
     return (
-        <div className="absolute inset-0 bg-gray-50 dark:bg-black z-50 flex flex-col animate-slide-in-right">
-            {contextMenu && <MessageContextMenu {...contextMenu} onClose={() => setContextMenu(null)} onReact={(emoji) => handleReact(contextMenu.message, emoji)} onRecall={() => handleRecall(contextMenu.message)} onReply={() => { setReplyingTo(contextMenu.message); setContextMenu(null); }} isOwnMessage={contextMenu.message.senderId === currentUser.id} />}
+        <div 
+            className="absolute inset-0 bg-gray-50 dark:bg-black z-50 flex flex-col animate-slide-in-right"
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+        >
+            {contextMenu && <MessageContextMenu {...contextMenu} onClose={() => setContextMenu(null)} onReact={(emoji) => handleReact(contextMenu.message, emoji)} onRecall={() => handleRecall(contextMenu.message)} onReply={() => { setReplyingTo(contextMenu.message); setContextMenu(null); }} onFavorite={() => handleFavorite(contextMenu.message)} isOwnMessage={contextMenu.message.senderId === currentUser.id} />}
             {isOptionsOpen && <ChatOptionsModal onClose={() => setIsOptionsOpen(false)} onViewProfile={() => { setIsOptionsOpen(false); onViewProfile(partner.id); }} onReport={() => setIsReportOpen(true)} onBlock={handleBlock} onDeleteChat={handleDeleteChat} currentRetention={retentionPolicy} onUpdateRetention={updateRetention} />}
             {isReportOpen && <ReportModal reportedUser={partner} onClose={() => setIsReportOpen(false)} onSubmit={handleReport} />}
             {isGiftModalOpen && <GiftModal onClose={() => setIsGiftModalOpen(false)} currentUser={currentUser} onSendGift={handleSendGift}/>}
             {isCameraOpen && <ChatCamera onClose={() => setIsCameraOpen(false)} onCapture={handleCameraCapture} />}
+            {callType && <CallModal partnerName={partner.name} partnerPhoto={partner.profilePhotos[0]} isVideo={callType === 'video'} onEndCall={() => setCallType(null)} />}
             
             <header className="flex items-center px-4 py-3 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 backdrop-blur-md sticky top-0 z-20">
                 <button onClick={onClose} className="mr-3 text-dark-gray dark:text-gray-200">
@@ -802,24 +865,30 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 <button onClick={() => onViewProfile(partner.id)} className="flex-1 flex items-center min-w-0">
                     <div className="relative">
                         <img src={partner.profilePhotos[0]} alt={partner.name} className="w-10 h-10 rounded-full object-cover border border-gray-100 dark:border-zinc-700" />
-                        {retentionPolicy !== 'forever' && (
-                            <div className="absolute -bottom-1 -right-1 bg-gray-100 dark:bg-zinc-800 rounded-full p-0.5 border border-white dark:border-zinc-900">
-                                <span className="text-[10px]">⏱️</span>
-                            </div>
+                        {partner.isOnline && (
+                            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full"></div>
                         )}
                     </div>
                     <div className="ml-3">
                         <span className="font-bold block text-dark-gray dark:text-gray-100 text-base">{partner.name}</span>
-                        {retentionPolicy !== 'forever' && (
-                            <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wide">
-                                {retentionPolicy === '5min' ? 'Delete after 5m' : 'Delete after read'}
+                        <div className="flex items-center">
+                            {streak > 0 && (
+                                <span className="text-xs font-bold text-flame-orange mr-2 flex items-center">
+                                    🔥 {streak}
+                                </span>
+                            )}
+                            <span className="text-xs text-gray-500">
+                                {getStatusText()}
                             </span>
-                        )}
+                        </div>
                     </div>
                 </button>
                 <div className="flex items-center space-x-3">
-                    <button onClick={() => setIsGiftModalOpen(true)} className="text-gray-500 dark:text-gray-400 hover:scale-110 transition-transform">
-                        <GiftIcon className="w-6 h-6" />
+                    <button onClick={() => setCallType('audio')} className="text-gray-500 dark:text-gray-400 hover:text-flame-orange">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                    </button>
+                    <button onClick={() => setCallType('video')} className="text-gray-500 dark:text-gray-400 hover:text-flame-orange">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                     </button>
                     <button onClick={() => setIsOptionsOpen(true)} className="text-gray-500 dark:text-gray-400">
                         <MoreVerticalIcon />
@@ -850,6 +919,10 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                         className="p-2 bg-gray-100 dark:bg-zinc-800 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors"
                     >
                         <CameraIcon className="w-6 h-6" />
+                    </button>
+                    
+                    <button onClick={() => setIsGiftModalOpen(true)} className="p-2 text-gray-500 hover:text-flame-orange">
+                        <GiftIcon className="w-6 h-6" />
                     </button>
 
                     <div className="flex-1 bg-gray-100 dark:bg-zinc-800 rounded-2xl flex items-center relative">

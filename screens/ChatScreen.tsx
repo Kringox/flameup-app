@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, query, where, orderBy, onSnapshot, Timestamp, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-// FIX: Added file extension to types import
+import { collection, query, where, onSnapshot, Timestamp, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { Chat, User } from '../types.ts';
-// FIX: Add file extension to ConversationScreen import to resolve module not found error.
 import ConversationScreen from './ConversationScreen.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
+import SearchIcon from '../components/icons/SearchIcon.tsx';
+import FlameIcon from '../components/icons/FlameIcon.tsx';
 
 const formatTimestamp = (timestamp: Timestamp | undefined): string => {
     if (!timestamp) return '';
@@ -24,7 +24,13 @@ const formatTimestamp = (timestamp: Timestamp | undefined): string => {
     return date.toLocaleDateString();
 };
 
-const ChatListItem: React.FC<{ chat: Chat; currentUser: User; onSelect: (partnerId: string) => void; onPinToggle: (chatId: string) => void; isPinned: boolean; }> = ({ chat, currentUser, onSelect, onPinToggle, isPinned }) => {
+const ChatListItem: React.FC<{ 
+    chat: Chat; 
+    currentUser: User; 
+    onSelect: (partnerId: string) => void; 
+    onAction: (chatId: string, action: 'pin' | 'archive' | 'mute') => void;
+    isPinned: boolean; 
+}> = ({ chat, currentUser, onSelect, onAction, isPinned }) => {
   const { t } = useI18n();
   const partnerId = chat.userIds.find(id => id !== currentUser.id);
   if (!partnerId) return null;
@@ -34,18 +40,17 @@ const ChatListItem: React.FC<{ chat: Chat; currentUser: User; onSelect: (partner
 
   const unreadCount = chat.unreadCount?.[currentUser.id] || 0;
   const isUnread = unreadCount > 0;
+  const isMuted = chat.mutedBy?.includes(currentUser.id);
+  const hasStreak = (chat.streak || 0) > 0;
 
-  // Handle Retention Policy for Preview
   let previewText = chat.lastMessage?.text || t('noMessagesYet');
   
-  // Check if the last message is explicitly deleted for this user (via cleanup logic)
   if (chat.lastMessage?.deletedFor?.includes(currentUser.id)) {
-      previewText = t('messageRecalled'); // Or specific text for "expired"
+      previewText = t('messageRecalled');
       if (chat.retentionPolicy !== 'forever') {
           previewText = "Message expired";
       }
   } else if (chat.retentionPolicy === '5min' && chat.lastMessage?.timestamp) {
-      // Fallback visual check for 5min policy if strict deletion hasn't run yet
       const msgTime = chat.lastMessage.timestamp.toDate().getTime();
       const now = Date.now();
       if (now - msgTime > 5 * 60 * 1000) {
@@ -53,48 +58,81 @@ const ChatListItem: React.FC<{ chat: Chat; currentUser: User; onSelect: (partner
       }
   }
 
+  const [showMenu, setShowMenu] = useState(false);
+
   const handleContextMenu = (e: React.MouseEvent) => {
       e.preventDefault();
-      onPinToggle(chat.id);
+      setShowMenu(true);
   };
 
   return (
-    <button onClick={() => onSelect(partnerId)} onContextMenu={handleContextMenu} className="w-full flex items-center p-4 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer transition-colors text-left">
-      <div className="relative">
-        <img className="w-14 h-14 rounded-full object-cover" src={partner.profilePhoto} alt={partner.name} />
-      </div>
-      <div className="flex-1 ml-4 border-b border-gray-200 dark:border-zinc-700 pb-4">
-        <div className="flex justify-between items-center">
-          <h3 className={`text-lg transition-all ${isUnread ? 'font-bold text-dark-gray dark:text-gray-100' : 'font-semibold text-gray-800 dark:text-gray-300'}`}>{partner.name}</h3>
-          <span className="text-xs text-gray-500 dark:text-gray-400">{formatTimestamp(chat.lastMessage?.timestamp)}</span>
-        </div>
-        <div className="flex justify-between items-center mt-1">
-          <p className={`text-sm truncate w-10/12 transition-all ${isUnread ? 'font-semibold text-dark-gray dark:text-gray-200' : 'text-gray-600 dark:text-gray-400'} ${previewText === 'Message expired' ? 'italic opacity-60' : ''}`}>
-              {previewText}
-          </p>
-          <div className="flex items-center space-x-2">
-            {isPinned && <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.05 3.05a7 7 0 119.9 9.9L10 18.9l-4.95-5.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg>}
-            {isUnread && (
-               <span className="w-2.5 h-2.5 bg-flame-red rounded-full flex-shrink-0" aria-label="Unread message"></span>
+    <div className="relative">
+        <button 
+            onClick={() => onSelect(partnerId)} 
+            onContextMenu={handleContextMenu} 
+            className={`w-full flex items-center p-4 hover:bg-gray-100 dark:hover:bg-zinc-800 cursor-pointer transition-colors text-left ${isPinned ? 'bg-gray-50 dark:bg-zinc-900/50' : ''}`}
+        >
+        <div className="relative">
+            <img className="w-14 h-14 rounded-full object-cover" src={partner.profilePhoto} alt={partner.name} />
+            {hasStreak && (
+                <div className="absolute -bottom-1 -right-1 bg-white dark:bg-black rounded-full p-0.5 border border-white dark:border-black">
+                    <span className="text-xs">🔥</span>
+                </div>
             )}
-          </div>
         </div>
-      </div>
-    </button>
+        <div className="flex-1 ml-4 border-b border-gray-200 dark:border-zinc-700 pb-4 min-w-0">
+            <div className="flex justify-between items-center">
+            <h3 className={`text-lg truncate pr-2 transition-all ${isUnread ? 'font-bold text-dark-gray dark:text-gray-100' : 'font-semibold text-gray-800 dark:text-gray-300'}`}>
+                {partner.name}
+            </h3>
+            <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">{formatTimestamp(chat.lastMessage?.timestamp)}</span>
+            </div>
+            <div className="flex justify-between items-center mt-1">
+            <p className={`text-sm truncate w-10/12 transition-all ${isUnread ? 'font-semibold text-dark-gray dark:text-gray-200' : 'text-gray-600 dark:text-gray-400'} ${previewText === 'Message expired' ? 'italic opacity-60' : ''}`}>
+                {previewText}
+            </p>
+            <div className="flex items-center space-x-2 flex-shrink-0">
+                {isMuted && <span className="text-xs text-gray-400">🔇</span>}
+                {isPinned && <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-gray-400 transform rotate-45" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" /></svg>}
+                {isUnread && !isMuted && (
+                <span className="w-2.5 h-2.5 bg-flame-red rounded-full flex-shrink-0" aria-label="Unread message"></span>
+                )}
+            </div>
+            </div>
+        </div>
+        </button>
+        
+        {/* Simple Context Menu Overlay */}
+        {showMenu && (
+            <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)}></div>
+                <div className="absolute right-4 top-10 z-20 bg-white dark:bg-zinc-700 rounded-lg shadow-xl border border-gray-100 dark:border-zinc-600 w-32 overflow-hidden animate-fade-in-fast">
+                    <button onClick={() => { onAction(chat.id, 'pin'); setShowMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-zinc-600 dark:text-gray-200">
+                        {isPinned ? 'Unpin' : 'Pin'}
+                    </button>
+                    <button onClick={() => { onAction(chat.id, 'mute'); setShowMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-zinc-600 dark:text-gray-200">
+                        {isMuted ? 'Unmute' : 'Mute'}
+                    </button>
+                    <button onClick={() => { onAction(chat.id, 'archive'); setShowMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-zinc-600 dark:text-gray-200">
+                        Archive
+                    </button>
+                </div>
+            </>
+        )}
+    </div>
   );
 };
 
-const ChatList: React.FC<{ currentUser: User, onStartChat: (partnerId: string) => void, onUpdateUser: (user: User) => void }> = ({ currentUser, onStartChat, onUpdateUser }) => {
+const ChatList: React.FC<{ 
+    currentUser: User, 
+    onStartChat: (partnerId: string) => void, 
+    onUpdateUser: (user: User) => void,
+    viewArchived: boolean,
+    filterText: string 
+}> = ({ currentUser, onStartChat, onUpdateUser, viewArchived, filterText }) => {
     const [chats, setChats] = useState<Chat[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { t } = useI18n();
-
-    // Periodic update for retention policy visualization
-    const [tick, setTick] = useState(0);
-    useEffect(() => {
-        const interval = setInterval(() => setTick(t => t + 1), 10000); // Update every 10s to refresh "expired" status
-        return () => clearInterval(interval);
-    }, []);
 
     useEffect(() => {
         if (!db) {
@@ -109,9 +147,26 @@ const ChatList: React.FC<{ currentUser: User, onStartChat: (partnerId: string) =
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const chatList = snapshot.docs
+            let chatList = snapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() } as Chat))
                 .filter(chat => !chat.deletedFor?.includes(currentUser.id)); 
+            
+            // Filter by Archive Status
+            chatList = chatList.filter(chat => {
+                const isArchived = chat.archivedBy?.includes(currentUser.id);
+                return viewArchived ? isArchived : !isArchived;
+            });
+
+            // Filter by Search Text
+            if (filterText) {
+                const lowerFilter = filterText.toLowerCase();
+                chatList = chatList.filter(chat => {
+                    const partnerId = chat.userIds.find(id => id !== currentUser.id);
+                    if (!partnerId) return false;
+                    const name = chat.users[partnerId]?.name || '';
+                    return name.toLowerCase().includes(lowerFilter);
+                });
+            }
             
             // Sort by pinned and then by timestamp
             const sorted = chatList.sort((a, b) => {
@@ -132,24 +187,38 @@ const ChatList: React.FC<{ currentUser: User, onStartChat: (partnerId: string) =
         });
 
         return () => unsubscribe();
-    }, [currentUser.id, currentUser.pinnedChats]);
+    }, [currentUser.id, currentUser.pinnedChats, viewArchived, filterText]);
 
-    const handlePinToggle = async (chatId: string) => {
+    const handleAction = async (chatId: string, action: 'pin' | 'archive' | 'mute') => {
         if (!db) return;
         const userRef = doc(db, 'users', currentUser.id);
-        const isPinned = currentUser.pinnedChats?.includes(chatId);
-        
+        const chatRef = doc(db, 'chats', chatId);
+
         try {
-            await updateDoc(userRef, {
-                pinnedChats: isPinned ? arrayRemove(chatId) : arrayUnion(chatId)
-            });
-            // Optimistically update user state to re-render list
-            const newPinnedChats = isPinned 
-                ? (currentUser.pinnedChats || []).filter(id => id !== chatId)
-                : [...(currentUser.pinnedChats || []), chatId];
-            onUpdateUser({...currentUser, pinnedChats: newPinnedChats });
+            if (action === 'pin') {
+                const isPinned = currentUser.pinnedChats?.includes(chatId);
+                const currentPinned = currentUser.pinnedChats || [];
+                
+                if (!isPinned && currentPinned.length >= 3) {
+                    alert("You can only pin up to 3 chats.");
+                    return;
+                }
+
+                await updateDoc(userRef, {
+                    pinnedChats: isPinned ? arrayRemove(chatId) : arrayUnion(chatId)
+                });
+                onUpdateUser({...currentUser, pinnedChats: isPinned ? currentPinned.filter(id => id !== chatId) : [...currentPinned, chatId] });
+            } 
+            else if (action === 'archive') {
+                await updateDoc(chatRef, { archivedBy: arrayUnion(currentUser.id) });
+            }
+            else if (action === 'mute') {
+                const chat = chats.find(c => c.id === chatId);
+                const isMuted = chat?.mutedBy?.includes(currentUser.id);
+                await updateDoc(chatRef, { mutedBy: isMuted ? arrayRemove(currentUser.id) : arrayUnion(currentUser.id) });
+            }
         } catch (error) {
-            console.error("Error pinning chat:", error);
+            console.error(`Error performing ${action}:`, error);
         }
     };
 
@@ -158,18 +227,18 @@ const ChatList: React.FC<{ currentUser: User, onStartChat: (partnerId: string) =
     }
     
     if (chats.length === 0) {
-        return <p className="text-center text-gray-500 dark:text-gray-400 mt-8">{t('noConversations')}</p>;
+        return <p className="text-center text-gray-500 dark:text-gray-400 mt-8">{filterText ? 'No chats found.' : (viewArchived ? 'No archived chats.' : t('noConversations'))}</p>;
     }
 
     return (
-         <div>
+         <div className="pb-24">
             {chats.map(chat => (
                 <ChatListItem 
                     key={chat.id} 
                     chat={chat} 
                     currentUser={currentUser} 
                     onSelect={onStartChat} 
-                    onPinToggle={handlePinToggle}
+                    onAction={handleAction}
                     isPinned={currentUser.pinnedChats?.includes(chat.id) || false}
                 />
             ))}
@@ -189,23 +258,55 @@ interface ChatScreenProps {
 
 const ChatScreen: React.FC<ChatScreenProps> = ({ currentUser, activeChatPartnerId, onStartChat, onCloseChat, onUpdateUser, onViewProfile }) => {
   const { t } = useI18n();
+  const [filterText, setFilterText] = useState('');
+  const [activeTab, setActiveTab] = useState<'all' | 'archived'>('all');
   
   if (activeChatPartnerId) {
     return <ConversationScreen currentUser={currentUser} partnerId={activeChatPartnerId} onClose={onCloseChat} onUpdateUser={onUpdateUser} onViewProfile={onViewProfile} />
   }
 
   return (
-    <div className="w-full h-full flex flex-col">
+    <div className="w-full h-full flex flex-col bg-white dark:bg-black">
         <header className="p-4 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-black sticky top-0 z-10">
-            <h1 className="text-2xl font-bold text-dark-gray dark:text-gray-100 text-center">{t('chatsTitle')}</h1>
+            <h1 className="text-2xl font-bold text-dark-gray dark:text-gray-100 text-center mb-2">{t('chatsTitle')}</h1>
+            
+            {/* Search Bar */}
+            <div className="relative mb-3">
+                <input 
+                    type="text" 
+                    placeholder={t('searchChats')} 
+                    value={filterText}
+                    onChange={(e) => setFilterText(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-zinc-700 rounded-full focus:outline-none focus:ring-2 focus:ring-flame-orange bg-gray-100 dark:bg-zinc-800 dark:text-gray-200 text-sm" 
+                />
+                <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            </div>
+
+            {/* Organization Tabs */}
+            <div className="flex space-x-4 text-sm font-semibold border-b border-transparent">
+                <button 
+                    onClick={() => setActiveTab('all')}
+                    className={`pb-2 border-b-2 transition-colors ${activeTab === 'all' ? 'border-flame-orange text-flame-orange' : 'border-transparent text-gray-500'}`}
+                >
+                    All Chats
+                </button>
+                <button 
+                    onClick={() => setActiveTab('archived')}
+                    className={`pb-2 border-b-2 transition-colors ${activeTab === 'archived' ? 'border-flame-orange text-flame-orange' : 'border-transparent text-gray-500'}`}
+                >
+                    Archived
+                </button>
+            </div>
         </header>
 
-        <div className="p-4">
-             <input type="text" placeholder={t('searchChats')} className="w-full px-4 py-2 border border-gray-300 dark:border-zinc-700 rounded-full focus:outline-none focus:ring-2 focus:ring-flame-orange bg-transparent dark:text-gray-200" />
-        </div>
-
         <div className="flex-1 overflow-y-auto">
-            <ChatList currentUser={currentUser} onStartChat={onStartChat} onUpdateUser={onUpdateUser} />
+            <ChatList 
+                currentUser={currentUser} 
+                onStartChat={onStartChat} 
+                onUpdateUser={onUpdateUser} 
+                viewArchived={activeTab === 'archived'}
+                filterText={filterText}
+            />
         </div>
     </div>
   );

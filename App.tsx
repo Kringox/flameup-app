@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 // FIX: Added file extension to firebaseConfig import
 import { auth, db, firebaseInitializationError } from './firebaseConfig.ts';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, onSnapshot, getDoc, collection, query, where, Timestamp, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, collection, query, where, Timestamp, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 // FIX: Added file extension to types import
 import { User, Tab, Post, Notification, Chat, NotificationType, AppTint } from './types.ts';
@@ -123,6 +123,27 @@ const App: React.FC = () => {
     return () => unsubscribeAuth();
   }, []);
 
+  // Online Status Heartbeat
+  useEffect(() => {
+      if (!authState.currentUser || !db) return;
+      const userRef = doc(db, 'users', authState.currentUser.id);
+
+      // Set online initially
+      updateDoc(userRef, { isOnline: true, lastOnline: serverTimestamp() }).catch(e => console.error(e));
+
+      const interval = setInterval(() => {
+          updateDoc(userRef, { lastOnline: serverTimestamp() }).catch(e => console.error("Heartbeat fail", e));
+      }, 120000); // Update every 2 mins
+
+      return () => {
+          clearInterval(interval);
+          // Set offline when unmounting/closing (best effort)
+          // Note: Reliable offline detection usually needs Realtime Database 'onDisconnect', 
+          // but specifically for Firestore this is the manual approach.
+          updateDoc(userRef, { isOnline: false, lastOnline: serverTimestamp() }).catch(e => console.error(e));
+      }
+  }, [authState.currentUser?.id]);
+
   useEffect(() => {
     let unsubscribeUser: () => void = () => {};
     let unsubscribeChats: () => void = () => {};
@@ -134,7 +155,6 @@ const App: React.FC = () => {
           const userData = { id: snapshot.id, ...snapshot.data() } as User;
           
           // Check for Daily Bonus Availability on initial load
-          // We check if authState.currentUser is null to ensure this only runs once per session init
           if (!authState.currentUser) {
               if (!userData.lastDailyBonus) {
                   setShowDailyBonus(true);
@@ -153,7 +173,6 @@ const App: React.FC = () => {
           if ('geolocation' in navigator) {
               navigator.geolocation.getCurrentPosition(
                   async (position) => {
-                      // Check if we need to update location (simple check to avoid write loops)
                       const currentLat = userData.location?.latitude;
                       const currentLng = userData.location?.longitude;
                       const newLat = position.coords.latitude;
@@ -161,14 +180,12 @@ const App: React.FC = () => {
                       
                       const dist = Math.sqrt(Math.pow((newLat - (currentLat || 0)), 2) + Math.pow((newLng - (currentLng || 0)), 2));
                       
-                      // Update only if moved significantly (~100m approx in deg) or first time
                       if (!userData.location || dist > 0.001) {
                           try {
                               await updateDoc(userRef, {
                                   location: {
                                       latitude: newLat,
                                       longitude: newLng,
-                                      // Simple reverse geo-coding simulation or placeholder
                                       cityName: userData.location?.cityName || "Unknown" 
                                   }
                               });
@@ -191,11 +208,12 @@ const App: React.FC = () => {
           );
           unsubscribeChats = onSnapshot(q, 
             (chatSnapshot) => {
-                // Client-side filter to exclude chats the user has deleted.
                 const anyUnread = chatSnapshot.docs
                   .filter(doc => !doc.data().deletedFor?.includes(userData.id))
                   .some(doc => {
                     const chatData = doc.data() as Chat;
+                    // Also check if chat is muted/archived if you want to suppress badge? 
+                    // For now, badge shows for all unread.
                     return (chatData.unreadCount?.[userData.id] || 0) > 0;
                 });
                 setHasUnreadMessages(anyUnread);
@@ -308,7 +326,7 @@ const App: React.FC = () => {
                   {activeTab === Tab.Profile && <ProfileScreen currentUser={currentUser} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} theme={theme} setTheme={setTheme} localTint={localTint} setLocalTint={setLocalTint} />}
               </div>
               
-              {/* User Profile Overlay - Renders INSIDE main but covers content completely */}
+              {/* User Profile Overlay */}
               {viewingUserId && (
                 <UserProfileScreen 
                     currentUserId={currentUser.id} 
@@ -319,16 +337,19 @@ const App: React.FC = () => {
               )}
             </main>
 
-            <BottomNav 
-              activeTab={activeTab} 
-              setActiveTab={(tab) => {
-                  setActiveTab(tab);
-                  setViewingUserId(null); // Clear viewing user when switching main tabs
-              }} 
-              onOpenCreate={() => setCreateScreenMode('select')} 
-              hasUnreadMessages={hasUnreadMessages}
-              localTint={localTint}
-            />
+            {/* Bottom Nav - Hidden ONLY when in a specific chat conversation */}
+            {!activeChatPartnerId && (
+                <BottomNav 
+                  activeTab={activeTab} 
+                  setActiveTab={(tab) => {
+                      setActiveTab(tab);
+                      setViewingUserId(null); 
+                  }} 
+                  onOpenCreate={() => setCreateScreenMode('select')} 
+                  hasUnreadMessages={hasUnreadMessages}
+                  localTint={localTint}
+                />
+            )}
 
             {/* Modals and Full Screen Overlays (Cover Nav) */}
             {createScreenMode && <CreateScreen user={currentUser} onClose={() => setCreateScreenMode(null)} initialMode={createScreenMode} />}
