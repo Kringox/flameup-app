@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Post, User } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
@@ -10,6 +11,7 @@ import VerifiedIcon from './icons/VerifiedIcon.tsx';
 import FlameIcon from './icons/FlameIcon.tsx';
 import { hapticFeedback } from '../utils/haptics.ts';
 import { HotnessWeight } from '../utils/hotnessUtils.ts';
+import ShareModal from './ShareModal.tsx';
 
 interface SinglePostViewProps {
     post: Post;
@@ -25,6 +27,7 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
     const [likeCount, setLikeCount] = useState(post.likeCount || post.likedBy?.length || 0);
     const [isUnlocked, setIsUnlocked] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [showShare, setShowShare] = useState(false);
     
     const isOwnPost = post.userId === currentUser.id;
     const isSubscribed = currentUser.subscriptions?.includes(post.userId);
@@ -91,10 +94,10 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
 
     return (
         <div className="w-full h-full relative snap-start flex items-center justify-center p-3 md:p-4 bg-black">
-            {/* Hybrid Card Design: Full height scroll but card-like containment */}
+            {showShare && <ShareModal post={post} onClose={() => setShowShare(false)} />}
+            
             <div className="relative w-full h-full max-h-[85vh] aspect-[9/16] md:aspect-[3/4] bg-gray-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10">
                 
-                {/* 1. Blurred Background Layer */}
                 <div className="absolute inset-0 z-0">
                     <img 
                         src={post.mediaUrls[0]} 
@@ -104,7 +107,6 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                     <div className="absolute inset-0 bg-black/20" />
                 </div>
 
-                {/* 2. Main Content Layer */}
                 <div className="absolute inset-0 z-10 flex items-center justify-center">
                     <img 
                         src={post.mediaUrls[0]} 
@@ -113,7 +115,6 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                     />
                 </div>
 
-                {/* Locked Overlay */}
                 {isLocked && (
                     <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-8 text-center bg-black/40 backdrop-blur-sm">
                         <div className="bg-white/10 p-6 rounded-3xl backdrop-blur-md border border-white/20 shadow-2xl">
@@ -134,7 +135,6 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                     </div>
                 )}
 
-                {/* Bottom Info Overlay */}
                 <div className="absolute bottom-0 left-0 right-0 p-4 pb-16 pt-24 bg-gradient-to-t from-black/90 via-black/50 to-transparent z-20 pointer-events-none">
                     <div className="pointer-events-auto max-w-[80%]">
                         <h3 className="text-white font-bold text-lg flex items-center shadow-black drop-shadow-md cursor-pointer mb-1" onClick={() => onViewProfile(post.userId)}>
@@ -147,7 +147,6 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                     </div>
                 </div>
 
-                {/* Floating Sidebar Actions */}
                 <div className="absolute right-2 bottom-12 z-30 flex flex-col items-center gap-6 pb-4">
                     <div className="relative">
                         <button onClick={() => onViewProfile(post.userId)} className="relative">
@@ -174,7 +173,7 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                         <span className="text-white text-xs font-bold drop-shadow-md">{post.commentCount}</span>
                     </div>
 
-                    <button className="active:scale-75 transition-transform p-1">
+                    <button onClick={() => setShowShare(true)} className="active:scale-75 transition-transform p-1">
                         <ShareIcon className="w-8 h-8 text-white drop-shadow-lg" />
                     </button>
                 </div>

@@ -16,6 +16,7 @@ export enum NotificationType {
     SuperLike = 'superlike',
     Purchase = 'purchase',
     Subscribe = 'subscribe',
+    System = 'system',
 }
 
 export type RetentionPolicy = 'forever' | '5min' | 'read';
@@ -52,13 +53,13 @@ export interface User {
   hotnessScore?: number;
   
   subscriptionPrice?: number;
-  subscriptions?: string[];
+  subscriptions?: string[]; // IDs of users I subscribe to
 
   xp: number;
   level: number;
   
   createdAt: Timestamp;
-  isPremium?: boolean;
+  isPremium?: boolean; // FlameUp+ status
   profileTheme?: AppTint;
   lastDailyBonus?: Timestamp;
   swipedLeft?: string[];
@@ -73,6 +74,14 @@ export interface User {
     sendReadReceipts: boolean;
     showLastOnline: boolean;
   };
+  
+  // Analytics Data (FlameUp+)
+  analytics?: {
+      profileViews: number;
+      totalLikesReceived: number;
+      matchRate: number;
+      earnings: number;
+  }
 }
 
 export interface SwipeFilters {
@@ -81,6 +90,10 @@ export interface SwipeFilters {
     maxDistance: number;
     ageRange: [number, number];
     requiredInterests: string[];
+    // Premium Filters
+    height?: number;
+    education?: string;
+    hasChildren?: boolean;
 }
 
 export interface Post {
@@ -213,7 +226,6 @@ export interface Call {
     status: 'ringing' | 'connected' | 'ended' | 'declined';
     type: 'audio' | 'video';
     timestamp: Timestamp;
-    // WebRTC Signaling
     offer?: any;
     answer?: any;
 }

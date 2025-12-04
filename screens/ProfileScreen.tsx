@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { User, Post, AppTint } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
@@ -12,6 +13,9 @@ import WalletScreen from './WalletScreen.tsx';
 import FlameIcon from '../components/icons/FlameIcon.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
 import HotnessDisplay from '../components/HotnessDisplay.tsx';
+import RankingModal from '../components/RankingModal.tsx';
+import AnalyticsScreen from './AnalyticsScreen.tsx';
+import BarChartIcon from '../components/icons/BarChartIcon.tsx';
 
 const ProfileSkeleton = () => (
     <div className="animate-pulse p-4">
@@ -64,6 +68,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
     const [isWalletOpen, setIsWalletOpen] = useState(false);
     const [viewingFollowList, setViewingFollowList] = useState<'followers' | 'following' | null>(null);
     const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
+    const [isRankingOpen, setIsRankingOpen] = useState(false);
+    const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const { t } = useI18n();
 
@@ -94,9 +100,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
             {isWalletOpen && <WalletScreen user={currentUser} onClose={() => setIsWalletOpen(false)} onUpdateUser={onUpdateUser} />}
             {viewingFollowList && <FollowListScreen title={viewingFollowList === 'followers' ? 'Followers' : 'Following'} userIds={currentUser[viewingFollowList]} currentUser={currentUser} onClose={() => setViewingFollowList(null)} onViewProfile={onViewProfile} />}
             {isImageViewerOpen && <ImageViewer images={currentUser.profilePhotos} onClose={() => setIsImageViewerOpen(false)} />}
+            {isRankingOpen && <RankingModal onClose={() => setIsRankingOpen(false)} onViewProfile={onViewProfile} />}
+            {isAnalyticsOpen && <AnalyticsScreen user={currentUser} onClose={() => setIsAnalyticsOpen(false)} />}
             
             <header className="flex justify-between items-center p-4 border-b border-zinc-800 sticky top-0 bg-black/80 backdrop-blur z-10">
-                <div className="w-8"></div>
+                <button onClick={() => setIsAnalyticsOpen(true)} className="p-2 bg-zinc-800 rounded-full">
+                    <BarChartIcon className="w-5 h-5 text-gray-300" />
+                </button>
                 <div className="flex items-center space-x-2">
                     <h1 className="text-xl font-bold">{currentUser.name}</h1>
                     {currentUser.isPremium && <VerifiedIcon />}
@@ -131,7 +141,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                                         {currentUser.name}, {currentUser.age}
                                         {currentUser.isPremium && <VerifiedIcon className="ml-1.5 w-5 h-5" />}
                                     </p>
-                                    <HotnessDisplay score={currentUser.hotnessScore || 0} />
+                                    <HotnessDisplay score={currentUser.hotnessScore || 0} onClick={() => setIsRankingOpen(true)} />
                                 </div>
                                 {currentUser.aboutMe && <p className="text-gray-300 whitespace-pre-wrap mt-2 text-sm leading-relaxed">{currentUser.aboutMe}</p>}
                             </div>
