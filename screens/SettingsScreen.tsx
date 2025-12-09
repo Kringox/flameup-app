@@ -16,6 +16,8 @@ import PrivacySettingsScreen from './PrivacySettingsScreen.tsx';
 import DailyBonusWheel from '../components/DailyBonusWheel.tsx';
 import LegalScreen from './LegalScreen.tsx';
 import SupportScreen from './SupportScreen.tsx';
+import FlameUpPlusScreen from './FlameUpPlusScreen.tsx';
+import SparklesIcon from '../components/icons/SparklesIcon.tsx';
 
 type Language = 'en' | 'de';
 
@@ -76,7 +78,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdate
 
     const renderSubScreen = () => {
         switch(activeSubScreen) {
-            case 'subscription': return <ManageSubscriptionScreen user={user} onClose={() => setActiveSubScreen(null)} />;
+            case 'creator_subscriptions': return <ManageSubscriptionScreen user={user} onClose={() => setActiveSubScreen(null)} />;
+            case 'flameup_plus': return <FlameUpPlusScreen onClose={() => setActiveSubScreen(null)} />;
             case 'wallet': return <WalletScreen user={user} onClose={() => setActiveSubScreen(null)} onUpdateUser={onUpdateUser} />;
             case 'friends': return <BestFriendsScreen user={user} onClose={() => setActiveSubScreen(null)} />;
             case 'achievements': return <AchievementsScreen user={user} onClose={() => setActiveSubScreen(null)} />;
@@ -148,7 +151,20 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdate
                         </div>
                     </div>
                     
-                    <SettingsItem onClick={() => setActiveSubScreen('subscription')}>{t('manageSubscription')}</SettingsItem>
+                    <div className="p-4 bg-zinc-900 rounded-lg shadow-sm border border-zinc-800">
+                        <h2 className="text-sm font-semibold text-gray-400 mb-2">Subscriptions</h2>
+                        <div className="space-y-2">
+                            <button onClick={() => setActiveSubScreen('creator_subscriptions')} className="w-full text-left font-semibold text-gray-200 flex items-center py-2">
+                                <UsersIcon className="w-5 h-5 mr-3 text-gray-500" />
+                                {t('creatorSubscriptions')}
+                            </button>
+                            <button onClick={() => setActiveSubScreen('flameup_plus')} className="w-full text-left font-semibold text-gray-200 flex items-center py-2">
+                                <SparklesIcon className="w-5 h-5 mr-3 text-premium-gold" />
+                                {t('flameUpPlus')}
+                            </button>
+                        </div>
+                    </div>
+                    
                     <SettingsItem onClick={() => setActiveSubScreen('wallet')}>{t('myWallet')}</SettingsItem>
                     <SettingsItem onClick={() => setActiveSubScreen('achievements')}>{t('achievements')}</SettingsItem>
                     <SettingsItem onClick={() => setActiveSubScreen('friends')}>{t('bestFriends')}</SettingsItem>

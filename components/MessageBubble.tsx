@@ -3,11 +3,7 @@ import { Message } from '../types.ts';
 import ViewOnceMedia from './ViewOnceMedia.tsx';
 import StarIcon from './icons/StarIcon.tsx';
 import FlameLoader from './FlameLoader.tsx';
-
-const AudioPlayer: React.FC<{ src: string, duration?: number, isOwnMessage: boolean }> = ({ src, duration, isOwnMessage }) => {
-    // This is a simplified placeholder. A real implementation would handle audio playback.
-    return <div className="p-2">🎤 Voice Message ({duration}s)</div>;
-};
+import AudioPlayer from './AudioPlayer.tsx';
 
 const MessageBubble: React.FC<{ 
     message: Message, 
@@ -17,7 +13,8 @@ const MessageBubble: React.FC<{
     onToggleSave: (msg: Message) => void,
     onResend: (msg: Message) => void;
     onDelete: (msgId: string) => void;
-}> = ({ message, isOwnMessage, onLongPress, onViewMedia, onToggleSave, onResend, onDelete }) => {
+    onImageClick: (url: string) => void;
+}> = ({ message, isOwnMessage, onLongPress, onViewMedia, onToggleSave, onResend, onDelete, onImageClick }) => {
     
     if (message.isSystemMessage) {
         return (
@@ -112,7 +109,7 @@ const MessageBubble: React.FC<{
                                     />
                                 </div>
                             ) : (
-                                <div className="rounded-xl overflow-hidden relative">
+                                <button onClick={() => message.mediaUrl && onImageClick(message.mediaUrl)} className="rounded-xl overflow-hidden relative block">
                                     {message.mediaType === 'video' ? (
                                         <video src={message.mediaUrl} controls className={`max-h-64 w-full object-cover ${status === 'sending' ? 'opacity-50' : ''}`} onClick={(e) => e.stopPropagation()} />
                                     ) : (
@@ -129,8 +126,8 @@ const MessageBubble: React.FC<{
                                             <button onClick={() => onResend(message)} className="text-white text-xs underline">Retry</button>
                                         </div>
                                     )}
-                                    {message.text && <p className={`mt-2 text-sm px-2 pb-1 whitespace-pre-wrap break-words ${isOwnMessage && !isSaved ? 'text-white' : 'text-gray-800 dark:text-gray-200'}`}>{message.text}</p>}
-                                </div>
+                                    {message.text && <p className={`mt-2 text-sm px-2 pb-1 whitespace-pre-wrap break-words text-left ${isOwnMessage && !isSaved ? 'text-white' : 'text-gray-800 dark:text-gray-200'}`}>{message.text}</p>}
+                                </button>
                             )
                         )
                     ) : (

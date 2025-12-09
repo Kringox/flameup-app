@@ -51,6 +51,8 @@ export const de = {
   readyToClaim: 'Jetzt abholen!',
   comeBackLater: 'Komm später wieder',
   appDesign: 'App Design',
+  creatorSubscriptions: 'Creator-Abos',
+  flameUpPlus: 'FlameUp+',
   
   // Wallet Screen
   yourBalance: 'Dein Guthaben',
@@ -136,4 +138,14 @@ export const de = {
   payPal: 'PayPal',
   sepaDirectDebit: 'SEPA-Lastschrift',
   youArePaying: 'Du bezahlst',
+
+  // FlameUp+
+  flameUpPlusTitle: 'Hol dir FlameUp+',
+  flameUpPlusDescription: 'Verbessere dein Erlebnis mit exklusiven Funktionen.',
+  benefitUnlimitedSwipes: 'Unbegrenzte Swipes',
+  benefitTenSuperLikes: 'Täglich 10 kostenlose Superlikes',
+  benefitSeeLikes: 'Sieh, wem du gefällst',
+  benefitAdvancedFilters: 'Erweiterte Filter',
+  benefitInsights: 'Profil-Einblicke',
+  upgradeNow: 'Jetzt upgraden',
 };
