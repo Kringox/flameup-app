@@ -4,7 +4,7 @@ import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 // FIX: Added QuerySnapshot and DocumentData to imports to fix typing issues with onSnapshot.
 import { doc, onSnapshot, getDoc, collection, query, where, Timestamp, updateDoc, serverTimestamp, QuerySnapshot, DocumentData } from 'firebase/firestore';
 
-import { User, Tab, Post, Notification, Chat, NotificationType, AppTint } from './types.ts';
+import { User, Tab, Post, Notification, Chat, NotificationType, AppTint, UserLocation } from './types.ts';
 import { I18nProvider } from './contexts/I18nContext.ts';
 
 import AuthScreen from './screens/AuthScreen.tsx';
@@ -93,46 +93,69 @@ const App: React.FC = () => {
 
   // --- ONLINE STATUS HEARTBEAT ---
   useEffect(() => {
-      // FIX: Use a local variable to help TypeScript with type narrowing for authState.currentUser
-      const user = authState.currentUser;
-      if (!user || typeof user === 'string') return;
-      const userId = user.id;
-      if (!userId || !db) return;
+    // FIX: Depend on the stable firebaseUser object to prevent infinite loops.
+    if (!authState.firebaseUser || !db) return;
 
-      const userRef = doc(db, 'users', userId);
-      updateDoc(userRef, { isOnline: true, lastOnline: serverTimestamp() }).catch(console.error);
+    const userId = authState.firebaseUser.uid;
+    const userRef = doc(db, 'users', userId);
 
-      const interval = setInterval(() => {
-          updateDoc(userRef, { lastOnline: serverTimestamp() }).catch(console.error);
-      }, 120000);
+    // Set online status when effect runs (on login) and page is visible
+    if (document.visibilityState === 'visible') {
+        updateDoc(userRef, { isOnline: true, lastOnline: serverTimestamp() }).catch(console.error);
+    }
 
-      return () => {
-          clearInterval(interval);
-          updateDoc(userRef, { isOnline: false, lastOnline: serverTimestamp() }).catch(console.error);
-      }
-  }, [authState.currentUser]); 
+    // Set up an interval that just updates the timestamp
+    const interval = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+            updateDoc(userRef, { lastOnline: serverTimestamp() }).catch(console.error);
+        }
+    }, 120000); // 2 minutes
+
+    // Use visibility API for more accurate online status
+    const handleVisibilityChange = () => {
+        if (document.visibilityState === 'hidden') {
+            updateDoc(userRef, { isOnline: false, lastOnline: serverTimestamp() }).catch(console.error);
+        } else {
+            updateDoc(userRef, { isOnline: true, lastOnline: serverTimestamp() }).catch(console.error);
+        }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Cleanup function to set offline on unmount/logout
+    return () => {
+        clearInterval(interval);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        // This updateDoc might run on logout, which is fine.
+        updateDoc(userRef, { isOnline: false, lastOnline: serverTimestamp() }).catch(console.error);
+    }
+  }, [authState.firebaseUser]); 
 
   // --- LOCATION UPDATE ---
   useEffect(() => {
-      // FIX: Use a local variable to help TypeScript with type narrowing for authState.currentUser
-      const user = authState.currentUser;
-      if (!user || typeof user === 'string') return;
-      if (!('geolocation' in navigator) || !db) return;
+      // FIX: Depend on the stable firebaseUser object to prevent infinite loops. This effect now runs once on login.
+      if (!authState.firebaseUser || !db) return;
+      if (!('geolocation' in navigator)) return;
 
-      const userId = user.id;
+      const userId = authState.firebaseUser.uid;
       const userRef = doc(db, 'users', userId);
-      const currentLocation = user.location;
 
       navigator.geolocation.getCurrentPosition(
           async (position) => {
-              const currentLat = currentLocation?.latitude;
-              const currentLng = currentLocation?.longitude;
               const newLat = position.coords.latitude;
               const newLng = position.coords.longitude;
               
+              // To avoid depending on the looping state, we fetch the document once.
+              const userSnap = await getDoc(userRef);
+              if (!userSnap.exists()) return;
+              const currentLocation = userSnap.data().location as UserLocation | undefined;
+              
+              const currentLat = currentLocation?.latitude;
+              const currentLng = currentLocation?.longitude;
+              
               const dist = Math.sqrt(Math.pow((newLat - (currentLat || 0)), 2) + Math.pow((newLng - (currentLng || 0)), 2));
               
-              if (!currentLocation || dist > 0.001) {
+              if (!currentLocation || dist > 0.001) { // approx 100 meters
                   try {
                       await updateDoc(userRef, {
                           location: {
@@ -148,9 +171,10 @@ const App: React.FC = () => {
           },
           (error) => {
               console.log("Location error:", error);
-          }
+          },
+          { enableHighAccuracy: true }
       );
-  }, [authState.currentUser]);
+  }, [authState.firebaseUser]);
 
   useEffect(() => {
     let unsubscribeUser: () => void = () => {};
