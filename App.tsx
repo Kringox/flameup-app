@@ -28,6 +28,7 @@ import PostGridViewer from './components/PostGridViewer.tsx';
 import DailyBonusWheel from './components/DailyBonusWheel.tsx';
 import CallOverlay from './components/CallOverlay.tsx';
 import ReviewModal from './components/ReviewModal.tsx';
+import DeepLinkedPostHandler from './screens/DeepLinkedPostHandler.tsx';
 
 const App: React.FC = () => {
   const [authState, setAuthState] = useState<{
@@ -55,6 +56,7 @@ const App: React.FC = () => {
   const [viewingPostGrid, setViewingPostGrid] = useState<{ posts: Post[], startIndex: number } | null>(null);
   const [showDailyBonus, setShowDailyBonus] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [deepLinkedPostId, setDeepLinkedPostId] = useState<string | null>(null);
 
   const showXpToast = (amount: number) => {
     setXpToast({ amount, key: Date.now() });
@@ -66,6 +68,13 @@ const App: React.FC = () => {
   useEffect(() => {
     // Force Dark Mode Class
     document.documentElement.classList.add('dark');
+
+    // Deep Link Handling
+    const path = window.location.pathname;
+    const match = path.match(/^\/post\/([a-zA-Z0-9]+)/);
+    if (match && match[1]) {
+        setDeepLinkedPostId(match[1]);
+    }
   }, []);
 
   // Handle Local Tint Application (Optional preference, kept as it modifies colors within dark mode)
@@ -292,6 +301,28 @@ const App: React.FC = () => {
     if (!authState.currentUser) return <LoadingScreen />;
     
     const { currentUser } = authState;
+
+    // Handle Deep Link
+    if (deepLinkedPostId) {
+        return (
+            <I18nProvider language={currentUser.language || 'en'}>
+                <div className="relative w-screen h-screen max-w-md mx-auto flex flex-col bg-black md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)] overflow-hidden">
+                    <DeepLinkedPostHandler
+                        postId={deepLinkedPostId}
+                        currentUser={currentUser}
+                        onClose={() => {
+                            window.history.replaceState({}, document.title, '/');
+                            setDeepLinkedPostId(null);
+                        }}
+                        onUpdateUser={handleUpdateUser}
+                        onViewProfile={handleViewProfile}
+                        onOpenComments={setViewingPostComments}
+                    />
+                    {viewingPostComments && <CommentScreen post={viewingPostComments} currentUser={currentUser} onClose={() => setViewingPostComments(null)} onViewProfile={handleViewProfile} />}
+                </div>
+            </I18nProvider>
+        );
+    }
 
     return (
       <I18nProvider language={currentUser.language || 'en'}>

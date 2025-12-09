@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Post, User } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
@@ -12,6 +11,8 @@ import FlameIcon from './icons/FlameIcon.tsx';
 import { hapticFeedback } from '../utils/haptics.ts';
 import { HotnessWeight } from '../utils/hotnessUtils.ts';
 import ShareModal from './ShareModal.tsx';
+import EditIcon from './icons/EditIcon.tsx';
+import EditPostModal from './EditPostModal.tsx';
 
 interface SinglePostViewProps {
     post: Post;
@@ -28,6 +29,7 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
     const [isUnlocked, setIsUnlocked] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [showShare, setShowShare] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
     
     const isOwnPost = post.userId === currentUser.id;
     const isSubscribed = currentUser.subscriptions?.includes(post.userId);
@@ -100,6 +102,13 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
     return (
         <div className="w-full h-full relative snap-start flex items-center justify-center p-3 md:p-4 bg-black">
             {showShare && <ShareModal post={post} onClose={() => setShowShare(false)} />}
+            {isEditing && (
+                <EditPostModal
+                    post={post}
+                    onClose={() => setIsEditing(false)}
+                    onSave={() => setIsEditing(false)} // Modal handles DB update, listener handles UI
+                />
+            )}
             
             <div className="relative w-full h-full max-h-[85vh] aspect-[9/16] md:aspect-[3/4] bg-gray-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10">
                 
@@ -181,6 +190,12 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                     <button onClick={() => setShowShare(true)} className="active:scale-75 transition-transform p-1">
                         <ShareIcon className="w-8 h-8 text-white drop-shadow-lg" />
                     </button>
+                    
+                    {isOwnPost && (
+                        <button onClick={() => setIsEditing(true)} className="active:scale-75 transition-transform p-1">
+                            <EditIcon className="w-8 h-8 text-white drop-shadow-lg" />
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

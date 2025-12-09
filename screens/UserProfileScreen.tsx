@@ -204,7 +204,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
             
             <header className="flex items-center p-4 border-b border-gray-200 dark:border-gray-800 flex-shrink-0 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-10">
                  <button onClick={onClose} className="w-8 text-dark-gray dark:text-gray-200">
-                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
                 </button>
                 <h1 className={`text-xl font-bold text-center flex-1 truncate ${themeClass.text}`}>{user.name}</h1>
                 <div className="w-8"></div>
@@ -234,7 +234,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                             {user.name}, {user.age}
                             {user.isPremium && <VerifiedIcon className="ml-1 w-5 h-5" />}
                         </p>
-                        <HotnessDisplay score={user.hotnessScore || 0} />
+                        <HotnessDisplay score={user.hotnessScore || 0} size="sm" />
                     </div>
                     
                     <div className="mt-4 space-y-4">

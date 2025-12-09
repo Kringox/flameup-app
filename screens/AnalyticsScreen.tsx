@@ -52,7 +52,7 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onClose, user }) => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <AnalyticsCard title="Profile Views" value={mockProfileViews.value} change="+15%" icon={<UsersIcon className="w-6 h-6 text-gray-600" />} />
           <AnalyticsCard title="Post Likes" value={mockLikesData.value} change="+5%" icon={<HeartIcon isLiked={false} className="w-6 h-6 text-gray-600" />} />
-          <AnalyticsCard title="Earnings" value={`${user.analytics?.earnings || 0}`} change="+20" icon={<FlameIcon className="w-6 h-6 text-flame-orange" />} />
+          <AnalyticsCard title="Earnings" value={`${user.analytics?.earnings || 0}`} icon={<FlameIcon className="w-6 h-6 text-flame-orange" />} />
         </div>
         
         <BarChart data={mockFollowersData} title="New Followers This Week" />

@@ -84,7 +84,8 @@ service cloud.firestore {
     }
 
     match /chats/{chatId} {
-      allow read, update: if isChatParticipant(chatId);
+      // FIX: Allow 'list' so users can query for their chats on the ChatScreen.
+      allow list, read, update: if isChatParticipant(chatId);
       allow create: if isAuthenticated() && request.auth.uid in request.resource.data.userIds;
 
       match /messages/{messageId} {

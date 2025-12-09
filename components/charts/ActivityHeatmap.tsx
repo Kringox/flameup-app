@@ -17,15 +17,15 @@ const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({ data, title }) => {
   }).reverse();
 
   const getColor = (count: number) => {
-    if (count === 0) return 'bg-gray-200';
+    if (count === 0) return 'bg-gray-200 dark:bg-zinc-800';
     if (count < 3) return 'bg-flame-orange/30';
     if (count < 6) return 'bg-flame-orange/60';
     return 'bg-flame-orange';
   };
 
   return (
-    <div className="bg-white rounded-lg p-4 shadow-sm w-full">
-      <h3 className="font-semibold text-gray-700 mb-4">{title}</h3>
+    <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 shadow-sm w-full border border-gray-100 dark:border-zinc-800">
+      <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-4">{title}</h3>
       <div className="grid grid-cols-15 gap-1">
         {days.map(day => {
           const activity = data.find(d => d.date === day);

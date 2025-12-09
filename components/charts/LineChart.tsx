@@ -22,8 +22,8 @@ const LineChart: React.FC<LineChartProps> = ({ data, labels, title }) => {
   }).join(' ');
 
   return (
-    <div className="bg-white rounded-lg p-4 shadow-sm w-full">
-      <h3 className="font-semibold text-gray-700 mb-2">{title}</h3>
+    <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 shadow-sm w-full border border-gray-100 dark:border-zinc-800">
+      <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">{title}</h3>
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full">
         <polyline
           fill="none"
@@ -33,7 +33,7 @@ const LineChart: React.FC<LineChartProps> = ({ data, labels, title }) => {
         />
         {/* Simple labels (optional) */}
         {labels.map((label, i) => (
-           <text key={i} x={padding + i * stepX} y={height-5} fontSize="8" textAnchor="middle">{label}</text>
+           <text key={i} x={padding + i * stepX} y={height-5} fontSize="8" textAnchor="middle" className="fill-current text-gray-500 dark:text-gray-400">{label}</text>
         ))}
       </svg>
     </div>

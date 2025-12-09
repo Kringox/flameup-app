@@ -1,6 +1,7 @@
 import React from 'react';
 import { isWebAuthnSupported } from '../utils/webauthnUtils.ts';
 import FingerprintIcon from '../components/icons/FingerprintIcon.tsx';
+import KeyIcon from '../components/icons/KeyIcon.tsx';
 
 interface SecuritySettingsScreenProps {
   onClose: () => void;
@@ -36,6 +37,23 @@ const SecuritySettingsScreen: React.FC<SecuritySettingsScreenProps> = ({ onClose
                  <button 
                     disabled={!webAuthnSupported} 
                     className="px-4 py-1.5 bg-flame-orange text-white text-sm font-semibold rounded-full disabled:bg-gray-300 dark:disabled:bg-zinc-600 disabled:cursor-not-allowed"
+                >
+                    Set Up
+                </button>
+            </div>
+
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-zinc-700">
+                <div className="flex items-center">
+                    <KeyIcon className="w-6 h-6 mr-3 text-gray-500"/>
+                    <div>
+                        <p className="font-semibold dark:text-gray-200">Passcode Lock</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Secure the app with a 4-digit PIN.
+                        </p>
+                    </div>
+                </div>
+                 <button 
+                    className="px-4 py-1.5 bg-flame-orange text-white text-sm font-semibold rounded-full"
                 >
                     Set Up
                 </button>

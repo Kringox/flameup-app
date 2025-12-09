@@ -11,8 +11,8 @@ const BarChart: React.FC<BarChartProps> = ({ data, title }) => {
   const maxValue = Math.max(...data.map(d => d.value), 1);
 
   return (
-    <div className="bg-white rounded-lg p-4 shadow-sm w-full">
-      <h3 className="font-semibold text-gray-700 mb-4">{title}</h3>
+    <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 shadow-sm w-full border border-gray-100 dark:border-zinc-800">
+      <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-4">{title}</h3>
       <div className="flex justify-around items-end h-48 space-x-2">
         {data.map((item) => (
           <div key={item.label} className="flex flex-col items-center flex-1">
@@ -21,7 +21,7 @@ const BarChart: React.FC<BarChartProps> = ({ data, title }) => {
               style={{ height: `${(item.value / maxValue) * 100}%` }}
               title={`${item.label}: ${item.value}`}
             ></div>
-            <p className="text-xs text-gray-500 mt-1 truncate">{item.label}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">{item.label}</p>
           </div>
         ))}
       </div>
