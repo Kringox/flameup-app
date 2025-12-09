@@ -39,18 +39,23 @@ const RankingModal: React.FC<RankingModalProps> = ({ onClose, onViewProfile }) =
             
             <div className="flex-1 overflow-y-auto p-2">
                 {loading ? <div className="text-center text-gray-500 mt-10">Loading Rankings...</div> : (
-                    <div className="space-y-2">
-                        {users.map((user, index) => (
-                            <div key={user.id} onClick={() => { onViewProfile(user.id); onClose(); }} className="flex items-center bg-zinc-800/50 p-2 rounded-xl border border-zinc-700/50 hover:bg-zinc-800 transition-colors cursor-pointer">
-                                <div className={`w-8 text-center font-bold text-lg ${index < 3 ? 'text-yellow-400' : 'text-gray-500'}`}>#{index + 1}</div>
-                                <img src={user.profilePhotos[0]} className="w-10 h-10 rounded-full object-cover mx-2 border border-zinc-600" />
-                                <div className="flex-1 min-w-0">
-                                    <p className="font-bold text-white truncate">{user.name}</p>
-                                    <p className="text-xs text-gray-500">{user.followers?.length || 0} Followers</p>
+                    <div className="space-y-1">
+                        {users.map((user, index) => {
+                             const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : null;
+                             return (
+                                <div key={user.id} onClick={() => { onViewProfile(user.id); onClose(); }} className={`flex items-center p-3 rounded-lg transition-colors cursor-pointer ${index < 3 ? 'bg-zinc-800' : ''} hover:bg-zinc-700/50`}>
+                                    <div className="w-10 text-center font-bold text-lg flex items-center justify-center">
+                                        {medal ? <span className="text-2xl">{medal}</span> : <span className="text-gray-500">{index + 1}</span>}
+                                    </div>
+                                    <img src={user.profilePhotos[0]} className="w-12 h-12 rounded-full object-cover mx-3 border-2 border-zinc-600" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-bold text-white truncate">{user.name}</p>
+                                        <p className="text-xs text-gray-400">{user.followers?.length || 0} Followers</p>
+                                    </div>
+                                    <HotnessDisplay score={user.hotnessScore || 0} size="sm" />
                                 </div>
-                                <HotnessDisplay score={user.hotnessScore || 0} size="sm" />
-                            </div>
-                        ))}
+                            )
+                        })}
                     </div>
                 )}
             </div>

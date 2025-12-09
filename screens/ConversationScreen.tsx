@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebaseConfig.ts';
 // FIX: Add QuerySnapshot and DocumentData to imports to resolve typing issue with onSnapshot and getDocs.
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, increment, arrayUnion, arrayRemove, getDocs, writeBatch, setDoc, QuerySnapshot, DocumentData } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, increment, arrayUnion, arrayRemove, getDocs, writeBatch, setDoc, QuerySnapshot, DocumentData, Timestamp } from 'firebase/firestore';
 import { User, Message, Chat, Gift, RetentionPolicy } from '../types.ts';
 import MoreVerticalIcon from '../components/icons/MoreVerticalIcon.tsx';
 import GiftIcon from '../components/icons/GiftIcon.tsx';
@@ -11,11 +11,10 @@ import ChatOptionsModal from '../components/ChatOptionsModal.tsx';
 import ReportModal from '../components/ReportModal.tsx';
 import GiftModal from '../components/GiftModal.tsx';
 import FlameLoader from '../components/FlameLoader.tsx';
-import ViewOnceMedia from '../components/ViewOnceMedia.tsx';
 import ChatCamera from '../components/ChatCamera.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
 import { uploadPhotos } from '../utils/photoUploader.ts';
-import StarIcon from '../components/icons/StarIcon.tsx';
+import MessageBubble from '../components/MessageBubble.tsx';
 
 const REACTION_EMOJIS = ['🔥', '❤️', '😂', '😮', '👍', '😢'];
 
@@ -30,239 +29,6 @@ const ReplyPreview: React.FC<{ messageText: string, senderName: string, onCancel
             <button onClick={onCancel} className="p-1">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
-        </div>
-    );
-};
-
-const AudioPlayer: React.FC<{ src: string, duration?: number, isOwnMessage: boolean }> = ({ src, duration, isOwnMessage }) => {
-    const [isPlaying, setIsPlaying] = useState(false);
-    const audioRef = useRef<HTMLAudioElement>(null);
-    const [currentTime, setCurrentTime] = useState(0);
-    const [loadedDuration, setLoadedDuration] = useState(duration || 0);
-    const [playbackRate, setPlaybackRate] = useState(1);
-
-    useEffect(() => {
-        const audio = audioRef.current;
-        if (!audio) return;
-
-        const updateTime = () => setCurrentTime(audio.currentTime);
-        const handleEnded = () => {
-            setIsPlaying(false);
-            setCurrentTime(0);
-            setPlaybackRate(1); 
-            audio.playbackRate = 1;
-        };
-        const handleMetadata = () => {
-            if (!duration && audio.duration !== Infinity) {
-                setLoadedDuration(audio.duration);
-            }
-        };
-
-        audio.addEventListener('timeupdate', updateTime);
-        audio.addEventListener('ended', handleEnded);
-        audio.addEventListener('loadedmetadata', handleMetadata);
-        return () => {
-            audio.removeEventListener('timeupdate', updateTime);
-            audio.removeEventListener('ended', handleEnded);
-            audio.removeEventListener('loadedmetadata', handleMetadata);
-        };
-    }, [duration]);
-
-    const togglePlay = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (!audioRef.current) return;
-
-        if (isPlaying) {
-            audioRef.current.pause();
-        } else {
-            audioRef.current.play();
-        }
-        setIsPlaying(!isPlaying);
-    };
-    
-    const toggleSpeed = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (!audioRef.current) return;
-        const newRate = playbackRate === 1 ? 1.5 : (playbackRate === 1.5 ? 2 : 1);
-        setPlaybackRate(newRate);
-        audioRef.current.playbackRate = newRate;
-    };
-    
-    const formatTime = (seconds: number) => {
-        if (!seconds || isNaN(seconds)) return "0:00";
-        const m = Math.floor(seconds / 60);
-        const s = Math.floor(seconds % 60);
-        return `${m}:${s < 10 ? '0' : ''}${s}`;
-    }
-
-    const finalDuration = duration || loadedDuration;
-    const displayTime = isPlaying ? formatTime(currentTime) : formatTime(finalDuration);
-
-    return (
-        <div className="min-w-[170px] p-2 flex items-center space-x-2">
-            <audio ref={audioRef} src={src} className="hidden" preload="metadata" />
-            <button 
-                onClick={togglePlay}
-                className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isOwnMessage ? 'bg-white/20 text-white' : 'bg-flame-orange/10 text-flame-orange'}`}
-            >
-                {isPlaying ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
-                )}
-            </button>
-            <div className="flex-1 flex flex-col justify-center">
-                <div className={`h-1 w-full rounded-full overflow-hidden ${isOwnMessage ? 'bg-white/30' : 'bg-gray-200'}`}>
-                     <div 
-                        className={`h-full ${isOwnMessage ? 'bg-white' : 'bg-flame-orange'}`} 
-                        style={{ width: `${finalDuration ? (currentTime / finalDuration) * 100 : 0}%` }}
-                     />
-                </div>
-            </div>
-            <button 
-                onClick={toggleSpeed}
-                className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isOwnMessage ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-600'}`}
-            >
-                {playbackRate}x
-            </button>
-            <span className={`text-xs font-medium whitespace-nowrap ${isOwnMessage ? 'text-white/80' : 'text-gray-500'}`}>
-                {displayTime}
-            </span>
-        </div>
-    );
-};
-
-const MessageBubble: React.FC<{ 
-    message: Message, 
-    isOwnMessage: boolean, 
-    onLongPress: (e: React.MouseEvent, msg: Message) => void, 
-    onViewMedia: (msgId: string, currentCount: number) => void,
-    onToggleSave: (msg: Message) => void,
-}> = ({ message, isOwnMessage, onLongPress, onViewMedia, onToggleSave }) => {
-    
-    if (message.isSystemMessage) {
-        return (
-            <div className="flex justify-center my-4 opacity-70 w-full">
-                <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 text-center bg-gray-100 dark:bg-zinc-800 px-3 py-1 rounded-full shadow-sm">
-                    {message.text}
-                </p>
-            </div>
-        );
-    }
-
-    const isMedia = !!message.mediaUrl && message.mediaUrl.length > 0;
-    const isAudio = message.mediaType === 'audio';
-    const isViewOnce = !!message.isViewOnce;
-    const isSaved = !!message.isSaved;
-    const isFavorite = !!message.isFavorite;
-    
-    let bubbleClass = isOwnMessage 
-        ? 'rounded-2xl rounded-tr-sm ' 
-        : 'rounded-2xl rounded-tl-sm ';
-    
-    if (isSaved) {
-        bubbleClass += 'bg-gray-200 dark:bg-zinc-700 text-dark-gray dark:text-gray-200 border-l-4 border-flame-orange ';
-    } else {
-        bubbleClass += isOwnMessage 
-            ? 'bg-flame-orange text-white ' 
-            : 'bg-white dark:bg-zinc-800 text-dark-gray dark:text-gray-200 border border-gray-100 dark:border-zinc-700 shadow-sm ';
-    }
-
-    const handleClick = (e: React.MouseEvent) => {
-        if (!isViewOnce) {
-            if (!isMedia || isAudio) {
-                 onToggleSave(message);
-            }
-        }
-    };
-
-    const viewed = !!message.viewedAt;
-    const viewCount = message.viewCount || (viewed ? 1 : 0);
-
-    if (message.isRecalled) {
-        return (
-             <div className="px-3 py-2 rounded-full text-xs italic text-gray-400 dark:text-gray-500 self-center border border-gray-200 dark:border-zinc-800 my-1">
-                Message recalled
-            </div>
-        )
-    }
-
-    if (message.gift) {
-        return (
-             <div onContextMenu={(e) => onLongPress(e, message)} className={`p-3 rounded-2xl max-w-[70%] text-center flex flex-col items-center my-1 ${bubbleClass} self-center`}>
-                <span className="text-4xl animate-bounce">{message.gift.icon}</span>
-                <p className="font-semibold mt-1 text-sm">Sent a {message.gift.name}</p>
-            </div>
-        )
-    }
-    
-    const reactions = message.reactions && Object.entries(message.reactions).filter(
-        (entry): entry is [string, string[]] => Array.isArray(entry[1]) && entry[1].length > 0
-    );
-    
-    return (
-        <div className={`w-full flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} my-0.5 group`}>
-            <div className={`flex items-center gap-1 relative max-w-[85%] ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-                {isFavorite && <StarIcon className={`w-3 h-3 absolute ${isOwnMessage ? '-left-4' : '-right-4'} ${isOwnMessage ? 'text-flame-orange' : 'text-gray-400'}`} />}
-                <div 
-                    onContextMenu={(e) => onLongPress(e, message)} 
-                    onClick={handleClick}
-                    className={`relative cursor-pointer w-fit ${isMedia && !isViewOnce && !isAudio ? 'p-1' : 'px-4 py-2'} ${bubbleClass}`}
-                >
-                    {message.replyTo && (
-                        <div className={`p-2 rounded-lg mb-1 text-xs border-l-2 ${isOwnMessage && !isSaved ? 'bg-black/10 border-white/50' : 'bg-gray-100 dark:bg-zinc-700 border-flame-orange'}`}>
-                            <p className="font-bold opacity-80 truncate">{message.replyTo.senderName}</p>
-                            <p className="opacity-70 truncate">{message.replyTo.text || 'Media'}</p>
-                        </div>
-                    )}
-                    
-                    {isMedia ? (
-                        isAudio ? (
-                            <AudioPlayer src={message.mediaUrl!} duration={message.duration} isOwnMessage={isOwnMessage && !isSaved} />
-                        ) : (
-                            isViewOnce ? (
-                                <div onClick={(e) => e.stopPropagation()}>
-                                    <ViewOnceMedia 
-                                        mediaUrl={message.mediaUrl!} 
-                                        // FIX: Cast mediaType to 'image' | 'video' since audio case is handled separately.
-                                        mediaType={(message.mediaType || 'image') as 'image' | 'video'} 
-                                        isSender={isOwnMessage}
-                                        viewed={viewed}
-                                        viewCount={viewCount}
-                                        onView={() => onViewMedia(message.id, viewCount)}
-                                    />
-                                </div>
-                            ) : (
-                                <div className="rounded-xl overflow-hidden">
-                                    {message.mediaType === 'video' ? (
-                                        <video src={message.mediaUrl} controls className="max-h-64 w-full object-cover" onClick={(e) => e.stopPropagation()} />
-                                    ) : (
-                                        <img src={message.mediaUrl} alt="sent media" className="max-h-64 w-full object-cover" />
-                                    )}
-                                    {message.text && <p className={`mt-2 text-sm px-2 pb-1 whitespace-pre-wrap break-words ${isOwnMessage && !isSaved ? 'text-white' : 'text-gray-800 dark:text-gray-200'}`}>{message.text}</p>}
-                                </div>
-                            )
-                        )
-                    ) : (
-                        <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{message.text}</p>
-                    )}
-                    
-                    {isSaved && (
-                        <span className="text-[10px] font-bold uppercase opacity-50 block mt-1">Saved</span>
-                    )}
-                </div>
-            </div>
-            
-             {reactions && reactions.length > 0 && (
-                <div className={`flex -mt-2 z-10 ${isOwnMessage ? 'mr-2' : 'ml-2'}`}>
-                    {reactions.map(([emoji, userIds]) => (
-                        <div key={emoji} className="px-1.5 py-0.5 bg-gray-50 dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 rounded-full flex items-center shadow-sm text-xs">
-                            <span>{emoji}</span>
-                            {userIds.length > 1 && <span className="ml-0.5 font-bold">{userIds.length}</span>}
-                        </div>
-                    ))}
-                </div>
-            )}
         </div>
     );
 };
@@ -447,10 +213,9 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     }, [partnerId]);
 
     useEffect(() => {
-        if (!db || !currentUser.id) return;
+        if (!db || !currentUser.id || !partnerId) return;
         const chatsRef = collection(db, 'chats');
         
-        // OPTIMIZATION: More targeted query to find the specific chat
         const userIds = [currentUser.id, partnerId].sort();
         const q = query(chatsRef, where('userIds', '==', userIds));
 
@@ -477,10 +242,23 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     useEffect(() => {
         if (!chatId || !db) { setMessages([]); return; };
         const messagesQuery = query(collection(db, 'chats', chatId, 'messages'), orderBy('timestamp', 'asc'));
-        // FIX: Explicitly type snapshot as QuerySnapshot to resolve 'docs' property error.
         const unsubscribe = onSnapshot(messagesQuery, (snapshot: QuerySnapshot<DocumentData>) => {
             const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
-            setMessages(msgs);
+            setMessages(currentMsgs => {
+                // Merge server messages with any optimistic 'sending' messages
+                const newMsgs = [...currentMsgs.filter(m => m.status === 'sending')];
+                msgs.forEach(serverMsg => {
+                    // Replace temp message if real one arrives
+                    const tempIndex = newMsgs.findIndex(m => m.id === `temp-${serverMsg.timestamp?.toMillis()}`);
+                    if (tempIndex > -1) {
+                         newMsgs.splice(tempIndex, 1);
+                    }
+                    if (!newMsgs.some(m => m.id === serverMsg.id)) {
+                        newMsgs.push(serverMsg);
+                    }
+                });
+                return newMsgs.sort((a,b) => a.timestamp.toMillis() - b.timestamp.toMillis());
+            });
         });
         return () => unsubscribe();
     }, [chatId]);
@@ -528,7 +306,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         const userIds = [currentUser.id, partnerId].sort();
         if (!partner) throw new Error("Partner data not available");
 
-        // Use the same efficient query as the listener to check again
         const chatsRef = collection(db, 'chats');
         const q = query(chatsRef, where('userIds', '==', userIds));
         const snapshot = await getDocs(q);
@@ -539,7 +316,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             return existingChatId;
         }
 
-        // If still not found, create it
         const newChatData: any = {
             userIds,
             users: {
@@ -560,7 +336,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const initiateCall = async (type: 'audio' | 'video') => {
         if (!db || !partner) return;
         try {
-            // FIX: Add callee details and userIds to the call document for querying and display.
             await addDoc(collection(db, 'calls'), {
                 callerId: currentUser.id,
                 callerName: currentUser.name,
@@ -568,7 +343,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 calleeId: partner.id,
                 calleeName: partner.name,
                 calleePhoto: partner.profilePhotos[0],
-                userIds: [currentUser.id, partner.id],
+                userIds: [currentUser.id, partner.id].sort(),
                 status: 'ringing',
                 type: type,
                 timestamp: serverTimestamp()
@@ -578,12 +353,15 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         }
     };
 
-    const handleSendMessage = async (customText?: string, mediaFile?: File, mediaType?: 'image' | 'video' | 'audio', isViewOnce?: boolean, duration?: number) => {
+    const handleSendMessage = async (customText?: string, mediaFile?: File, mediaType?: 'image' | 'video' | 'audio', isViewOnce?: boolean, duration?: number, tempId?: string) => {
         if ((!newMessage.trim() && !customText && !mediaFile) || !db || !partner || isSending) return;
-        setIsSending(true);
+        
+        if (!tempId) setIsSending(true);
+
         const textToSend = customText !== undefined ? customText : newMessage.trim();
         const replyContext = replyingTo ? { messageId: replyingTo.id, senderName: replyingTo.senderId === currentUser.id ? currentUser.name : partner.name, text: replyingTo.text || 'Media' } : null;
-        setNewMessage('');
+        
+        if(!tempId) setNewMessage('');
         setReplyingTo(null);
 
         try {
@@ -593,11 +371,13 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 const urls = await uploadPhotos([mediaFile]);
                 mediaUrl = urls[0];
             }
+
+            const timestamp = serverTimestamp();
             const messagePayload: any = {
                 chatId: currentChatId,
                 senderId: currentUser.id,
                 text: textToSend,
-                timestamp: serverTimestamp(),
+                timestamp: timestamp,
                 mediaUrl: mediaUrl || null,
                 mediaType: mediaType || null,
                 isViewOnce: !!isViewOnce,
@@ -631,13 +411,21 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             }
 
             await updateDoc(chatRef, {
-                lastMessage: { id: msgRef.id, text: lastMsgText, senderId: currentUser.id, timestamp: serverTimestamp(), deletedFor: [] },
+                lastMessage: { id: msgRef.id, text: lastMsgText, senderId: currentUser.id, timestamp: timestamp, deletedFor: [] },
                 [`unreadCount.${partnerId}`]: increment(1),
-                deletedFor: [], // Clear deletedFor for both users on new message
+                deletedFor: [],
                 streak: newStreak,
                 lastStreakUpdate: serverTimestamp()
             });
-        } catch (error) { console.error("Error sending:", error); } finally { setIsSending(false); }
+
+        } catch (error) { 
+            console.error("Error sending:", error); 
+            if (tempId) {
+                setMessages(prev => prev.map(m => m.id === tempId ? {...m, status: 'failed'} : m));
+            }
+        } finally { 
+            if (!tempId) setIsSending(false); 
+        }
     };
 
     const startRecording = async (e: React.MouseEvent | React.TouchEvent) => {
@@ -701,14 +489,34 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             chatId: chatId, senderId: currentUser.id, text: `${currentUser.name} set chat to: ${policyText}`, timestamp: serverTimestamp(), isSystemMessage: true
         });
     };
+    
+    const optimisticSendMedia = (file: File, type: 'image' | 'video', isViewOnce = false) => {
+        const localUrl = URL.createObjectURL(file);
+        const tempTimestamp = Timestamp.now();
+        const tempId = `temp-${tempTimestamp.toMillis()}`;
+        const tempMessage: Message = {
+            id: tempId,
+            chatId: chatId || 'pending',
+            senderId: currentUser.id,
+            text: '',
+            timestamp: tempTimestamp,
+            mediaUrl: localUrl,
+            mediaType: type,
+            isViewOnce: isViewOnce,
+            status: 'sending'
+        };
+        setMessages(prev => [...prev, tempMessage]);
+        handleSendMessage('', file, type, isViewOnce, 0, tempId);
+    };
 
-    const handleCameraCapture = (file: File, type: 'image' | 'video') => { handleSendMessage('', file, type, true); };
+    const handleCameraCapture = (file: File, type: 'image' | 'video') => { optimisticSendMedia(file, type, true); };
     const handleGallerySelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             const type = file.type.startsWith('video') ? 'video' : 'image';
-            handleSendMessage('', file, type, false);
+            optimisticSendMedia(file, type, false);
         }
+        e.target.value = ''; // Reset input
     };
     const handleSendGift = async (gift: Gift) => { 
          const currentCoins = Number(currentUser.coins) || 0;
@@ -819,6 +627,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                         onLongPress={(e, m) => { e.preventDefault(); setContextMenu({ message: m, position: { x: e.clientX, y: e.clientY } }); }}
                         onViewMedia={handleViewMedia}
                         onToggleSave={handleToggleSave}
+                        onResend={() => {}} // Placeholder
+                        onDelete={() => {}} // Placeholder
                     />
                 ))}
                 <div ref={messagesEndRef} />
@@ -827,41 +637,41 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             <div className="flex-shrink-0 bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 pb-[env(safe-area-inset-bottom)]">
                 {replyingTo && <ReplyPreview messageText={replyingTo.text} senderName={replyingTo.senderId === currentUser.id ? 'You' : partner.name} onCancel={() => setReplyingTo(null)} />}
                 
-                <div className="flex items-end space-x-2 p-2 px-3">
+                <div className="flex items-end gap-2 p-2">
                     <button 
                         onClick={() => setIsCameraOpen(true)}
-                        className="p-2 bg-gray-100 dark:bg-zinc-800 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors"
+                        className="p-2 bg-gray-100 dark:bg-zinc-800 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors flex-shrink-0"
                     >
                         <CameraIcon className="w-6 h-6" />
                     </button>
                     
-                    <button onClick={() => setIsGiftModalOpen(true)} className="p-2 text-gray-500 hover:text-flame-orange">
+                    <button onClick={() => setIsGiftModalOpen(true)} className="p-2 text-gray-500 hover:text-flame-orange flex-shrink-0">
                         <GiftIcon className="w-6 h-6" />
                     </button>
 
-                    <div className="flex-1 bg-gray-100 dark:bg-zinc-800 rounded-2xl flex items-center relative">
-                        <input type="file" ref={fileInputRef} onChange={handleGallerySelect} className="hidden" accept="image/*,video/*" />
+                    <div className="flex-1 bg-gray-100 dark:bg-zinc-800 rounded-2xl flex items-end min-w-0">
                         <textarea
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
                             placeholder={isRecording ? `Recording ${recordingDuration}s...` : "Chat"}
                             disabled={isRecording}
-                            className={`flex-1 bg-transparent border-none focus:outline-none px-4 py-3 max-h-32 resize-none dark:text-gray-200 text-base ${isRecording ? 'text-red-500 animate-pulse font-bold' : ''}`}
+                            className="flex-1 bg-transparent border-none focus:outline-none pl-4 pr-2 py-3 max-h-32 resize-none dark:text-gray-200 text-base"
                             rows={1}
                             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
                         />
                         {!isRecording && !newMessage && (
-                             <button onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                             <button onClick={() => fileInputRef.current?.click()} className="p-3 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                                 <span className="text-2xl">🖼️</span>
                             </button>
                         )}
+                         <input type="file" ref={fileInputRef} onChange={handleGallerySelect} className="hidden" accept="image/*,video/*" />
                     </div>
                     
                     {newMessage || replyingTo ? (
                         <button 
                             onClick={() => handleSendMessage()} 
                             disabled={isSending}
-                            className="p-3 bg-flame-orange text-white rounded-full shadow-md hover:scale-105 transition-transform disabled:opacity-50"
+                            className="p-3 bg-flame-orange text-white rounded-full shadow-md hover:scale-105 transition-transform disabled:opacity-50 flex-shrink-0"
                         >
                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 rotate-90" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
                         </button>
@@ -872,7 +682,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                             onMouseLeave={stopRecording}
                             onTouchStart={startRecording}
                             onTouchEnd={stopRecording}
-                            className={`p-3 rounded-full shadow-md transition-all ${isRecording ? 'bg-red-500 scale-125' : 'bg-flame-orange'} text-white touch-none select-none`}
+                            className={`p-3 rounded-full shadow-md transition-all ${isRecording ? 'bg-red-500 scale-110' : 'bg-flame-orange'} text-white touch-none select-none flex-shrink-0`}
                             style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
                         >
                             <MicIcon className="h-5 w-5" />

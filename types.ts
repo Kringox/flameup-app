@@ -161,6 +161,7 @@ export interface Message {
         text: string;
     };
     isRecalled?: boolean;
+    status?: 'sending' | 'failed';
 }
 
 export interface Chat {
@@ -234,7 +235,7 @@ export interface Call {
     calleeName: string;
     calleePhoto: string;
     userIds: string[];
-    status: 'ringing' | 'connected' | 'ended' | 'declined';
+    status: 'ringing' | 'connected' | 'ended' | 'declined' | 'cancelled';
     type: 'audio' | 'video';
     timestamp: Timestamp;
     offer?: any;

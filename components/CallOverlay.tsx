@@ -42,22 +42,24 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         const q = query(callsRef, where('userIds', 'array-contains', currentUser.id), where('status', 'in', ['ringing', 'connected']));
         
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            // FIX: Cast to unknown first to resolve strict typing error when creating Call object from Firestore data.
             const calls = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), userIds: doc.data().userIds || [doc.data().callerId, doc.data().calleeId] } as unknown as Call));
             const activeOrRingingCall = calls[0] || null;
 
-            // Prevent overwriting an active call with a new ringing call for the other user
             if (call && activeOrRingingCall && call.id !== activeOrRingingCall.id && call.status === 'connected') {
                 return;
             }
             
             if (activeOrRingingCall) {
-                setCall(activeOrRingingCall);
-                if (activeOrRingingCall.calleeId === currentUser.id && activeOrRingingCall.status === 'ringing') {
-                     hapticFeedback('medium');
+                if (!call) { // Only trigger haptics for a new incoming call
+                     setCall(activeOrRingingCall);
+                     if (activeOrRingingCall.calleeId === currentUser.id && activeOrRingingCall.status === 'ringing') {
+                         hapticFeedback('medium');
+                     }
+                } else {
+                    setCall(activeOrRingingCall);
                 }
             } else {
-                setCall(null);
+                if (call) handleEndCall(true); // Clean up if call disappears
             }
         });
 
@@ -72,29 +74,26 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         const callDocRef = doc(db, 'calls', call.id);
         const unsubscribe = onSnapshot(callDocRef, async (snapshot) => {
             if (!snapshot.exists()) {
-                handleEndCall(true); // Call document was deleted
+                handleEndCall(true); 
                 return;
             }
 
             const data = snapshot.data() as Call;
 
-            if (data.status === 'ended' || data.status === 'declined') {
-                handleEndCall(true); // Ended by other party
-                // Caller deletes the doc after a short delay
+            if (data.status === 'ended' || data.status === 'declined' || data.status === 'cancelled') {
+                handleEndCall(true);
                 if (data.callerId === currentUser?.id) {
-                    setTimeout(() => deleteDoc(callDocRef).catch(console.error), 3000);
+                    setTimeout(() => deleteDoc(callDocRef).catch(console.error), 2000);
                 }
                 return;
             }
 
-            // If we are the caller and an answer comes in
             if (pc.current && !pc.current.currentRemoteDescription && data.answer && call.callerId === currentUser?.id) {
                 const answer = new RTCSessionDescription(data.answer);
                 await pc.current.setRemoteDescription(answer);
             }
         });
         
-        // Listen for ICE candidates
         const candidatesCollection = collection(db, 'calls', call.id, 'candidates');
         const unsubscribeCandidates = onSnapshot(candidatesCollection, (snapshot) => {
             snapshot.docChanges().forEach((change) => {
@@ -156,6 +155,12 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
             }
         };
 
+        newPc.onconnectionstatechange = () => {
+            if (newPc.connectionState === 'failed' || newPc.connectionState === 'disconnected' || newPc.connectionState === 'closed') {
+                handleEndCall(true);
+            }
+        };
+
         return newPc;
     };
 
@@ -182,10 +187,11 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         });
     };
 
-    const handleDecline = async () => {
+    const handleDeclineOrCancel = async () => {
         if (!call || !db) return;
-        await updateDoc(doc(db, 'calls', call.id), { status: 'declined' });
-        setCall(null);
+        const newStatus = call.callerId === currentUser?.id ? 'cancelled' : 'declined';
+        await updateDoc(doc(db, 'calls', call.id), { status: newStatus });
+        handleEndCall(true);
     };
 
     const handleEndCall = async (isCleanup = false) => {
@@ -217,7 +223,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     
      // --- Duration Timer ---
     useEffect(() => {
-        let interval: number;
+        let interval: number | undefined;
         if (call?.status === 'connected') {
             interval = window.setInterval(() => setDuration(d => d + 1), 1000);
         }
@@ -230,15 +236,12 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         return `${m}:${s < 10 ? '0' : ''}${s}`;
     };
 
-
     if (!call || !currentUser) return null;
 
     // --- RENDER LOGIC ---
-    // A. Incoming Call View
     if (call.calleeId === currentUser.id && call.status === 'ringing') {
         return (
             <div className="fixed inset-0 z-[200] bg-gray-900/95 backdrop-blur-md flex flex-col items-center pt-20 pb-10 px-6 animate-fade-in">
-                {/* ... UI for incoming call ... */}
                 <div className="flex-1 flex flex-col items-center justify-center">
                     <div className="relative mb-8">
                         <div className="absolute inset-0 rounded-full bg-flame-orange/20 animate-ping"></div>
@@ -248,7 +251,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
                     <p className="text-gray-300 font-medium">{call.type === 'video' ? '📹 Video Call' : '📞 Audio Call'}</p>
                 </div>
                 <div className="w-full flex justify-around items-center max-w-sm mb-12">
-                    <button onClick={handleDecline} className="flex flex-col items-center gap-2">
+                    <button onClick={handleDeclineOrCancel} className="flex flex-col items-center gap-2">
                         <div className="p-5 bg-red-500 rounded-full text-white shadow-xl active:scale-90 transition-transform"><XIcon className="w-8 h-8" /></div>
                         <span className="text-white font-semibold">Decline</span>
                     </button>
@@ -263,13 +266,11 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         );
     }
     
-    // B. Active Call View (Outgoing or Connected)
     const isVideoCall = call.type === 'video';
-    // FIX: Remove unused 'partner' variable which used non-existent properties 'callee' and 'caller'.
+    const isOutgoingRinging = call.callerId === currentUser.id && call.status === 'ringing';
 
     return (
         <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center animate-fade-in">
-             {/* Main Video Area */}
             <div className="flex-1 w-full relative overflow-hidden bg-gray-900">
                 <video ref={remoteVideoRef} autoPlay playsInline className={`w-full h-full object-cover ${!isVideoCall || call.status !== 'connected' ? 'hidden' : ''}`} />
                 
@@ -288,14 +289,13 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
                 )}
             </div>
 
-            {/* Controls */}
             <div className="w-full bg-black/60 backdrop-blur-md p-6 flex justify-around items-center">
                 {isVideoCall && (
                     <button onClick={toggleVideo} className={`p-4 rounded-full transition-colors ${!isVideoEnabled ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
-                        {/* Video On/Off Icon */}
+                        <CameraIcon className="w-6 h-6"/>
                     </button>
                 )}
-                 <button onClick={() => handleEndCall(false)} className="p-5 bg-red-600 rounded-full text-white shadow-lg active:scale-95 transition-transform mx-4">
+                <button onClick={isOutgoingRinging ? handleDeclineOrCancel : () => handleEndCall(false)} className="p-5 bg-red-600 rounded-full text-white shadow-lg active:scale-95 transition-transform mx-4">
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 fill-current" viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.36 7.46 6 12 6s8.66 2.36 11.71 5.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
                 </button>
                 <button onClick={toggleMute} className={`p-4 rounded-full transition-colors ${isMuted ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
