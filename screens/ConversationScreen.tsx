@@ -447,18 +447,16 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     }, [partnerId]);
 
     useEffect(() => {
-        if (!db) return;
+        if (!db || !currentUser.id) return;
         const chatsRef = collection(db, 'chats');
-        const q = query(chatsRef, where('userIds', 'array-contains', currentUser.id));
-        // FIX: Explicitly type snapshot as QuerySnapshot to resolve 'docs' property error.
-        const unsubscribe = onSnapshot(q, async (snapshot: QuerySnapshot<DocumentData>) => {
-            const foundChatDoc = snapshot.docs.find(doc => {
-                const data = doc.data();
-                const uIds = (data as any).userIds;
-                return Array.isArray(uIds) && uIds.length === 2 && uIds.includes(partnerId);
-            });
+        
+        // OPTIMIZATION: More targeted query to find the specific chat
+        const userIds = [currentUser.id, partnerId].sort();
+        const q = query(chatsRef, where('userIds', '==', userIds));
 
-            if (foundChatDoc) {
+        const unsubscribe = onSnapshot(q, async (snapshot: QuerySnapshot<DocumentData>) => {
+            if (!snapshot.empty) {
+                const foundChatDoc = snapshot.docs[0];
                 setChatId(foundChatDoc.id);
                 const data = foundChatDoc.data() as Chat;
                 if (data.retentionPolicy) setRetentionPolicy(data.retentionPolicy);
@@ -469,11 +467,12 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                     });
                 }
             } else {
-                setChatId(null);
+                setChatId(null); // No chat found yet
             }
         });
         return () => unsubscribe();
     }, [currentUser.id, partnerId]);
+
 
     useEffect(() => {
         if (!chatId || !db) { setMessages([]); return; };
@@ -527,18 +526,20 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const getOrCreateChat = async (): Promise<string> => {
         if (chatId) return chatId;
         const userIds = [currentUser.id, partnerId].sort();
-        const chatsRef = collection(db, 'chats');
-        const q = query(chatsRef, where('userIds', 'array-contains', currentUser.id));
-        const snapshot = await getDocs(q);
-        const existingChat = snapshot.docs.find(doc => {
-             const uIds = (doc.data() as any).userIds;
-             return Array.isArray(uIds) && uIds.length === 2 && uIds.includes(partnerId);
-        });
-        if (existingChat) {
-            setChatId(existingChat.id);
-            return existingChat.id;
-        }
         if (!partner) throw new Error("Partner data not available");
+
+        // Use the same efficient query as the listener to check again
+        const chatsRef = collection(db, 'chats');
+        const q = query(chatsRef, where('userIds', '==', userIds));
+        const snapshot = await getDocs(q);
+
+        if (!snapshot.empty) {
+            const existingChatId = snapshot.docs[0].id;
+            setChatId(existingChatId);
+            return existingChatId;
+        }
+
+        // If still not found, create it
         const newChatData: any = {
             userIds,
             users: {
@@ -628,7 +629,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             await updateDoc(chatRef, {
                 lastMessage: { id: msgRef.id, text: lastMsgText, senderId: currentUser.id, timestamp: serverTimestamp(), deletedFor: [] },
                 [`unreadCount.${partnerId}`]: increment(1),
-                deletedFor: arrayRemove(partnerId, currentUser.id),
+                deletedFor: [], // Clear deletedFor for both users on new message
                 streak: newStreak,
                 lastStreakUpdate: serverTimestamp()
             });
