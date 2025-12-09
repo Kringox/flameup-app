@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { User } from '../types.ts';
 import FlameIcon from '../components/icons/FlameIcon.tsx';
 import BuyCoinsModal from '../components/BuyCoinsModal.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
 import CashOutScreen from './CashOutScreen.tsx';
 import { db } from '../firebaseConfig.ts';
-import { doc, updateDoc, increment } from 'firebase/firestore';
+import { doc, updateDoc, increment, getDoc } from 'firebase/firestore';
 
 interface WalletScreenProps {
   user: User;
@@ -17,6 +18,20 @@ const WalletScreen: React.FC<WalletScreenProps> = ({ user, onClose, onUpdateUser
     const [isBuyModalOpen, setIsBuyModalOpen] = useState(false);
     const [isCashOutOpen, setIsCashOutOpen] = useState(false);
     const { t } = useI18n();
+    
+    // Sync coins with server to ensure persistence is working and UI is up to date
+    useEffect(() => {
+        if (!db) return;
+        getDoc(doc(db, 'users', user.id)).then(snap => {
+            if (snap.exists()) {
+                const data = snap.data() as User;
+                // If local coin count differs from server, update local state
+                if (data.coins !== undefined && data.coins !== user.coins) {
+                    onUpdateUser({ ...user, coins: data.coins });
+                }
+            }
+        });
+    }, []);
     
     const handlePurchase = async (item: 'swipes' | 'superlike') => {
         if (!db) return;

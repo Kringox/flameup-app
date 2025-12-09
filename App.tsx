@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { auth, db, firebaseInitializationError } from './firebaseConfig.ts';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
@@ -194,8 +195,13 @@ const App: React.FC = () => {
       
       unsubscribeUser = onSnapshot(userRef, (snapshot) => {
         if (snapshot.exists()) {
-          // FIX: Guard against snapshot.data() being undefined before spreading.
-          const userData = { id: snapshot.id, ...(snapshot.data() || {}) } as User;
+          const data = snapshot.data() || {};
+          // Safely construct user object, ensuring coins has a default if missing
+          const userData = { 
+              id: snapshot.id, 
+              ...data,
+              coins: data.coins ?? 0
+          } as User;
           
           if (!authState.currentUser) {
               if (!userData.lastDailyBonus) {
