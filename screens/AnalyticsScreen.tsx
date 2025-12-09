@@ -1,12 +1,13 @@
 
+
 import React from 'react';
-import BarChartIcon from '../components/icons/BarChartIcon';
-import UsersIcon from '../components/icons/UsersIcon';
-import HeartIcon from '../components/icons/HeartIcon';
-import AnalyticsCard from '../components/AnalyticsCard';
-import BarChart from '../components/charts/BarChart';
-import LineChart from '../components/charts/LineChart';
-import ActivityHeatmap from '../components/charts/ActivityHeatmap';
+import BarChartIcon from '../components/icons/BarChartIcon.tsx';
+import UsersIcon from '../components/icons/UsersIcon.tsx';
+import HeartIcon from '../components/icons/HeartIcon.tsx';
+import AnalyticsCard from '../components/AnalyticsCard.tsx';
+import BarChart from '../components/charts/BarChart.tsx';
+import LineChart from '../components/charts/LineChart.tsx';
+import ActivityHeatmap from '../components/charts/ActivityHeatmap.tsx';
 import { User } from '../types.ts';
 import FlameIcon from '../components/icons/FlameIcon.tsx';
 

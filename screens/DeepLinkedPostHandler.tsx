@@ -44,24 +44,40 @@ const DeepLinkedPostHandler: React.FC<DeepLinkedPostHandlerProps> = ({
                     return;
                 }
 
-                const singlePost = { id: postSnap.id, ...postSnap.data() } as Post;
+                const singlePostData = postSnap.data();
+                const singlePost = { 
+                    id: postSnap.id, 
+                    ...singlePostData,
+                    // Ensure user object is correctly formed
+                    user: singlePostData.user || { id: singlePostData.userId, name: 'User', profilePhoto: '' }
+                } as Post;
+                
                 const userId = singlePost.userId;
 
                 // 2. Fetch all posts by that user
                 const postsQuery = query(collection(db, 'posts'), where('userId', '==', userId), orderBy('timestamp', 'desc'));
                 const allPostsSnap = await getDocs(postsQuery);
-                const allUserPosts = allPostsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Post));
+                const allUserPosts = allPostsSnap.docs.map(d => {
+                    const data = d.data();
+                    return { 
+                        id: d.id, 
+                        ...data,
+                        user: data.user || { id: data.userId, name: 'User', profilePhoto: '' }
+                    } as Post
+                });
 
                 // 3. Find the index of the deep-linked post
                 const startIndex = allUserPosts.findIndex(p => p.id === postId);
 
                 if (startIndex === -1) {
-                     setError("Post not found in user's feed.");
-                     setIsLoading(false);
-                     return;
+                     // This can happen if the query result is not immediately consistent
+                     // As a fallback, we insert the fetched post if it's missing
+                     allUserPosts.unshift(singlePost);
+                     setPostData({ posts: allUserPosts, startIndex: 0 });
+                } else {
+                    setPostData({ posts: allUserPosts, startIndex });
                 }
 
-                setPostData({ posts: allUserPosts, startIndex });
             } catch (err) {
                 console.error("Error fetching deep-linked post:", err);
                 setError("Could not load post.");

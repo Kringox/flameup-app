@@ -79,7 +79,7 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       // Any user can update 'viewed' or 'likedBy' arrays.
-      allow update: if isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasAny(['viewed', 'likedBy']);
+      allow update: if isAuthenticated() && request.resource.data.diff(resource.data).hasAny(['viewed', 'likedBy']);
       allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
 
