@@ -1,9 +1,9 @@
-
 import React, { useState } from 'react';
 import { auth } from '../firebaseConfig';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
   AuthError
 } from 'firebase/auth';
 import FlameIcon from '../components/icons/FlameIcon.tsx';
@@ -13,14 +13,16 @@ interface AuthScreenProps {
 }
 
 const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
-  const [isLogin, setIsLogin] = useState(true);
+  const [view, setView] = useState<'login' | 'signup' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState(preloadedError || '');
+  const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleFirebaseError = (err: AuthError) => {
+  // FIX: Cast error to 'any' to access the 'code' property, which is present on Firebase auth errors but may not be correctly typed.
+  const handleFirebaseError = (err: any) => {
     console.error("Firebase Auth Error:", err);
     switch (err.code) {
       case 'auth/user-not-found':
@@ -43,14 +45,12 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (preloadedError) return;
-
+  const handleAuthAction = async () => {
     setError('');
+    setSuccess('');
     setIsLoading(true);
 
-    if (!isLogin && password !== confirmPassword) {
+    if (view === 'signup' && password !== confirmPassword) {
       setError('Passwords do not match.');
       setIsLoading(false);
       return;
@@ -63,7 +63,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
     }
 
     try {
-      if (isLogin) {
+      if (view === 'login') {
         await signInWithEmailAndPassword(auth, email, password);
       } else {
         await createUserWithEmailAndPassword(auth, email, password);
@@ -74,6 +74,51 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
       setIsLoading(false);
     }
   };
+
+  const handlePasswordReset = async () => {
+    if (!email) {
+        setError("Please enter your email address.");
+        return;
+    }
+    setError('');
+    setSuccess('');
+    setIsLoading(true);
+
+    if (!auth) {
+        setError(preloadedError || 'Firebase not configured.');
+        setIsLoading(false);
+        return;
+    }
+
+    try {
+        await sendPasswordResetEmail(auth, email);
+        setSuccess("Password reset email sent! Check your inbox.");
+    } catch(err) {
+        handleFirebaseError(err as AuthError);
+    } finally {
+        setIsLoading(false);
+    }
+  };
+  
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (preloadedError) return;
+
+    if (view === 'forgot') {
+        handlePasswordReset();
+    } else {
+        handleAuthAction();
+    }
+  }
+
+  const switchView = (newView: 'login' | 'signup' | 'forgot') => {
+    if (preloadedError) return;
+    setView(newView);
+    setError('');
+    setSuccess('');
+    setPassword('');
+    setConfirmPassword('');
+  }
 
   return (
     <div className="h-screen w-screen flex flex-col justify-center items-center bg-gradient-to-br from-gray-900 via-black to-gray-800 relative overflow-hidden">
@@ -93,23 +138,26 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
         </div>
 
         <div className="bg-white/10 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl p-8 animate-slide-in-right">
-          <div className="flex p-1 bg-black/20 rounded-xl mb-6">
-            <button 
-              onClick={() => { if (!preloadedError) { setIsLogin(true); setError(''); } }} 
-              className={`flex-1 py-2.5 text-center text-sm font-bold rounded-lg transition-all duration-300 ${isLogin ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-white'}`}
-            >
-              Login
-            </button>
-            <button 
-              onClick={() => { if (!preloadedError) { setIsLogin(false); setError(''); } }} 
-              className={`flex-1 py-2.5 text-center text-sm font-bold rounded-lg transition-all duration-300 ${!isLogin ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-white'}`}
-            >
-              Sign Up
-            </button>
-          </div>
+          {view !== 'forgot' && (
+            <div className="flex p-1 bg-black/20 rounded-xl mb-6">
+                <button 
+                onClick={() => switchView('login')} 
+                className={`flex-1 py-2.5 text-center text-sm font-bold rounded-lg transition-all duration-300 ${view === 'login' ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                >
+                Login
+                </button>
+                <button 
+                onClick={() => switchView('signup')} 
+                className={`flex-1 py-2.5 text-center text-sm font-bold rounded-lg transition-all duration-300 ${view === 'signup' ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                >
+                Sign Up
+                </button>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && <div className="bg-red-500/20 border border-red-500/50 text-red-200 text-xs p-3 rounded-lg text-center font-medium">{error}</div>}
+            {success && <div className="bg-green-500/20 border border-green-500/50 text-green-200 text-xs p-3 rounded-lg text-center font-medium">{success}</div>}
             
             <div className="space-y-3">
               <input 
@@ -121,16 +169,18 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={!!preloadedError}
               />
-              <input 
-                type="password" 
-                placeholder="Password" 
-                className="w-full px-4 py-3.5 bg-black/20 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-flame-orange/50 focus:border-transparent transition-all"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={!!preloadedError}
-              />
-              {!isLogin && (
+              {view !== 'forgot' && (
+                <input 
+                    type="password" 
+                    placeholder="Password" 
+                    className="w-full px-4 py-3.5 bg-black/20 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-flame-orange/50 focus:border-transparent transition-all"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={!!preloadedError}
+                />
+              )}
+              {view === 'signup' && (
                 <input 
                   type="password" 
                   placeholder="Confirm Password" 
@@ -156,12 +206,17 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
                       </svg>
                       Processing...
                   </span>
-              ) : (isLogin ? 'Log In' : 'Create Account')}
+              ) : (view === 'login' ? 'Log In' : (view === 'signup' ? 'Create Account' : 'Send Reset Link'))}
             </button>
 
-            {isLogin && (
-              <button type="button" className="w-full text-center text-xs text-gray-400 mt-4 hover:text-white transition-colors">
+            {view === 'login' && (
+              <button type="button" onClick={() => switchView('forgot')} className="w-full text-center text-xs text-gray-400 mt-4 hover:text-white transition-colors">
                 Forgot Password?
+              </button>
+            )}
+            {view === 'forgot' && (
+              <button type="button" onClick={() => switchView('login')} className="w-full text-center text-xs text-gray-400 mt-4 hover:text-white transition-colors">
+                Back to Login
               </button>
             )}
           </form>

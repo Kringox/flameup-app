@@ -76,7 +76,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
       if (post.isPaid && isLocked && posterSubscriptionPrice === null) {
           getDoc(doc(db, 'users', post.userId)).then(snap => {
               if (snap.exists()) {
-                  setPosterSubscriptionPrice(snap.data().subscriptionPrice || 0);
+                  // FIX: Cast snap.data() to User to allow typed property access.
+                  setPosterSubscriptionPrice((snap.data() as User).subscriptionPrice || 0);
               }
           });
       }
@@ -203,9 +204,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
              const posterRef = doc(db, 'users', post.userId);
              const postRef = doc(db, 'posts', post.id);
 
+             const creatorCut = Math.floor(post.price! * 0.97); // 3% fee
+
              transaction.update(userRef, { coins: increment(-post.price!) });
              transaction.update(posterRef, { 
-                 coins: increment(post.price!), 
+                 coins: increment(creatorCut), 
+                 'analytics.earnings': increment(creatorCut),
                  hotnessScore: increment(HotnessWeight.PAID_UNLOCK) 
              });
              transaction.update(postRef, { unlockedBy: arrayUnion(currentUser.id) });
@@ -242,13 +246,15 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUser, onPostDeleted, o
            await runTransaction(db, async (transaction) => {
              const userRef = doc(db, 'users', currentUser.id);
              const posterRef = doc(db, 'users', post.userId);
+             const creatorCut = Math.floor(posterSubscriptionPrice * 0.97); // 3% fee
 
              transaction.update(userRef, { 
                  coins: increment(-posterSubscriptionPrice),
                  subscriptions: arrayUnion(post.userId)
              });
              transaction.update(posterRef, { 
-                 coins: increment(posterSubscriptionPrice),
+                 coins: increment(creatorCut),
+                 'analytics.earnings': increment(creatorCut),
                  hotnessScore: increment(HotnessWeight.SUBSCRIBE) 
              });
           });

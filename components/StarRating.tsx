@@ -1,4 +1,3 @@
-// FIX: Create content for missing file
 import React from 'react';
 import StarIcon from './icons/StarIcon.tsx';
 
@@ -15,10 +14,11 @@ const StarRating: React.FC<StarRatingProps> = ({ rating, onRatingChange, size = 
         <button
           key={star}
           onClick={() => onRatingChange(star)}
+          className="transform hover:scale-110 transition-transform"
         >
           <StarIcon
             className={`w-${size} h-${size} transition-colors ${
-              star <= rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'
+              star <= rating ? 'text-yellow-400 fill-current' : 'text-gray-300 dark:text-gray-600'
             }`}
           />
         </button>

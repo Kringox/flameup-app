@@ -1,30 +1,74 @@
-
 import React, { useState, useEffect, useRef, useContext } from 'react';
-import { db } from '../firebaseConfig';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, increment, writeBatch } from 'firebase/firestore';
+import { db } from '../firebaseConfig.ts';
+// FIX: Add QuerySnapshot and DocumentData to imports to resolve typing issue with onSnapshot.
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, increment, writeBatch, arrayUnion, arrayRemove, QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { Post, User, Comment, NotificationType } from '../types.ts';
 import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
 import { XpContext } from '../contexts/XpContext.ts';
 import { HotnessWeight } from '../utils/hotnessUtils.ts';
 import XIcon from '../components/icons/XIcon.tsx';
+import HeartIcon from '../components/icons/HeartIcon.tsx';
 
-const CommentRow: React.FC<{ comment: Comment; onViewProfile: (userId: string) => void; }> = ({ comment, onViewProfile }) => {
+const CommentRow: React.FC<{ 
+    comment: Comment; 
+    currentUser: User;
+    post: Post;
+    onViewProfile: (userId: string) => void; 
+    onReply: (comment: Comment) => void;
+}> = ({ comment, currentUser, post, onViewProfile, onReply }) => {
+    
+    const [isLiked, setIsLiked] = useState(comment.likedBy.includes(currentUser.id));
+    const [likeCount, setLikeCount] = useState(comment.likedBy.length);
+
+    const handleLike = async () => {
+        if (!db) return;
+        const newLikedState = !isLiked;
+        setIsLiked(newLikedState);
+        setLikeCount(prev => newLikedState ? prev + 1 : prev - 1);
+        
+        try {
+            const commentRef = doc(db, 'posts', post.id, 'comments', comment.id);
+            await updateDoc(commentRef, {
+                likedBy: newLikedState ? arrayUnion(currentUser.id) : arrayRemove(currentUser.id)
+            });
+        } catch (error) {
+            console.error("Error liking comment:", error);
+            // Revert on failure
+            setIsLiked(!newLikedState);
+            setLikeCount(prev => newLikedState ? prev - 1 : prev + 1);
+        }
+    };
+
     return (
-        <div className="flex items-start space-x-3 py-3 animate-fade-in">
+        <div className="flex items-start space-x-3 py-3 animate-fade-in group">
             <button onClick={() => onViewProfile(comment.userId)}>
                 <img src={comment.userProfilePhoto} alt={comment.userName} className="w-8 h-8 rounded-full object-cover border border-zinc-700" />
             </button>
             <div className="flex-1">
+                {comment.replyTo && (
+                     <p className="text-xs text-zinc-500 mb-1">
+                        Replying to <span className="font-semibold text-zinc-400">@{comment.replyTo.userName}</span>
+                    </p>
+                )}
                 <div className="flex items-center">
                     <button onClick={() => onViewProfile(comment.userId)} className="text-xs font-bold text-gray-400 mr-2 flex items-center hover:text-white">
                         {comment.userName}
                         {comment.isPremium && <VerifiedIcon className="w-3 h-3 ml-1" />}
                     </button>
-                    <span className="text-[10px] text-zinc-600">Now</span>
                 </div>
                 <p className="text-sm text-gray-200 mt-0.5 leading-tight">
                     {comment.text}
                 </p>
+                <div className="flex items-center gap-4 mt-2">
+                     <span className="text-[10px] text-zinc-600">Now</span>
+                     <button onClick={() => onReply(comment)} className="text-xs font-semibold text-zinc-500 hover:text-white">Reply</button>
+                </div>
+            </div>
+             <div className="flex flex-col items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={handleLike}>
+                    <HeartIcon isLiked={isLiked} className={`w-4 h-4 ${isLiked ? 'text-red-500 fill-current' : 'text-zinc-500'}`} />
+                </button>
+                {likeCount > 0 && <span className="text-[10px] text-zinc-500">{likeCount}</span>}
             </div>
         </div>
     );
@@ -41,13 +85,15 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
     const [comments, setComments] = useState<Comment[]>([]);
     const [newComment, setNewComment] = useState('');
     const [isPosting, setIsPosting] = useState(false);
+    const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
     const commentsEndRef = useRef<null | HTMLDivElement>(null);
     const { showXpToast } = useContext(XpContext);
 
     useEffect(() => {
         if (!db) return;
         const q = query(collection(db, 'posts', post.id, 'comments'), orderBy('timestamp', 'asc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        // FIX: Explicitly type snapshot as QuerySnapshot to resolve 'docs' property error.
+        const unsubscribe = onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
             const commentsList = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Comment));
             setComments(commentsList);
         });
@@ -91,7 +137,8 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
         try {
             const batch = writeBatch(db);
             const commentRef = doc(collection(db, 'posts', post.id, 'comments'));
-            batch.set(commentRef, {
+            
+            const commentPayload: any = {
                 postId: post.id,
                 userId: currentUser.id,
                 userName: currentUser.name,
@@ -100,7 +147,16 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
                 text: commentText,
                 likedBy: [],
                 timestamp: serverTimestamp(),
-            });
+            };
+
+            if (replyingTo) {
+                commentPayload.replyTo = {
+                    commentId: replyingTo.id,
+                    userName: replyingTo.userName,
+                };
+            }
+
+            batch.set(commentRef, commentPayload);
 
             const postRef = doc(db, 'posts', post.id);
             batch.update(postRef, { commentCount: increment(1) });
@@ -112,6 +168,7 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
             showXpToast(20); 
             await createNotification(commentText);
             setNewComment('');
+            setReplyingTo(null);
         } catch (error) {
             console.error("Error posting comment: ", error);
         } finally {
@@ -155,7 +212,7 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
                             </div>
                         ) : (
                             comments.map(comment => (
-                                <CommentRow key={comment.id} comment={comment} onViewProfile={onViewProfile} />
+                                <CommentRow key={comment.id} comment={comment} currentUser={currentUser} post={post} onViewProfile={onViewProfile} onReply={setReplyingTo} />
                             ))
                         )}
                         <div ref={commentsEndRef} />
@@ -163,6 +220,12 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
 
                     {/* Input Area */}
                     <div className="p-3 border-t border-zinc-800 bg-zinc-900 pb-[env(safe-area-inset-bottom)] flex-shrink-0">
+                        {replyingTo && (
+                            <div className="text-xs text-zinc-400 bg-black/30 px-3 py-1.5 rounded-t-lg flex justify-between items-center">
+                                <span>Replying to <span className="font-semibold text-zinc-300">{replyingTo.userName}</span></span>
+                                <button onClick={() => setReplyingTo(null)}><XIcon className="w-4 h-4"/></button>
+                            </div>
+                        )}
                         <div className="flex items-center bg-black rounded-full px-4 py-3 border border-zinc-800">
                             <img src={currentUser.profilePhotos[0]} alt="Me" className="w-8 h-8 rounded-full border border-zinc-700" />
                             <input
@@ -170,6 +233,7 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
                                 value={newComment}
                                 onChange={(e) => setNewComment(e.target.value)}
                                 placeholder="Add comment..."
+                                autoFocus={!!replyingTo}
                                 className="flex-1 mx-3 bg-transparent border-none focus:outline-none text-sm text-white placeholder-zinc-600"
                                 onKeyDown={(e) => e.key === 'Enter' && handlePostComment()}
                             />

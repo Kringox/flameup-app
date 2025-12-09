@@ -10,9 +10,11 @@ interface PostDetailViewProps {
   onPostDeleted: (postId: string) => void;
   onPostUpdated: (post: Post) => void;
   onOpenComments: (post: Post) => void;
+  // FIX: Added missing onUpdateUser prop to pass down to PostCard.
+  onUpdateUser: (user: User) => void;
 }
 
-const PostDetailView: React.FC<PostDetailViewProps> = ({ post, currentUser, onClose, onPostDeleted, onPostUpdated, onOpenComments }) => {
+const PostDetailView: React.FC<PostDetailViewProps> = ({ post, currentUser, onClose, onPostDeleted, onPostUpdated, onOpenComments, onUpdateUser }) => {
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
       onClose();
@@ -36,6 +38,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, currentUser, onCl
               onPostDeleted={onPostDeleted} 
               onPostUpdated={onPostUpdated}
               onOpenComments={onOpenComments}
+              onUpdateUser={onUpdateUser}
             />
         </div>
 

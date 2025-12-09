@@ -11,7 +11,8 @@ const UserRow: React.FC<{ user: User, currentUser: User, onUnfollow: (targetUser
                 <img src={user.profilePhotos?.[0]} alt={user.name} className="w-12 h-12 rounded-full object-cover" />
                 <div className="flex-1 ml-3">
                     <p className="font-semibold">{user.name}</p>
-                    <p className="text-sm text-gray-500 truncate">{user.bio}</p>
+                    {/* FIX: Changed user.bio to user.aboutMe, as 'bio' does not exist on the User type. */}
+                    <p className="text-sm text-gray-500 truncate">{user.aboutMe}</p>
                 </div>
             </button>
             {user.id !== currentUser.id && (

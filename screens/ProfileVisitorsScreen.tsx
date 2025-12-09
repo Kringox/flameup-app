@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 // FIX: Added file extension to types import
 import { User } from '../types.ts';
-import { db } from '../firebaseConfig';
+import { db } from '../firebaseConfig.ts';
 import { collection, doc, getDocs, query, where } from 'firebase/firestore';
 // FIX: Added file extension to constants import
 import { DEMO_USERS_FOR_UI } from '../constants.ts'; // Using demo users for now
@@ -12,7 +12,8 @@ const UserRow: React.FC<{ user: User; onViewProfile: (userId: string) => void }>
             <img src={user.profilePhotos?.[0]} alt={user.name} className="w-12 h-12 rounded-full object-cover" />
             <div className="flex-1 ml-3">
                 <p className="font-semibold">{user.name}</p>
-                <p className="text-sm text-gray-500 truncate">{user.bio}</p>
+                {/* FIX: Changed user.bio to user.aboutMe, as 'bio' does not exist on the User type. */}
+                <p className="text-sm text-gray-500 truncate">{user.aboutMe}</p>
             </div>
         </button>
     )

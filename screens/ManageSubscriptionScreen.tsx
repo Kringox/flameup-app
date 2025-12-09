@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { User } from '../types.ts';
 import SparklesIcon from '../components/icons/SparklesIcon.tsx';
@@ -35,7 +34,8 @@ const ManageSubscriptionScreen: React.FC<ManageSubscriptionScreenProps> = ({ use
                 for (const chunk of chunks) {
                      const q = query(collection(db, 'users'), where('__name__', 'in', chunk));
                      const snap = await getDocs(q);
-                     snap.forEach(d => subs.push({id: d.id, ...d.data()} as User));
+                     // FIX: Guard against data() being undefined before spreading.
+                     snap.forEach(d => subs.push({id: d.id, ...(d.data() || {})} as User));
                 }
                 
                 setSubscriptions(subs);

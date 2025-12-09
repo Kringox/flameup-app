@@ -24,7 +24,7 @@ interface SinglePostViewProps {
 
 const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isActive, onOpenComments, onViewProfile, onUpdateUser }) => {
     const [isLiked, setIsLiked] = useState(post.likedBy?.includes(currentUser.id));
-    const [likeCount, setLikeCount] = useState(post.likeCount || post.likedBy?.length || 0);
+    const [likeCount, setLikeCount] = useState(post.likedBy?.length || 0);
     const [isUnlocked, setIsUnlocked] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [showShare, setShowShare] = useState(false);
@@ -79,8 +79,13 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                 const posterRef = doc(db, 'users', post.userId);
                 const postRef = doc(db, 'posts', post.id);
 
+                const creatorCut = Math.floor(post.price! * 0.97); // 3% fee
+
                 transaction.update(userRef, { coins: increment(-post.price!) });
-                transaction.update(posterRef, { coins: increment(post.price!) });
+                transaction.update(posterRef, { 
+                    coins: increment(creatorCut),
+                    'analytics.earnings': increment(creatorCut)
+                });
                 transaction.update(postRef, { unlockedBy: arrayUnion(currentUser.id) });
             });
             setIsUnlocked(true);

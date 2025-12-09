@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db, firebaseInitializationError } from './firebaseConfig.ts';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, onSnapshot, getDoc, collection, query, where, Timestamp, updateDoc, serverTimestamp } from 'firebase/firestore';
+// FIX: Added QuerySnapshot and DocumentData to imports to fix typing issues with onSnapshot.
+import { doc, onSnapshot, getDoc, collection, query, where, Timestamp, updateDoc, serverTimestamp, QuerySnapshot, DocumentData } from 'firebase/firestore';
 
 import { User, Tab, Post, Notification, Chat, NotificationType, AppTint } from './types.ts';
 import { I18nProvider } from './contexts/I18nContext.ts';
@@ -26,6 +27,7 @@ import SearchScreen from './screens/SearchScreen.tsx';
 import PostGridViewer from './components/PostGridViewer.tsx';
 import DailyBonusWheel from './components/DailyBonusWheel.tsx';
 import CallOverlay from './components/CallOverlay.tsx';
+import ReviewModal from './components/ReviewModal.tsx';
 
 const App: React.FC = () => {
   const [authState, setAuthState] = useState<{
@@ -52,6 +54,7 @@ const App: React.FC = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [viewingPostGrid, setViewingPostGrid] = useState<{ posts: Post[], startIndex: number } | null>(null);
   const [showDailyBonus, setShowDailyBonus] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
 
   const showXpToast = (amount: number) => {
     setXpToast({ amount, key: Date.now() });
@@ -90,8 +93,10 @@ const App: React.FC = () => {
 
   // --- ONLINE STATUS HEARTBEAT ---
   useEffect(() => {
-      if (!authState.currentUser || typeof authState.currentUser === 'string') return;
-      const userId = authState.currentUser.id;
+      // FIX: Use a local variable to help TypeScript with type narrowing for authState.currentUser
+      const user = authState.currentUser;
+      if (!user || typeof user === 'string') return;
+      const userId = user.id;
       if (!userId || !db) return;
 
       const userRef = doc(db, 'users', userId);
@@ -105,16 +110,18 @@ const App: React.FC = () => {
           clearInterval(interval);
           updateDoc(userRef, { isOnline: false, lastOnline: serverTimestamp() }).catch(console.error);
       }
-  }, [authState.currentUser?.id]); 
+  }, [authState.currentUser]); 
 
   // --- LOCATION UPDATE ---
   useEffect(() => {
-      if (!authState.currentUser || typeof authState.currentUser === 'string') return;
+      // FIX: Use a local variable to help TypeScript with type narrowing for authState.currentUser
+      const user = authState.currentUser;
+      if (!user || typeof user === 'string') return;
       if (!('geolocation' in navigator) || !db) return;
 
-      const userId = authState.currentUser.id;
+      const userId = user.id;
       const userRef = doc(db, 'users', userId);
-      const currentLocation = authState.currentUser.location;
+      const currentLocation = user.location;
 
       navigator.geolocation.getCurrentPosition(
           async (position) => {
@@ -143,7 +150,7 @@ const App: React.FC = () => {
               console.log("Location error:", error);
           }
       );
-  }, [authState.currentUser?.id]);
+  }, [authState.currentUser]);
 
   useEffect(() => {
     let unsubscribeUser: () => void = () => {};
@@ -154,7 +161,8 @@ const App: React.FC = () => {
       
       unsubscribeUser = onSnapshot(userRef, (snapshot) => {
         if (snapshot.exists()) {
-          const userData = { id: snapshot.id, ...snapshot.data() } as User;
+          // FIX: Guard against snapshot.data() being undefined before spreading.
+          const userData = { id: snapshot.id, ...(snapshot.data() || {}) } as User;
           
           if (!authState.currentUser) {
               if (!userData.lastDailyBonus) {
@@ -175,8 +183,9 @@ const App: React.FC = () => {
               chatsRef, 
               where('userIds', 'array-contains', userData.id)
           );
+          // FIX: Explicitly type chatSnapshot as QuerySnapshot to resolve 'docs' property error.
           unsubscribeChats = onSnapshot(q, 
-            (chatSnapshot) => {
+            (chatSnapshot: QuerySnapshot<DocumentData>) => {
                 const anyUnread = chatSnapshot.docs
                   .filter(doc => !doc.data().deletedFor?.includes(userData.id))
                   .some(doc => {
@@ -335,7 +344,17 @@ const App: React.FC = () => {
                     currentUser={authState.currentUser as User}
                     matchedUser={{id: matchNotification.fromUser.id, name: matchNotification.fromUser.name, profilePhotos: [matchNotification.fromUser.profilePhoto]} as any}
                     onSendMessage={handleSendMessageFromMatch}
-                    onClose={() => setMatchNotification(null)}
+                    onClose={() => {
+                        setMatchNotification(null);
+                        if (authState.currentUser && typeof authState.currentUser !== 'string') {
+                            const now = Date.now();
+                            const lastPrompt = (authState.currentUser as User).lastReviewPrompt?.toDate().getTime() || 0;
+                            // Prompt if never prompted, or if it has been over 3 months
+                            if (!lastPrompt || now - lastPrompt > 90 * 24 * 60 * 60 * 1000) {
+                                setShowReviewModal(true);
+                            }
+                        }
+                    }}
                 />
             )}
             {inAppNotification && (
@@ -354,6 +373,22 @@ const App: React.FC = () => {
                     currentUser={authState.currentUser as User} 
                     onClose={() => setShowDailyBonus(false)} 
                     onUpdateUser={handleUpdateUser}
+                />
+            )}
+
+            {showReviewModal && (
+                <ReviewModal
+                    onClose={() => {
+                        setShowReviewModal(false);
+                        if(db && authState.currentUser && typeof authState.currentUser !== 'string') {
+                            const userRef = doc(db, 'users', authState.currentUser.id);
+                            updateDoc(userRef, { lastReviewPrompt: serverTimestamp() });
+                        }
+                    }}
+                    onSubmit={(rating, comment) => {
+                        console.log('Review Submitted:', { rating, comment });
+                        // Here you would send the feedback to your backend/analytics
+                    }}
                 />
             )}
           </div>

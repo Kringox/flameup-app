@@ -4,6 +4,10 @@ import { collection, query, where, orderBy, limit, getDocs } from 'firebase/fire
 import { User, Post } from '../types.ts';
 import SearchIcon from '../components/icons/SearchIcon.tsx';
 import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
+import { calculateDistance } from '../utils/locationUtils.ts';
+import FlameLoader from '../components/FlameLoader.tsx';
+import NearbyUsersScreen from './NearbyUsersScreen.tsx';
+import { useI18n } from '../contexts/I18nContext.ts';
 
 // A simple hook for debouncing
 const useDebounce = (value: string, delay: number) => {
@@ -44,16 +48,19 @@ interface SearchScreenProps {
 
 const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onViewProfile, onOpenComments, onUpdateUser, onViewPostGrid }) => {
     const [searchTerm, setSearchTerm] = useState('');
-    const [searchType, setSearchType] = useState<'users' | 'posts'>('users');
+    const [searchType, setSearchType] = useState<'users' | 'posts' | 'nearby'>('users');
     const [results, setResults] = useState<(User | Post)[]>([]);
+    const [nearbyUsers, setNearbyUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [postsCache, setPostsCache] = useState<Post[] | null>(null);
+    const { t } = useI18n();
 
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
     const placeholders = {
         users: 'Search for users by name...',
         posts: 'Search posts by keyword, #hashtag...',
+        nearby: 'Showing users near you...',
     };
     
     useEffect(() => {
@@ -67,7 +74,7 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
                     const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'), limit(100));
                     const snapshot = await getDocs(postsQuery);
                     const allPosts = snapshot.docs.map(doc => {
-                        const data = doc.data();
+                        const data = doc.data() as any;
                         const postUser = data.user || {
                             id: data.userId,
                             name: data.userName,
@@ -102,6 +109,35 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
             if (!db) return;
             
             const term = debouncedSearchTerm.trim();
+
+            if (searchType === 'nearby') {
+                if (nearbyUsers.length > 0) return; // Don't refetch if already loaded
+                setIsLoading(true);
+                try {
+                    const q = query(collection(db, 'users'), limit(100));
+                    const snapshot = await getDocs(q);
+                    const allUsers = snapshot.docs
+                        .map(doc => ({ id: doc.id, ...doc.data() } as User))
+                        .filter(u => u.id !== currentUser.id && u.location);
+
+                    const usersWithDistance = allUsers.map(u => ({
+                        ...u,
+                        distance: currentUser.location ? calculateDistance(
+                            currentUser.location.latitude,
+                            currentUser.location.longitude,
+                            u.location!.latitude,
+                            u.location!.longitude
+                        ) : Infinity,
+                    })).sort((a, b) => a.distance - b.distance);
+
+                    setNearbyUsers(usersWithDistance);
+                } catch (e) {
+                    console.error(e);
+                } finally {
+                    setIsLoading(false);
+                }
+                return;
+            }
 
             if (searchType === 'posts') {
                 setIsLoading(postsCache === null); 
@@ -138,7 +174,7 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
                         limit(20)
                     );
                     const querySnapshot = await getDocs(q);
-                    const usersFound = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User)).filter(u => u.id !== currentUser.id);
+                    const usersFound = querySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() || {}) } as User)).filter(u => u.id !== currentUser.id);
                     setResults(usersFound);
                 }
             } catch (error) {
@@ -150,72 +186,46 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ currentUser, onClose, onVie
         };
 
         performSearch();
-    }, [debouncedSearchTerm, searchType, currentUser.id, postsCache]);
+    }, [debouncedSearchTerm, searchType, currentUser, postsCache, nearbyUsers.length]);
 
 
     return (
         <div className="absolute inset-0 bg-gray-50 dark:bg-black z-[70] flex flex-col animate-slide-in-right">
-            <header className="flex items-center p-2 border-b dark:border-zinc-800 bg-white dark:bg-zinc-900 flex-shrink-0">
-                <div className="relative flex-1">
-                     <div className="absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                        <SearchIcon className="w-5 h-5 text-gray-400" />
+            <header className="flex flex-col p-2 border-b dark:border-zinc-800 bg-white dark:bg-zinc-900/90 backdrop-blur-md sticky top-0 z-10">
+                <div className="flex items-center w-full">
+                    <div className="relative flex-1">
+                        <input 
+                            type="text" 
+                            placeholder={placeholders[searchType]}
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            disabled={searchType === 'nearby'}
+                            className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-zinc-700 rounded-full focus:outline-none focus:ring-2 focus:ring-flame-orange bg-gray-100 dark:bg-zinc-800 dark:text-gray-200 text-sm" 
+                        />
+                        <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                     </div>
-                    <input
-                        type="text"
-                        placeholder={placeholders[searchType]}
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        autoFocus
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-zinc-700 rounded-full focus:outline-none focus:ring-2 focus:ring-flame-orange bg-transparent dark:text-gray-200"
-                    />
+                    <button onClick={onClose} className="ml-2 text-sm font-semibold text-gray-600 dark:text-gray-300 px-3">{t('cancel')}</button>
                 </div>
-                <button onClick={onClose} className="ml-2 px-4 py-2 text-gray-600 dark:text-gray-300 font-semibold">Cancel</button>
+                <div className="flex justify-around items-center w-full mt-2 border-t border-gray-200 dark:border-zinc-800 pt-2">
+                    <button onClick={() => setSearchType('users')} className={`px-4 py-1 text-sm font-bold rounded-full ${searchType === 'users' ? 'bg-flame-orange text-white' : 'text-gray-500'}`}>Users</button>
+                    <button onClick={() => setSearchType('posts')} className={`px-4 py-1 text-sm font-bold rounded-full ${searchType === 'posts' ? 'bg-flame-orange text-white' : 'text-gray-500'}`}>Posts</button>
+                    <button onClick={() => setSearchType('nearby')} className={`px-4 py-1 text-sm font-bold rounded-full ${searchType === 'nearby' ? 'bg-flame-orange text-white' : 'text-gray-500'}`}>Nearby</button>
+                </div>
             </header>
-            
-            <div className="p-2 flex-shrink-0 border-b dark:border-zinc-800">
-                <div className="flex bg-gray-200 dark:bg-zinc-800 rounded-lg p-1">
-                    <button
-                        onClick={() => { setSearchTerm(''); setResults([]); setSearchType('users'); }}
-                        className={`flex-1 py-1.5 text-sm font-semibold rounded-md ${searchType === 'users' ? 'bg-white dark:bg-zinc-900 shadow text-flame-orange' : 'text-gray-600 dark:text-gray-300'}`}
-                    >
-                        Users
-                    </button>
-                     <button
-                        onClick={() => { setSearchTerm(''); setResults([]); setSearchType('posts'); }}
-                        className={`flex-1 py-1.5 text-sm font-semibold rounded-md ${searchType === 'posts' ? 'bg-white dark:bg-zinc-900 shadow text-flame-orange' : 'text-gray-600 dark:text-gray-300'}`}
-                    >
-                        Posts
-                    </button>
-                </div>
-            </div>
-
             <main className="flex-1 overflow-y-auto">
-                {isLoading ? (
-                    <div className="flex justify-center items-center h-full p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-200"></div></div>
-                ) : results.length === 0 ? (
-                    <div className="text-center p-8 text-gray-500">
-                        <h3 className="font-semibold">{searchTerm ? 'No results found' : 'Search for users or posts'}</h3>
-                        <p className="text-sm">{searchTerm ? 'Try a different search term.' : 'Find new people or see what\'s trending.'}</p>
-                    </div>
+                {isLoading ? <div className="flex justify-center items-center h-full"><FlameLoader /></div> 
+                : searchType === 'nearby' ? (
+                    <NearbyUsersScreen users={nearbyUsers} onViewProfile={onViewProfile} />
+                )
+                : searchType === 'users' ? (
+                    results.map(user => <UserResultRow key={user.id} user={user as User} onViewProfile={onViewProfile} />)
                 ) : (
-                    <div>
-                        {searchType === 'users' && results.map(item => (
-                            <UserResultRow key={item.id} user={item as User} onViewProfile={onViewProfile} />
+                    <div className="grid grid-cols-3 gap-0.5">
+                        {results.map((post, index) => (
+                            <button key={post.id} onClick={() => onViewPostGrid(postsCache || [], postsCache?.findIndex(p => p.id === post.id) ?? 0)} className="aspect-square relative group overflow-hidden bg-zinc-900">
+                                <img src={(post as Post).mediaUrls[0]} alt="post" className="w-full h-full object-cover" />
+                            </button>
                         ))}
-
-                        {searchType === 'posts' && (
-                            <div className="grid grid-cols-3 gap-0.5">
-                                {(results as Post[]).map((post, index) => (
-                                    <button 
-                                        key={post.id} 
-                                        className="aspect-square bg-gray-200 dark:bg-zinc-800"
-                                        onClick={() => onViewPostGrid(results as Post[], index)}
-                                    >
-                                        <img src={post.mediaUrls[0]} alt={post.caption} className="w-full h-full object-cover" />
-                                    </button>
-                                ))}
-                            </div>
-                        )}
                     </div>
                 )}
             </main>

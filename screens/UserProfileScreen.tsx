@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { User, Post, NotificationType } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
-import { doc, collection, query, where, orderBy, onSnapshot, updateDoc, arrayUnion, arrayRemove, addDoc, serverTimestamp, increment, runTransaction } from 'firebase/firestore';
+// FIX: Added QuerySnapshot and DocumentData to imports to resolve typing issue with onSnapshot.
+import { doc, collection, query, where, orderBy, onSnapshot, updateDoc, arrayUnion, arrayRemove, addDoc, serverTimestamp, increment, runTransaction, QuerySnapshot, DocumentData } from 'firebase/firestore';
 import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
 import ImageViewer from '../components/ImageViewer.tsx';
 import HotnessDisplay from '../components/HotnessDisplay.tsx';
@@ -39,12 +40,13 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
             const userRef = doc(db, 'users', viewingUserId);
             const unsubscribeUser = onSnapshot(userRef, (docSnap) => {
                 if (docSnap.exists()) {
-                    const data = docSnap.data();
+                    // FIX: Guard against data() being undefined and cast to any for safe property access.
+                    const data = docSnap.data() || {};
                     setUser({ 
                         id: docSnap.id, 
-                        ...data,
-                        followers: data.followers || [],
-                        following: data.following || [] 
+                        ...(data as any),
+                        followers: (data as any).followers || [],
+                        following: (data as any).following || [] 
                     } as User);
                 }
             });
@@ -52,24 +54,26 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
             const currentUserRef = doc(db, 'users', currentUserId);
             const unsubscribeCurrentUser = onSnapshot(currentUserRef, (docSnap) => {
                 if (docSnap.exists()) {
+                    // FIX: Guard against data() being undefined and cast to any for safe property access.
                     const data = { 
                         id: docSnap.id, 
-                        ...docSnap.data(),
-                        following: docSnap.data().following || []
+                        ...(docSnap.data() || {}),
+                        following: (docSnap.data() as any)?.following || []
                     } as User;
                     setCurrentUser(data);
                 }
             });
             
             const postsQuery = query(collection(db, 'posts'), where('userId', '==', viewingUserId), orderBy('timestamp', 'desc'));
-            const unsubscribePosts = onSnapshot(postsQuery, (snapshot) => {
+            // FIX: Explicitly type snapshot as QuerySnapshot to resolve 'docs' property error.
+            const unsubscribePosts = onSnapshot(postsQuery, (snapshot: QuerySnapshot<DocumentData>) => {
                 const userPosts = snapshot.docs.map(doc => {
                     const data = doc.data();
-                    const postUser = data.user || {
-                        id: data.userId,
-                        name: data.userName,
-                        profilePhoto: data.userProfilePhoto,
-                        isPremium: data.isPremium || false,
+                    const postUser = (data as any).user || {
+                        id: (data as any).userId,
+                        name: (data as any).userName,
+                        profilePhoto: (data as any).userProfilePhoto,
+                        isPremium: (data as any).isPremium || false,
                     };
                     return {
                         id: doc.id,
@@ -140,13 +144,15 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
             await runTransaction(db, async (transaction) => {
                 const userRef = doc(db, 'users', currentUser.id);
                 const creatorRef = doc(db, 'users', user.id);
+                const creatorCut = Math.floor(price * 0.97); // 3% fee
 
                 transaction.update(userRef, { 
                     coins: increment(-price),
                     subscriptions: arrayUnion(user.id)
                 });
                 transaction.update(creatorRef, { 
-                    coins: increment(price),
+                    coins: increment(creatorCut),
+                    'analytics.earnings': increment(creatorCut),
                     hotnessScore: increment(HotnessWeight.SUBSCRIBE) 
                 });
             });

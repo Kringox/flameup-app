@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { User, Post, AppTint } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+// FIX: Add QuerySnapshot and DocumentData to imports to resolve typing issue with onSnapshot.
+import { collection, query, where, orderBy, onSnapshot, QuerySnapshot, DocumentData } from 'firebase/firestore';
 import SettingsIcon from '../components/icons/SettingsIcon.tsx';
 import EditProfileScreen from './EditProfileScreen.tsx';
 import SettingsScreen from './SettingsScreen.tsx';
@@ -77,7 +78,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
         if (!db) return;
         setIsLoading(true);
         const q = query(collection(db, 'posts'), where('userId', '==', currentUser.id), orderBy('timestamp', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        // FIX: Explicitly type snapshot as QuerySnapshot to resolve 'docs' property error.
+        const unsubscribe = onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
             const userPosts = snapshot.docs.map(doc => {
                 const data = doc.data();
                 return { id: doc.id, ...data, user: data.user || { id: data.userId, name: data.userName, profilePhoto: data.userProfilePhoto } } as Post;

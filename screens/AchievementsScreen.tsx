@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 // FIX: Added file extension to types import
 import { User, Post } from '../types.ts';
-import { db } from '../firebaseConfig';
+import { db } from '../firebaseConfig.ts';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 // FIX: Added file extension to achievementUtils import
 import { Achievement, ACHIEVEMENTS } from '../utils/achievementUtils.ts';
@@ -14,7 +14,8 @@ interface AchievementsScreenProps {
 const AchievementRow: React.FC<{ achievement: Achievement, isUnlocked: boolean }> = ({ achievement, isUnlocked }) => (
     <div className={`flex items-center p-4 bg-white rounded-lg shadow-sm ${!isUnlocked && 'opacity-50'}`}>
         <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isUnlocked ? 'bg-premium-gold/20' : 'bg-gray-200'}`}>
-            {React.cloneElement(achievement.icon, { className: `w-6 h-6 ${isUnlocked ? 'text-premium-gold' : 'text-gray-500'}`})}
+            {/* FIX: Cast achievement.icon to React.ReactElement<any> to allow passing className. */}
+            {React.cloneElement(achievement.icon as React.ReactElement<any>, { className: `w-6 h-6 ${isUnlocked ? 'text-premium-gold' : 'text-gray-500'}`})}
         </div>
         <div className="ml-4">
             <h3 className="font-bold">{achievement.title}</h3>

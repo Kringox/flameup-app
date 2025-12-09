@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { db } from '../firebaseConfig.ts';
-import { collection, query, getDocs, limit, doc, writeBatch, serverTimestamp, increment, QuerySnapshot, Timestamp, arrayUnion } from 'firebase/firestore';
+import { collection, query, getDocs, limit, doc, writeBatch, serverTimestamp, increment, QuerySnapshot, Timestamp, arrayUnion, updateDoc } from 'firebase/firestore';
 import { User, NotificationType, SwipeFilters } from '../types.ts';
 import XIcon from '../components/icons/XIcon.tsx';
 import HeartIcon from '../components/icons/HeartIcon.tsx';
@@ -19,6 +18,8 @@ import MapPinIcon from '../components/icons/MapPinIcon.tsx';
 import FlameIcon from '../components/icons/FlameIcon.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
 import VerifiedIcon from '../components/icons/VerifiedIcon.tsx';
+import { calculateDistance } from '../utils/locationUtils.ts';
+import ErrorState from '../components/ErrorState.tsx';
 
 interface SwipeScreenProps {
   currentUser: User;
@@ -110,20 +111,25 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
     const swipesUsed = currentUser.dailySwipesUsed || 0;
     const isLimitReached = swipesUsed >= DAILY_SWIPE_LIMIT && !currentUser.isPremium;
 
-    const [filters, setFilters] = useState<SwipeFilters>({
+    const [filters, setFilters] = useState<SwipeFilters>(currentUser.swipeFilters || {
         useMyLocation: true,
         maxDistance: 50,
         ageRange: [18, 99],
         requiredInterests: [],
     });
 
-    const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-        const R = 6371; 
-        const dLat = (lat2 - lat1) * (Math.PI / 180);
-        const dLon = (lon2 - lon1) * (Math.PI / 180);
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c; 
+    const handleApplyFilters = async (newFilters: SwipeFilters) => {
+        setFilters(newFilters);
+        if (db) {
+            try {
+                await updateDoc(doc(db, 'users', currentUser.id), {
+                    swipeFilters: newFilters
+                });
+                onUpdateUser({...currentUser, swipeFilters: newFilters });
+            } catch (e) {
+                console.error("Failed to save filters", e);
+            }
+        }
     };
 
     const calculateScoreAndFilter = (candidate: User, current: User): { score: number, valid: boolean, distance?: number } => {
@@ -267,6 +273,16 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
         }
     };
 
+    if (error) {
+        return (
+            <ErrorState
+                title="Connection Error"
+                message="We couldn't load new profiles. Please check your connection and try again."
+                onRetry={fetchUsers}
+            />
+        );
+    }
+
     if (isLimitReached) {
         return (
             <div className="flex flex-col justify-center items-center h-full p-8 text-center bg-black">
@@ -282,16 +298,22 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
 
     return (
         <div className="w-full h-full flex flex-col bg-gray-100 dark:bg-black">
-            {isFilterOpen && <FilterModal onClose={() => setIsFilterOpen(false)} onApply={(newFilters) => setFilters(newFilters)} currentFilters={filters} />}
+            {isFilterOpen && <FilterModal onClose={() => setIsFilterOpen(false)} onApply={handleApplyFilters} currentFilters={filters} />}
             
             <header className="flex justify-between items-center px-4 py-3 flex-shrink-0 relative">
-                <div className="w-8"></div>
-                <img src="/assets/logo-icon.png" alt="FlameUp" className="h-8 dark:invert" />
-                <div className="absolute top-3 right-14 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm border border-white/10 flex items-center gap-1.5">
+                <div className="absolute top-3 left-4 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm border border-white/10">
+                    <span className="text-sm font-bold text-white">
+                        {currentUser.isPremium ? '∞' : `${Math.max(0, DAILY_SWIPE_LIMIT - swipesUsed)}`} Left
+                    </span>
+                </div>
+                <div className="w-full text-center">
+                    <img src="/assets/logo-icon.png" alt="FlameUp" className="h-8 dark:invert inline-block" />
+                </div>
+                <div className="absolute top-3 right-4 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm border border-white/10 flex items-center gap-1.5">
                     <FlameIcon isGradient className="w-4 h-4" />
                     <span className="text-sm font-bold text-white">{currentUser.coins || 0}</span>
                 </div>
-                <button onClick={() => setIsFilterOpen(true)} className="w-8 flex justify-center items-center text-gray-300">
+                <button onClick={() => setIsFilterOpen(true)} className="absolute top-3 right-24 text-gray-300">
                     <FilterIcon className="w-6 h-6" />
                 </button>
             </header>

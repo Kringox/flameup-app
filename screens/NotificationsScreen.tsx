@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { User, Notification, NotificationType } from '../types.ts';
-import { db } from '../firebaseConfig';
-import { collection, query, orderBy, onSnapshot, doc, writeBatch } from 'firebase/firestore';
+import { db } from '../firebaseConfig.ts';
+// FIX: Add QuerySnapshot and DocumentData to imports to resolve typing issue with onSnapshot.
+import { collection, query, orderBy, onSnapshot, doc, writeBatch, QuerySnapshot, DocumentData } from 'firebase/firestore';
 import FlameIcon from '../components/icons/FlameIcon.tsx';
 import XIcon from '../components/icons/XIcon.tsx';
 
@@ -82,7 +82,8 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ user, onClose
     useEffect(() => {
         if (!db) return;
         const q = query(collection(db, 'users', user.id, 'notifications'), orderBy('timestamp', 'desc'));
-        const unsubscribe = onSnapshot(q, async (snapshot) => {
+        // FIX: Explicitly type snapshot as QuerySnapshot to resolve 'docs' property error.
+        const unsubscribe = onSnapshot(q, async (snapshot: QuerySnapshot<DocumentData>) => {
             const list = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Notification));
             setNotifications(list);
             setIsLoading(false);

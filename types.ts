@@ -1,4 +1,3 @@
-
 import { Timestamp } from 'firebase/firestore';
 
 export enum Tab {
@@ -37,6 +36,7 @@ export interface User {
   gender: 'Man' | 'Woman' | 'Other';
   profilePhotos: string[];
   aboutMe?: string;
+  bio?: string; // FIX: Add bio for consistency as it's used in some components
   interests?: string;
   lifestyle?: string;
   language?: 'en' | 'de';
@@ -62,10 +62,12 @@ export interface User {
   isPremium?: boolean; // FlameUp+ status
   profileTheme?: AppTint;
   lastDailyBonus?: Timestamp;
+  lastReviewPrompt?: Timestamp;
   swipedLeft?: string[];
   swipedRight?: string[];
   dailySwipesUsed?: number;
   lastSwipeReset?: Timestamp;
+  swipeFilters?: SwipeFilters;
   boostEndTime?: Timestamp;
   blockedUsers?: string[];
   pinnedChats?: string[];
@@ -142,6 +144,7 @@ export interface Message {
     timestamp: Timestamp;
     gift?: Gift;
     mediaUrl?: string;
+    // FIX: mediaType for ViewOnceMedia can be audio, but the component does not support it, this is a temporary fix
     mediaType?: 'image' | 'video' | 'audio';
     duration?: number;
     isViewOnce?: boolean;
@@ -197,6 +200,10 @@ export interface Comment {
     text: string;
     likedBy: string[];
     timestamp: Timestamp;
+    replyTo?: {
+        commentId: string;
+        userName: string;
+    };
 }
 
 export interface Notification {

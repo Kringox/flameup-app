@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { User, Call } from '../types.ts';
 import { db } from '../firebaseConfig.ts';

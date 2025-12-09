@@ -14,6 +14,8 @@ import UsersIcon from '../components/icons/UsersIcon.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
 import PrivacySettingsScreen from './PrivacySettingsScreen.tsx';
 import DailyBonusWheel from '../components/DailyBonusWheel.tsx';
+import LegalScreen from './LegalScreen.tsx';
+import SupportScreen from './SupportScreen.tsx';
 
 type Language = 'en' | 'de';
 
@@ -39,6 +41,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdate
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [showDailyBonus, setShowDailyBonus] = useState(false);
     const [bonusAvailable, setBonusAvailable] = useState(false);
+    const [viewingLegal, setViewingLegal] = useState<string | null>(null);
     const { t } = useI18n();
 
     useEffect(() => {
@@ -76,15 +79,24 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdate
             case 'subscription': return <ManageSubscriptionScreen user={user} onClose={() => setActiveSubScreen(null)} />;
             case 'wallet': return <WalletScreen user={user} onClose={() => setActiveSubScreen(null)} onUpdateUser={onUpdateUser} />;
             case 'friends': return <BestFriendsScreen user={user} onClose={() => setActiveSubScreen(null)} />;
-             case 'achievements': return <AchievementsScreen user={user} onClose={() => setActiveSubScreen(null)} />;
+            case 'achievements': return <AchievementsScreen user={user} onClose={() => setActiveSubScreen(null)} />;
             case 'security': return <SecuritySettingsScreen onClose={() => setActiveSubScreen(null)} />;
             case 'privacy': return <PrivacySettingsScreen user={user} onUpdateUser={onUpdateUser} onClose={() => setActiveSubScreen(null)} />;
+            case 'support': return <SupportScreen onClose={() => setActiveSubScreen(null)} />;
             default: return null;
         }
     };
     
     if (activeSubScreen) {
         return renderSubScreen();
+    }
+    
+    if (viewingLegal) {
+        let title = '';
+        if (viewingLegal === 'privacy') title = t('privacyPolicyTitle');
+        if (viewingLegal === 'terms') title = t('termsOfServiceTitle');
+        if (viewingLegal === 'imprint') title = t('imprintTitle');
+        return <LegalScreen docType={viewingLegal} title={title} onClose={() => setViewingLegal(null)} />;
     }
 
     return (
@@ -152,13 +164,31 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdate
                                 <ShieldCheckIcon className="w-5 h-5 mr-3 text-gray-500" />
                                 {t('privacySettingsTitle')}
                             </button>
-                            <button className="w-full text-left font-semibold text-gray-200 flex items-center py-2">
-                                <UsersIcon className="w-5 h-5 mr-3 text-gray-500" />
-                                {t('privacyPolicy')}
-                            </button>
                          </div>
                     </div>
                     
+                    <div className="p-4 bg-zinc-900 rounded-lg shadow-sm border border-zinc-800">
+                         <h2 className="text-sm font-semibold text-gray-400 mb-2">Support & Legal</h2>
+                         <div className="space-y-2">
+                            <button onClick={() => setActiveSubScreen('support')} className="w-full text-left font-semibold text-gray-200 flex items-center py-2">
+                                <UsersIcon className="w-5 h-5 mr-3 text-gray-500" />
+                                Support Center
+                            </button>
+                            <button onClick={() => setViewingLegal('privacy')} className="w-full text-left font-semibold text-gray-200 flex items-center py-2">
+                                <UsersIcon className="w-5 h-5 mr-3 text-gray-500" />
+                                {t('privacyPolicy')}
+                            </button>
+                            <button onClick={() => setViewingLegal('terms')} className="w-full text-left font-semibold text-gray-200 flex items-center py-2">
+                                <UsersIcon className="w-5 h-5 mr-3 text-gray-500" />
+                                Terms of Service
+                            </button>
+                             <button onClick={() => setViewingLegal('imprint')} className="w-full text-left font-semibold text-gray-200 flex items-center py-2">
+                                <UsersIcon className="w-5 h-5 mr-3 text-gray-500" />
+                                Imprint
+                            </button>
+                         </div>
+                    </div>
+
                     <SettingsItem onClick={handleLogout} isDestructive>{t('logOut')}</SettingsItem>
                     <SettingsItem onClick={() => setIsDeleteModalOpen(true)} isDestructive>{t('deleteAccount')}</SettingsItem>
                 </div>

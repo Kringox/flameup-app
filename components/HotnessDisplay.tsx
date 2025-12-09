@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface HotnessDisplayProps {
@@ -34,7 +33,7 @@ const HotnessDisplay: React.FC<HotnessDisplayProps> = ({ score, size = 'md', onC
       }}
       className={`
       relative group select-none
-      inline-flex items-center justify-center gap-2
+      inline-flex items-center justify-center gap-1
       bg-gradient-to-r from-orange-600 via-red-500 to-pink-600
       text-white font-black italic tracking-wider
       shadow-[0_4px_15px_-3px_rgba(255,107,53,0.5)]
@@ -47,7 +46,8 @@ const HotnessDisplay: React.FC<HotnessDisplayProps> = ({ score, size = 'md', onC
       
       <span className={`drop-shadow-sm ${currentSize.icon}`}>{getFireCount()}</span>
       <span className={`drop-shadow-md uppercase ${currentSize.text}`}>
-        HOTNESS <span className="text-yellow-200">{displayScore}</span>
+        {size !== 'sm' && <span className="mr-1">HOTNESS</span>} 
+        <span className="text-yellow-200">{displayScore}</span>
       </span>
     </div>
   );

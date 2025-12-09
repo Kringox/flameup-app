@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, query, where, onSnapshot, Timestamp, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+// FIX: Added QuerySnapshot and DocumentData to imports to resolve typing issue with onSnapshot.
+import { collection, query, where, onSnapshot, Timestamp, doc, updateDoc, arrayUnion, arrayRemove, QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { Chat, User } from '../types.ts';
 import ConversationScreen from './ConversationScreen.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
@@ -162,7 +163,8 @@ const ChatList: React.FC<{
             where('userIds', 'array-contains', currentUser.id)
         );
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        // FIX: Explicitly type snapshot as QuerySnapshot to resolve 'docs' property error.
+        const unsubscribe = onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
             let chatList = snapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() } as Chat))
                 .filter(chat => !chat.deletedFor?.includes(currentUser.id)); 

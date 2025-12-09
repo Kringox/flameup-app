@@ -55,7 +55,8 @@ const PostGridViewer: React.FC<PostGridViewerProps> = ({
             {posts.map((post, index) => (
               <div 
                 key={post.id} 
-                ref={el => postRefs.current[index] = el}
+                // FIX: Ensure ref callback does not return a value.
+                ref={el => { postRefs.current[index] = el; }}
                 className="w-full h-full snap-start"
               >
                 <SinglePostView 

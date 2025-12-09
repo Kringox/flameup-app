@@ -18,7 +18,8 @@ interface BottomNavProps {
 
 const NavItem: React.FC<{
   label?: string;
-  icon: React.ReactNode;
+  // FIX: Change icon type from React.ReactNode to React.ReactElement to fix cloneElement typing error.
+  icon: React.ReactElement;
   isActive: boolean;
   onClick: () => void;
   hasNotification?: boolean;
@@ -40,7 +41,8 @@ const NavItem: React.FC<{
       className={`flex flex-col items-center justify-center w-full h-full transition-all duration-300 active:scale-90 group`}
     >
       <div className={`relative p-2 transition-all duration-300 ${isActive ? activeClass : inactiveClass}`}>
-        {React.cloneElement(icon as React.ReactElement, { 
+        {/* FIX: Cast icon to React.ReactElement<any> to resolve className prop error. */}
+        {React.cloneElement(icon as React.ReactElement<any>, { 
             className: `w-7 h-7 ${isActive ? 'fill-current' : ''} transition-all duration-300`
         })}
         {hasNotification && (

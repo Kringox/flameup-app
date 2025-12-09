@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { db } from '../firebaseConfig';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, increment, arrayUnion, arrayRemove, getDocs, writeBatch, setDoc } from 'firebase/firestore';
+import { db } from '../firebaseConfig.ts';
+// FIX: Add QuerySnapshot and DocumentData to imports to resolve typing issue with onSnapshot and getDocs.
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, increment, arrayUnion, arrayRemove, getDocs, writeBatch, setDoc, QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { User, Message, Chat, Gift, RetentionPolicy } from '../types.ts';
 import MoreVerticalIcon from '../components/icons/MoreVerticalIcon.tsx';
 import GiftIcon from '../components/icons/GiftIcon.tsx';
@@ -224,7 +224,8 @@ const MessageBubble: React.FC<{
                                 <div onClick={(e) => e.stopPropagation()}>
                                     <ViewOnceMedia 
                                         mediaUrl={message.mediaUrl!} 
-                                        mediaType={message.mediaType || 'image'} 
+                                        // FIX: Cast mediaType to 'image' | 'video' since audio case is handled separately.
+                                        mediaType={(message.mediaType || 'image') as 'image' | 'video'} 
                                         isSender={isOwnMessage}
                                         viewed={viewed}
                                         viewCount={viewCount}
@@ -437,7 +438,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             const partnerRef = doc(db, 'users', partnerId);
             const unsubscribe = onSnapshot(partnerRef, (docSnap) => {
                 if (docSnap.exists()) {
-                    setPartner({ id: docSnap.id, ...docSnap.data() } as User);
+                    setPartner({ id: docSnap.id, ...(docSnap.data() || {}) } as User);
                 }
             });
             return unsubscribe;
@@ -449,10 +450,11 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         if (!db) return;
         const chatsRef = collection(db, 'chats');
         const q = query(chatsRef, where('userIds', 'array-contains', currentUser.id));
-        const unsubscribe = onSnapshot(q, async (snapshot) => {
+        // FIX: Explicitly type snapshot as QuerySnapshot to resolve 'docs' property error.
+        const unsubscribe = onSnapshot(q, async (snapshot: QuerySnapshot<DocumentData>) => {
             const foundChatDoc = snapshot.docs.find(doc => {
                 const data = doc.data();
-                const uIds = data.userIds;
+                const uIds = (data as any).userIds;
                 return Array.isArray(uIds) && uIds.length === 2 && uIds.includes(partnerId);
             });
 
@@ -476,7 +478,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     useEffect(() => {
         if (!chatId || !db) { setMessages([]); return; };
         const messagesQuery = query(collection(db, 'chats', chatId, 'messages'), orderBy('timestamp', 'asc'));
-        const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+        // FIX: Explicitly type snapshot as QuerySnapshot to resolve 'docs' property error.
+        const unsubscribe = onSnapshot(messagesQuery, (snapshot: QuerySnapshot<DocumentData>) => {
             const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
             setMessages(msgs);
         });
@@ -528,7 +531,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         const q = query(chatsRef, where('userIds', 'array-contains', currentUser.id));
         const snapshot = await getDocs(q);
         const existingChat = snapshot.docs.find(doc => {
-             const uIds = doc.data().userIds;
+             const uIds = (doc.data() as any).userIds;
              return Array.isArray(uIds) && uIds.length === 2 && uIds.includes(partnerId);
         });
         if (existingChat) {

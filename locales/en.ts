@@ -1,4 +1,3 @@
-
 export const en = {
   // Navigation
   navHome: 'Home',
@@ -124,4 +123,17 @@ export const en = {
   refresh: 'Refresh',
   profileError: 'Profile Error',
   profileErrorMsg: 'This profile could not be loaded.',
+
+  // Legal
+  privacyPolicyTitle: 'Privacy Policy',
+  termsOfServiceTitle: 'Terms of Service',
+  imprintTitle: 'Imprint',
+
+  // Payments
+  selectPaymentMethod: 'Select Payment Method',
+  payNow: 'Pay Now',
+  creditCard: 'Credit Card',
+  payPal: 'PayPal',
+  sepaDirectDebit: 'SEPA Direct Debit',
+  youArePaying: 'You are paying',
 };

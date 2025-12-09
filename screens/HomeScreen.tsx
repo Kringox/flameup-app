@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebaseConfig.ts';
-import { collection, query, orderBy, onSnapshot, getDocs } from 'firebase/firestore';
+// FIX: Add QuerySnapshot and DocumentData to imports to resolve typing issue with onSnapshot.
+import { collection, query, orderBy, onSnapshot, getDocs, QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { Post, User } from '../types.ts';
 import BellIcon from '../components/icons/BellIcon.tsx';
 import SearchIcon from '../components/icons/SearchIcon.tsx';
@@ -33,7 +34,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
         // Listen to posts in real-time
         const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'));
         
-        const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
+        // FIX: Explicitly type snapshot as QuerySnapshot to resolve 'docs' property error.
+        const unsubscribe = onSnapshot(postsQuery, (snapshot: QuerySnapshot<DocumentData>) => {
             const postList = snapshot.docs.map(doc => {
                 const data = doc.data();
                 return {

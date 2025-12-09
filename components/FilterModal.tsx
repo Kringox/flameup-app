@@ -1,9 +1,9 @@
 
 import React, { useState } from 'react';
-import { SwipeFilters } from '../types';
-import MapPinIcon from './icons/MapPinIcon';
-import FilterIcon from './icons/FilterIcon';
-import { useI18n } from '../contexts/I18nContext';
+import { SwipeFilters } from '../types.ts';
+import MapPinIcon from './icons/MapPinIcon.tsx';
+import FilterIcon from './icons/FilterIcon.tsx';
+import { useI18n } from '../contexts/I18nContext.ts';
 
 interface FilterModalProps {
   onClose: () => void;
