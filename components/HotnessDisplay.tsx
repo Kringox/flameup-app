@@ -11,7 +11,7 @@ const HotnessDisplay: React.FC<HotnessDisplayProps> = ({ score, size = 'md', onC
   
   const sizeConfig = {
     sm: { container: 'px-2 py-0.5 rounded-md', text: 'text-[10px]', icon: 'text-xs' },
-    md: { container: 'px-4 py-1.5 rounded-xl', text: 'text-sm', icon: 'text-base' },
+    md: { container: 'px-3 py-1 rounded-lg', text: 'text-base', icon: 'text-lg' },
     lg: { container: 'px-6 py-2 rounded-2xl', text: 'text-xl', icon: 'text-2xl' },
   };
 
@@ -46,7 +46,7 @@ const HotnessDisplay: React.FC<HotnessDisplayProps> = ({ score, size = 'md', onC
       
       <span className={`drop-shadow-sm ${currentSize.icon}`}>{getFireCount()}</span>
       <span className={`drop-shadow-md uppercase ${currentSize.text}`}>
-        {size !== 'sm' && <span className="mr-1">HOTNESS</span>} 
+        {size !== 'sm' && <span className="mr-1.5">HOTNESS</span>} 
         <span className="text-yellow-200">{displayScore}</span>
       </span>
     </div>

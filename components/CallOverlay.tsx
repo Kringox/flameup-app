@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { User, Call } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
-import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, getDoc } from 'firebase/firestore';
 import MicIcon from './icons/MicIcon.tsx';
 import XIcon from './icons/XIcon.tsx';
 import CameraIcon from './icons/CameraIcon.tsx';
@@ -24,22 +24,174 @@ const servers = {
 };
 
 const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
-    const [incomingCall, setIncomingCall] = useState<Call | null>(null);
-    const [activeCall, setActiveCall] = useState<Call | null>(null);
+    const [call, setCall] = useState<Call | null>(null);
     const [duration, setDuration] = useState(0);
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
-    const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-    // WebRTC Refs
     const pc = useRef<RTCPeerConnection | null>(null);
     const localStream = useRef<MediaStream | null>(null);
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
-    // --- 1. SETUP & TEARDOWN ---
+    // --- Listen for any call involving the current user ---
+    useEffect(() => {
+        if (!currentUser || !db) return;
 
-    const cleanup = () => {
+        const callsRef = collection(db, 'calls');
+        const q = query(callsRef, where('userIds', 'array-contains', currentUser.id), where('status', 'in', ['ringing', 'connected']));
+        
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            // FIX: Cast to unknown first to resolve strict typing error when creating Call object from Firestore data.
+            const calls = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), userIds: doc.data().userIds || [doc.data().callerId, doc.data().calleeId] } as unknown as Call));
+            const activeOrRingingCall = calls[0] || null;
+
+            // Prevent overwriting an active call with a new ringing call for the other user
+            if (call && activeOrRingingCall && call.id !== activeOrRingingCall.id && call.status === 'connected') {
+                return;
+            }
+            
+            if (activeOrRingingCall) {
+                setCall(activeOrRingingCall);
+                if (activeOrRingingCall.calleeId === currentUser.id && activeOrRingingCall.status === 'ringing') {
+                     hapticFeedback('medium');
+                }
+            } else {
+                setCall(null);
+            }
+        });
+
+        return () => unsubscribe();
+    }, [currentUser?.id]);
+
+
+    // --- Signaling & Call Status Listener ---
+    useEffect(() => {
+        if (!call || !db) return;
+
+        const callDocRef = doc(db, 'calls', call.id);
+        const unsubscribe = onSnapshot(callDocRef, async (snapshot) => {
+            if (!snapshot.exists()) {
+                handleEndCall(true); // Call document was deleted
+                return;
+            }
+
+            const data = snapshot.data() as Call;
+
+            if (data.status === 'ended' || data.status === 'declined') {
+                handleEndCall(true); // Ended by other party
+                // Caller deletes the doc after a short delay
+                if (data.callerId === currentUser?.id) {
+                    setTimeout(() => deleteDoc(callDocRef).catch(console.error), 3000);
+                }
+                return;
+            }
+
+            // If we are the caller and an answer comes in
+            if (pc.current && !pc.current.currentRemoteDescription && data.answer && call.callerId === currentUser?.id) {
+                const answer = new RTCSessionDescription(data.answer);
+                await pc.current.setRemoteDescription(answer);
+            }
+        });
+        
+        // Listen for ICE candidates
+        const candidatesCollection = collection(db, 'calls', call.id, 'candidates');
+        const unsubscribeCandidates = onSnapshot(candidatesCollection, (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === 'added') {
+                    pc.current?.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+                }
+            });
+        });
+
+        return () => {
+            unsubscribe();
+            unsubscribeCandidates();
+        };
+    }, [call?.id, currentUser?.id]);
+
+
+    // --- Start Outgoing Call ---
+    useEffect(() => {
+        if (call && call.callerId === currentUser?.id && call.status === 'ringing' && !pc.current) {
+            const start = async () => {
+                const stream = await setupSources(call.type === 'video');
+                pc.current = createPeerConnection(call.id);
+
+                stream?.getTracks().forEach(track => pc.current?.addTrack(track, stream));
+
+                const offer = await pc.current.createOffer();
+                await pc.current.setLocalDescription(offer);
+
+                await updateDoc(doc(db, 'calls', call.id), { offer: { sdp: offer.sdp, type: offer.type } });
+            };
+            start();
+        }
+    }, [call, currentUser?.id]);
+
+
+    // --- WebRTC Core Functions ---
+    const setupSources = async (isVideo: boolean) => {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
+        localStream.current = stream;
+        if (localVideoRef.current) {
+            localVideoRef.current.srcObject = stream;
+        }
+        return stream;
+    };
+
+    const createPeerConnection = (callId: string) => {
+        const newPc = new RTCPeerConnection(servers);
+
+        newPc.onicecandidate = event => {
+            if (event.candidate) {
+                addDoc(collection(db, 'calls', callId, 'candidates'), event.candidate.toJSON());
+            }
+        };
+        
+        newPc.ontrack = event => {
+            if (remoteVideoRef.current) {
+                const [remoteStream] = event.streams;
+                remoteVideoRef.current.srcObject = remoteStream;
+            }
+        };
+
+        return newPc;
+    };
+
+    // --- User Actions ---
+    const handleAccept = async () => {
+        if (!call || !db) return;
+        
+        const stream = await setupSources(call.type === 'video');
+        pc.current = createPeerConnection(call.id);
+        
+        stream?.getTracks().forEach(track => pc.current?.addTrack(track, stream));
+
+        const callRef = doc(db, 'calls', call.id);
+        const callSnap = await getDoc(callRef);
+        const callData = callSnap.data() as Call;
+
+        await pc.current.setRemoteDescription(new RTCSessionDescription(callData.offer!));
+        const answer = await pc.current.createAnswer();
+        await pc.current.setLocalDescription(answer);
+
+        await updateDoc(callRef, {
+            answer: { sdp: answer.sdp, type: answer.type },
+            status: 'connected'
+        });
+    };
+
+    const handleDecline = async () => {
+        if (!call || !db) return;
+        await updateDoc(doc(db, 'calls', call.id), { status: 'declined' });
+        setCall(null);
+    };
+
+    const handleEndCall = async (isCleanup = false) => {
+        if (!isCleanup && call && db) {
+            await updateDoc(doc(db, 'calls', call.id), { status: 'ended' });
+        }
         if (pc.current) {
             pc.current.close();
             pc.current = null;
@@ -48,291 +200,29 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
             localStream.current.getTracks().forEach(track => track.stop());
             localStream.current = null;
         }
+        setCall(null);
         setDuration(0);
-        setIsMuted(false);
-        setErrorMsg(null);
     };
 
-    const setupSources = async (isVideo: boolean): Promise<MediaStream | null> => {
-        try {
-            const constraints = {
-                video: isVideo ? { facingMode: 'user' } : false,
-                audio: true,
-            };
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            localStream.current = stream;
-            
-            if (localVideoRef.current) {
-                localVideoRef.current.srcObject = stream;
-            }
-            return stream;
-        } catch (error: any) {
-            console.error("Error accessing media devices:", error);
-            if (error.name === 'NotAllowedError' || error.name === 'NotFoundError' || error.name === 'OverconstrainedError') {
-                setErrorMsg("Microphone/Camera access issue. You can still listen.");
-                return null;
-            }
-            return null;
-        }
-    };
-
-    // --- 2. LISTENERS ---
-
-    // Listen for Incoming Calls
-    useEffect(() => {
-        if (!currentUser || !db) return;
-        const callsRef = collection(db, 'calls');
-        const q = query(callsRef, where('calleeId', '==', currentUser.id), where('status', '==', 'ringing'));
-        
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const calls = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Call));
-            if (calls.length > 0 && !activeCall) {
-                setIncomingCall(calls[0]);
-                hapticFeedback('medium');
-            } else if (calls.length === 0) {
-                setIncomingCall(null);
-            }
-        });
-        return () => unsubscribe();
-    }, [currentUser?.id, activeCall]);
-
-    // Listen for My Active/Outgoing Calls
-    useEffect(() => {
-        if (!currentUser || !db) return;
-        if (!activeCall && !incomingCall) {
-             const callsRef = collection(db, 'calls');
-             const q = query(callsRef, where('callerId', '==', currentUser.id), where('status', 'in', ['ringing', 'connected']));
-             
-             const unsubscribe = onSnapshot(q, (snapshot) => {
-                const calls = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Call));
-                if (calls.length > 0) {
-                    if (activeCall?.id !== calls[0].id) {
-                        setActiveCall(calls[0]);
-                    }
-                }
-            });
-            return () => unsubscribe();
-        }
-    }, [currentUser?.id, activeCall, incomingCall]);
-
-    // Signaling Listener
-    useEffect(() => {
-        const targetCall = activeCall || incomingCall;
-        if (!targetCall || !db) return;
-
-        const callDocRef = doc(db, 'calls', targetCall.id);
-        const unsubscribe = onSnapshot(callDocRef, async (snapshot) => {
-            if (!snapshot.exists()) {
-                cleanup();
-                setIncomingCall(null);
-                setActiveCall(null);
-                return;
-            }
-
-            const data = { id: snapshot.id, ...snapshot.data() } as Call;
-
-            if (data.status === 'ended' || data.status === 'declined') {
-                cleanup();
-                setIncomingCall(null);
-                setActiveCall(null);
-                if (data.callerId === currentUser?.id) {
-                    setTimeout(() => deleteDoc(callDocRef).catch(console.error), 2000);
-                }
-                return;
-            }
-
-            if (pc.current && !pc.current.currentRemoteDescription && data.answer && data.callerId === currentUser?.id) {
-                const answer = new RTCSessionDescription(data.answer);
-                await pc.current.setRemoteDescription(answer);
-            }
-
-            if (activeCall && (data.status !== activeCall.status)) {
-                setActiveCall(data);
-            }
-        });
-
-        return () => unsubscribe();
-    }, [activeCall?.id, incomingCall?.id, currentUser?.id]);
-
-
-    // --- 3. ACTIONS & WebRTC ---
-
-    const createPeerConnection = () => {
-        const newPc = new RTCPeerConnection(servers);
-        
-        if (localStream.current) {
-            localStream.current.getTracks().forEach(track => {
-                newPc.addTrack(track, localStream.current!);
-            });
-        }
-
-        // --- CRITICAL FIX FOR PC AUDIO ---
-        // Explicitly create a MediaStream for inbound tracks to ensure browser compatibility.
-        newPc.ontrack = (event) => {
-            if (remoteVideoRef.current) {
-                const inboundStream = new MediaStream();
-                inboundStream.addTrack(event.track);
-                remoteVideoRef.current.srcObject = inboundStream;
-                // Force unmute
-                remoteVideoRef.current.muted = false;
-                // Try to play immediately
-                remoteVideoRef.current.play().catch(e => console.error("Auto-play failed", e));
-            }
-        };
-
-        return newPc;
-    };
-
-    const subscribeToCandidates = (callId: string) => {
-        if (!db || !pc.current) return;
-        const candidatesCollection = collection(db, 'calls', callId, 'candidates');
-        
-        onSnapshot(candidatesCollection, (snapshot) => {
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === 'added') {
-                    const data = change.doc.data();
-                    const candidate = new RTCIceCandidate(data);
-                    pc.current?.addIceCandidate(candidate).catch(e => console.error("Error adding candidate", e));
-                }
-            });
-        });
-    }
-
-    const startCall = async (callId: string, isVideo: boolean) => {
-        const stream = await setupSources(isVideo);
-        
-        pc.current = createPeerConnection();
-        
-        pc.current.onicecandidate = (event) => {
-            if (event.candidate) {
-                const candidatesCollection = collection(db, 'calls', callId, 'candidates');
-                addDoc(candidatesCollection, event.candidate.toJSON());
-            }
-        };
-
-        const offerDescription = await pc.current.createOffer();
-        await pc.current.setLocalDescription(offerDescription);
-
-        const callOffer = {
-            sdp: offerDescription.sdp,
-            type: offerDescription.type,
-        };
-
-        await updateDoc(doc(db, 'calls', callId), { offer: callOffer });
-        subscribeToCandidates(callId);
-    };
-
-    useEffect(() => {
-        if (activeCall && activeCall.callerId === currentUser?.id && activeCall.status === 'ringing' && !pc.current) {
-            startCall(activeCall.id, activeCall.type === 'video');
-        }
-    }, [activeCall, currentUser?.id]);
-
-
-    const handleAccept = async () => {
-        if (!incomingCall || !db) return;
-        
-        await setupSources(incomingCall.type === 'video');
-
-        pc.current = createPeerConnection();
-
-        pc.current.onicecandidate = (event) => {
-            if (event.candidate) {
-                const candidatesCollection = collection(db, 'calls', incomingCall.id, 'candidates');
-                addDoc(candidatesCollection, event.candidate.toJSON());
-            }
-        };
-        
-        subscribeToCandidates(incomingCall.id);
-
-        const callRef = doc(db, 'calls', incomingCall.id);
-        import('firebase/firestore').then(async (mod) => {
-            const callSnapshot = await mod.getDoc(callRef);
-            const callData = callSnapshot.data() as Call;
-
-            if (!callData.offer) return;
-
-            await pc.current?.setRemoteDescription(new RTCSessionDescription(callData.offer));
-            const answerDescription = await pc.current?.createAnswer();
-            await pc.current?.setLocalDescription(answerDescription!);
-
-            const callAnswer = {
-                type: answerDescription?.type,
-                sdp: answerDescription?.sdp,
-            };
-
-            await updateDoc(callRef, { 
-                answer: callAnswer,
-                status: 'connected'
-            });
-
-            setActiveCall({...incomingCall, status: 'connected'});
-            setIncomingCall(null);
-        });
-    };
-
-    const handleDecline = async () => {
-        if (!incomingCall || !db) return;
-        cleanup();
-        try {
-            await updateDoc(doc(db, 'calls', incomingCall.id), { status: 'declined' });
-            setIncomingCall(null);
-        } catch (e) { console.error(e); }
-    };
-
-    const handleEndCall = async () => {
-        if (!activeCall || !db) return;
-        cleanup();
-        try {
-            await updateDoc(doc(db, 'calls', activeCall.id), { status: 'ended' });
-            setActiveCall(null);
-        } catch (e) { console.error(e); }
-    };
-
+    // --- In-Call Controls ---
     const toggleMute = () => {
-        if (localStream.current) {
-            localStream.current.getAudioTracks().forEach(track => {
-                track.enabled = !track.enabled;
-            });
-            setIsMuted(!isMuted);
-        }
+        localStream.current?.getAudioTracks().forEach(track => track.enabled = !track.enabled);
+        setIsMuted(!isMuted);
     };
 
-    const toggleVideo = async () => {
-        if (localStream.current) {
-            const videoTracks = localStream.current.getVideoTracks();
-            if (videoTracks.length > 0) {
-                videoTracks.forEach(track => track.enabled = !track.enabled);
-                setIsVideoEnabled(!isVideoEnabled);
-            } else {
-                try {
-                    const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
-                    const videoTrack = videoStream.getVideoTracks()[0];
-                    if (pc.current) {
-                        const sender = pc.current.getSenders().find(s => s.track?.kind === 'video');
-                        if (sender) sender.replaceTrack(videoTrack);
-                        else pc.current.addTrack(videoTrack, localStream.current);
-                    }
-                    localStream.current.addTrack(videoTrack);
-                    if (localVideoRef.current) localVideoRef.current.srcObject = localStream.current;
-                    setIsVideoEnabled(true);
-                } catch(e) {
-                    console.error("Failed to enable camera", e);
-                    setErrorMsg("Camera unavailable.");
-                }
-            }
-        }
+    const toggleVideo = () => {
+        localStream.current?.getVideoTracks().forEach(track => track.enabled = !track.enabled);
+        setIsVideoEnabled(!isVideoEnabled);
     };
-
+    
+     // --- Duration Timer ---
     useEffect(() => {
         let interval: number;
-        if (activeCall?.status === 'connected') {
-            interval = window.setInterval(() => {
-                setDuration(d => d + 1);
-            }, 1000);
+        if (call?.status === 'connected') {
+            interval = window.setInterval(() => setDuration(d => d + 1), 1000);
         }
         return () => clearInterval(interval);
-    }, [activeCall?.status]);
+    }, [call?.status]);
 
     const formatTime = (seconds: number) => {
         const m = Math.floor(seconds / 60);
@@ -340,16 +230,22 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         return `${m}:${s < 10 ? '0' : ''}${s}`;
     };
 
-    if (incomingCall) {
+
+    if (!call || !currentUser) return null;
+
+    // --- RENDER LOGIC ---
+    // A. Incoming Call View
+    if (call.calleeId === currentUser.id && call.status === 'ringing') {
         return (
             <div className="fixed inset-0 z-[200] bg-gray-900/95 backdrop-blur-md flex flex-col items-center pt-20 pb-10 px-6 animate-fade-in">
+                {/* ... UI for incoming call ... */}
                 <div className="flex-1 flex flex-col items-center justify-center">
                     <div className="relative mb-8">
                         <div className="absolute inset-0 rounded-full bg-flame-orange/20 animate-ping"></div>
-                        <img src={incomingCall.callerPhoto} alt={incomingCall.callerName} className="w-32 h-32 rounded-full object-cover border-4 border-white/10 shadow-2xl relative z-10" />
+                        <img src={call.callerPhoto} alt={call.callerName} className="w-32 h-32 rounded-full object-cover border-4 border-white/10 shadow-2xl relative z-10" />
                     </div>
-                    <h2 className="text-3xl font-bold text-white mb-2">{incomingCall.callerName}</h2>
-                    <p className="text-gray-300 font-medium">{incomingCall.type === 'video' ? '📹 Video Call' : '📞 Audio Call'}</p>
+                    <h2 className="text-3xl font-bold text-white mb-2">{call.callerName}</h2>
+                    <p className="text-gray-300 font-medium">{call.type === 'video' ? '📹 Video Call' : '📞 Audio Call'}</p>
                 </div>
                 <div className="w-full flex justify-around items-center max-w-sm mb-12">
                     <button onClick={handleDecline} className="flex flex-col items-center gap-2">
@@ -366,53 +262,48 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
             </div>
         );
     }
+    
+    // B. Active Call View (Outgoing or Connected)
+    const isVideoCall = call.type === 'video';
+    // FIX: Remove unused 'partner' variable which used non-existent properties 'callee' and 'caller'.
 
-    if (activeCall) {
-        const isCaller = activeCall.callerId === currentUser?.id;
-        const partnerName = isCaller ? (activeCall.status === 'connected' ? 'Connected' : 'Calling...') : activeCall.callerName; 
-        const isVideoCall = activeCall.type === 'video' || isVideoEnabled;
-
-        return (
-            <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center animate-fade-in">
-                {errorMsg && (
-                    <div className="absolute top-10 bg-red-600 text-white px-4 py-2 rounded-lg z-[210] shadow-lg">
-                        {errorMsg}
-                    </div>
+    return (
+        <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center animate-fade-in">
+             {/* Main Video Area */}
+            <div className="flex-1 w-full relative overflow-hidden bg-gray-900">
+                <video ref={remoteVideoRef} autoPlay playsInline className={`w-full h-full object-cover ${!isVideoCall || call.status !== 'connected' ? 'hidden' : ''}`} />
+                
+                {(!isVideoCall || call.status !== 'connected') && (
+                     <div className="absolute inset-0 flex flex-col items-center justify-center pt-20">
+                         <img src={call.callerId === currentUser.id ? call.calleePhoto : call.callerPhoto} className="w-32 h-32 rounded-full object-cover border-4 border-white/20 shadow-2xl mb-6" />
+                         <h2 className="text-3xl font-bold text-white mb-2">{call.callerId === currentUser.id ? call.calleeName : call.callerName}</h2>
+                         <p className="text-gray-300 font-medium">{call.status === 'connected' ? formatTime(duration) : 'Calling...'}</p>
+                     </div>
                 )}
-                <div className="flex-1 w-full relative overflow-hidden bg-gray-900">
-                    <video ref={remoteVideoRef} autoPlay playsInline className={`w-full h-full object-cover ${activeCall.status !== 'connected' ? 'hidden' : ''}`} />
-                    
-                    {(activeCall.status !== 'connected' || !isVideoCall) && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center pt-20">
-                            <img src={isCaller ? activeCall.callerPhoto : activeCall.callerPhoto} className="w-32 h-32 rounded-full object-cover border-4 border-white/20 shadow-2xl mb-6" />
-                            <h2 className="text-3xl font-bold text-white mb-2">{partnerName}</h2>
-                            <p className="text-gray-300 font-medium">{activeCall.status === 'connected' ? formatTime(duration) : 'Connecting...'}</p>
-                        </div>
-                    )}
 
-                    <div className={`absolute top-4 right-4 w-28 h-40 bg-black rounded-xl overflow-hidden shadow-lg border border-white/20 ${!isVideoEnabled ? 'hidden' : ''}`}>
+                {isVideoCall && (
+                    <div className="absolute top-4 right-4 w-28 h-40 bg-black rounded-xl overflow-hidden shadow-lg border border-white/20">
                         <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
                     </div>
-                </div>
-
-                <div className="w-full bg-black/60 backdrop-blur-md p-6 flex justify-around items-center">
-                    <button onClick={toggleVideo} className={`p-4 rounded-full transition-colors ${!isVideoEnabled ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
-                        {isVideoEnabled ? <CameraIcon className="w-6 h-6" /> : <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>}
-                    </button>
-                    
-                    <button onClick={handleEndCall} className="p-5 bg-red-600 rounded-full text-white shadow-lg active:scale-95 transition-transform mx-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 fill-current" viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.36 7.46 6 12 6s8.66 2.36 11.71 5.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
-                    </button>
-
-                    <button onClick={toggleMute} className={`p-4 rounded-full transition-colors ${isMuted ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
-                        {isMuted ? <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" strokeDasharray="2,2"/><line x1="17" y1="7" x2="7" y2="17" /></svg> : <MicIcon className="w-6 h-6" />}
-                    </button>
-                </div>
+                )}
             </div>
-        );
-    }
 
-    return null;
+            {/* Controls */}
+            <div className="w-full bg-black/60 backdrop-blur-md p-6 flex justify-around items-center">
+                {isVideoCall && (
+                    <button onClick={toggleVideo} className={`p-4 rounded-full transition-colors ${!isVideoEnabled ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
+                        {/* Video On/Off Icon */}
+                    </button>
+                )}
+                 <button onClick={() => handleEndCall(false)} className="p-5 bg-red-600 rounded-full text-white shadow-lg active:scale-95 transition-transform mx-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 fill-current" viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.36 7.46 6 12 6s8.66 2.36 11.71 5.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+                </button>
+                <button onClick={toggleMute} className={`p-4 rounded-full transition-colors ${isMuted ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
+                    <MicIcon className="w-6 h-6" />
+                </button>
+            </div>
+        </div>
+    );
 };
 
 export default CallOverlay;

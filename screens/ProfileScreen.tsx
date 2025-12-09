@@ -144,7 +144,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                                         {currentUser.name}, {currentUser.age}
                                         {currentUser.isPremium && <VerifiedIcon className="ml-1.5 w-5 h-5" />}
                                     </p>
-                                    <HotnessDisplay score={currentUser.hotnessScore || 0} size="sm" onClick={() => setIsRankingOpen(true)} />
+                                    <HotnessDisplay score={currentUser.hotnessScore || 0} size="md" onClick={() => setIsRankingOpen(true)} />
                                 </div>
                                 {currentUser.aboutMe && <p className="text-gray-300 whitespace-pre-wrap mt-2 text-sm leading-relaxed">{currentUser.aboutMe}</p>}
                             </div>

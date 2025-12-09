@@ -224,12 +224,16 @@ export interface Notification {
     coinsSpent?: number;
 }
 
+// FIX: Add missing properties to Call interface for callee info and querying.
 export interface Call {
     id: string;
     callerId: string;
     callerName: string;
     callerPhoto: string;
     calleeId: string;
+    calleeName: string;
+    calleePhoto: string;
+    userIds: string[];
     status: 'ringing' | 'connected' | 'ended' | 'declined';
     type: 'audio' | 'video';
     timestamp: Timestamp;

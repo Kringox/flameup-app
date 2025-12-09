@@ -560,11 +560,15 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const initiateCall = async (type: 'audio' | 'video') => {
         if (!db || !partner) return;
         try {
+            // FIX: Add callee details and userIds to the call document for querying and display.
             await addDoc(collection(db, 'calls'), {
                 callerId: currentUser.id,
                 callerName: currentUser.name,
                 callerPhoto: currentUser.profilePhotos[0],
                 calleeId: partner.id,
+                calleeName: partner.name,
+                calleePhoto: partner.profilePhotos[0],
+                userIds: [currentUser.id, partner.id],
                 status: 'ringing',
                 type: type,
                 timestamp: serverTimestamp()

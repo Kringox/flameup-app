@@ -234,7 +234,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ currentUserId, vi
                             {user.name}, {user.age}
                             {user.isPremium && <VerifiedIcon className="ml-1 w-5 h-5" />}
                         </p>
-                        <HotnessDisplay score={user.hotnessScore || 0} size="sm" />
+                        <HotnessDisplay score={user.hotnessScore || 0} size="md" />
                     </div>
                     
                     <div className="mt-4 space-y-4">

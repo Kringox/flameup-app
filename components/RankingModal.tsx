@@ -1,6 +1,7 @@
 
+
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebaseConfig';
+import { db } from '../firebaseConfig.ts';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { User } from '../types.ts';
 import XIcon from './icons/XIcon.tsx';
@@ -36,15 +37,15 @@ const RankingModal: React.FC<RankingModalProps> = ({ onClose, onViewProfile }) =
                 <div className="w-6"></div>
             </header>
             
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto p-2">
                 {loading ? <div className="text-center text-gray-500 mt-10">Loading Rankings...</div> : (
-                    <div className="space-y-4">
+                    <div className="space-y-2">
                         {users.map((user, index) => (
-                            <div key={user.id} onClick={() => { onViewProfile(user.id); onClose(); }} className="flex items-center bg-zinc-800/50 p-3 rounded-xl border border-zinc-700/50 hover:bg-zinc-800 transition-colors cursor-pointer">
+                            <div key={user.id} onClick={() => { onViewProfile(user.id); onClose(); }} className="flex items-center bg-zinc-800/50 p-2 rounded-xl border border-zinc-700/50 hover:bg-zinc-800 transition-colors cursor-pointer">
                                 <div className={`w-8 text-center font-bold text-lg ${index < 3 ? 'text-yellow-400' : 'text-gray-500'}`}>#{index + 1}</div>
-                                <img src={user.profilePhotos[0]} className="w-12 h-12 rounded-full object-cover mx-4 border border-zinc-600" />
-                                <div className="flex-1">
-                                    <p className="font-bold text-white">{user.name}</p>
+                                <img src={user.profilePhotos[0]} className="w-10 h-10 rounded-full object-cover mx-2 border border-zinc-600" />
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-white truncate">{user.name}</p>
                                     <p className="text-xs text-gray-500">{user.followers?.length || 0} Followers</p>
                                 </div>
                                 <HotnessDisplay score={user.hotnessScore || 0} size="sm" />
