@@ -109,8 +109,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
         const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'), limit(50));
         
         const unsubscribe = onSnapshot(postsQuery, (snapshot: QuerySnapshot<DocumentData>) => {
-            // COMPLETE RESET: Map purely what is in the snapshot.
-            // This guarantees deleted posts are gone and new posts are added.
             const rawPosts = snapshot.docs.map(doc => {
                 const data = doc.data();
                 return {
@@ -120,11 +118,25 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
                 } as Post;
             });
 
-            // Filter out any duplicates just in case (though mapping docs directly usually avoids this)
-            // and ensure valid data.
-            const uniquePosts = Array.from(new Map(rawPosts.map(post => [post.id, post])).values());
+            // 1. Filter by ID to ensure technical uniqueness
+            const uniqueIdPosts = Array.from(new Map(rawPosts.map((post): [string, Post] => [post.id, post])).values());
 
-            setPosts(uniquePosts);
+            // 2. CONTENT DEDUPLICATION (The Fix)
+            // If the user has accidental duplicate posts (same user, same caption), show only one.
+            const contentSeen = new Set<string>();
+            const cleanedPosts: Post[] = [];
+
+            uniqueIdPosts.forEach(post => {
+                // Create a unique signature for the content
+                const signature = `${post.userId}-${post.caption}-${post.mediaUrls?.[0]}`;
+                
+                if (!contentSeen.has(signature)) {
+                    contentSeen.add(signature);
+                    cleanedPosts.push(post);
+                }
+            });
+
+            setPosts(cleanedPosts);
             setIsLoading(false);
         }, (error) => {
             console.error("Error fetching feed:", error);
