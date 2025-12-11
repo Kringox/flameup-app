@@ -2,13 +2,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebaseConfig.ts';
 // FIX: Add QuerySnapshot and DocumentData to imports to resolve typing issue with onSnapshot.
-import { collection, query, orderBy, onSnapshot, getDocs, QuerySnapshot, DocumentData } from 'firebase/firestore';
-import { Post, User } from '../types.ts';
+import { collection, query, orderBy, onSnapshot, getDocs, QuerySnapshot, DocumentData, where, limit } from 'firebase/firestore';
+import { Post, User, Story } from '../types.ts';
 import BellIcon from '../components/icons/BellIcon.tsx';
 import SearchIcon from '../components/icons/SearchIcon.tsx';
 import FlameIcon from '../components/icons/FlameIcon.tsx';
 import SinglePostView from '../components/SinglePostView.tsx';
 import FlameLoader from '../components/FlameLoader.tsx';
+import PlusIcon from '../components/icons/PlusIcon.tsx';
+import StoryViewer from '../components/StoryViewer.tsx';
 
 interface HomeScreenProps {
     currentUser: User;
@@ -18,13 +20,79 @@ interface HomeScreenProps {
     onUpdateUser: (user: User) => void;
     onOpenSearch: () => void;
     onCreateStory: () => void;
+    refreshTrigger?: number;
 }
 
-const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, onOpenNotifications, onViewProfile, onUpdateUser, onOpenSearch, onCreateStory }) => {
+const StoryRail: React.FC<{ currentUser: User, onCreateStory: () => void }> = ({ currentUser, onCreateStory }) => {
+    const [stories, setStories] = useState<Story[]>([]);
+    const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (!db) return;
+        // Mocking story fetch: Real implementation needs a query for followed users + own
+        // For now, fetching recent stories
+        const q = query(collection(db, 'stories'), orderBy('timestamp', 'desc'), limit(10));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            setStories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any)));
+        });
+        return () => unsubscribe();
+    }, []);
+
+    // Group stories by User
+    const userStoriesMap = new Map<string, Story[]>();
+    stories.forEach(story => {
+        const uid = story.user?.id || 'unknown';
+        if (!userStoriesMap.has(uid)) userStoriesMap.set(uid, []);
+        userStoriesMap.get(uid)?.push(story);
+    });
+
+    return (
+        <>
+        {activeStoryIndex !== null && (
+            <StoryViewer 
+                stories={stories} 
+                currentUser={currentUser} 
+                startIndex={activeStoryIndex} 
+                onClose={() => setActiveStoryIndex(null)} 
+                onStoryViewed={() => {}}
+            />
+        )}
+        <div className="flex space-x-4 p-4 overflow-x-auto scrollbar-hide bg-black/20 backdrop-blur-md w-full">
+            {/* My Story */}
+            <div className="flex flex-col items-center space-y-1 cursor-pointer" onClick={onCreateStory}>
+                <div className="w-16 h-16 rounded-full border-2 border-gray-500 p-0.5 relative">
+                    <img src={currentUser.profilePhotos[0]} className="w-full h-full rounded-full object-cover opacity-80" />
+                    <div className="absolute bottom-0 right-0 bg-flame-orange rounded-full p-1 border border-black">
+                        <PlusIcon className="w-3 h-3 text-white" />
+                    </div>
+                </div>
+                <span className="text-xs text-white">You</span>
+            </div>
+
+            {/* Other Stories */}
+            {Array.from(userStoriesMap.entries()).map(([uid, userStories], idx) => {
+                // Find index in flat list for viewer
+                const flatIndex = stories.findIndex(s => s.id === userStories[0].id);
+                return (
+                    <div key={uid} className="flex flex-col items-center space-y-1 cursor-pointer" onClick={() => setActiveStoryIndex(flatIndex)}>
+                        <div className="w-16 h-16 rounded-full border-2 border-flame-orange p-0.5">
+                            <img src={userStories[0].user.profilePhoto} className="w-full h-full rounded-full object-cover" />
+                        </div>
+                        <span className="text-xs text-white w-16 truncate text-center">{userStories[0].user.name}</span>
+                    </div>
+                )
+            })}
+        </div>
+        </>
+    );
+};
+
+const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, onOpenNotifications, onViewProfile, onUpdateUser, onOpenSearch, onCreateStory, refreshTrigger }) => {
     const [posts, setPosts] = useState<Post[]>([]);
-    const [activeTab, setActiveTab] = useState<'foryou' | 'flame'>('foryou');
     const [isLoading, setIsLoading] = useState(true);
     const containerRef = useRef<HTMLDivElement>(null);
+    const [showStories, setShowStories] = useState(true);
+    const lastScrollY = useRef(0);
 
     // --- REALTIME FEED LISTENER ---
     useEffect(() => {
@@ -54,55 +122,58 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
         return () => unsubscribe();
     }, []);
 
-    const handleLogoClick = () => {
-        // Scroll to top and refresh visual
-        containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-        setIsLoading(true);
-        setTimeout(() => setIsLoading(false), 500); // Simulate refresh
-    };
+    // Handle manual Refresh (tap on Home icon)
+    useEffect(() => {
+        if (refreshTrigger && refreshTrigger > 0 && containerRef.current) {
+            containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+            setShowStories(true);
+        }
+    }, [refreshTrigger]);
 
-    const displayedPosts = posts.filter(p => {
-        if (activeTab === 'flame') return p.isPaid;
-        // For "For You", we ideally use an algorithm. For now, show all unpaid or unlocked posts.
-        return true; 
-    });
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const currentScrollY = e.currentTarget.scrollTop;
+        
+        // Only show stories if perfectly at top or bouncing (negative scroll on iOS)
+        if (currentScrollY <= 10) {
+            setShowStories(true);
+        } 
+        // Hide stories as soon as we scroll down past a small threshold
+        else if (currentScrollY > 50 && currentScrollY > lastScrollY.current) {
+            setShowStories(false);
+        }
+        
+        lastScrollY.current = currentScrollY;
+    };
 
     return (
         <div className="relative w-full h-full bg-black">
             {/* Floating Header */}
-            <div className="absolute top-0 left-0 right-0 z-40 flex justify-between items-center px-4 py-4 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
-                <button onClick={onOpenNotifications} className="text-white drop-shadow-md pointer-events-auto relative">
+            <div className="absolute top-0 left-0 right-0 z-40 flex justify-between items-center px-4 py-4 bg-gradient-to-b from-black/80 to-transparent pointer-events-none transition-opacity duration-300">
+                <button onClick={onOpenNotifications} className="text-white drop-shadow-md pointer-events-auto">
                     <BellIcon />
-                    {/* Unread indicator could go here */}
                 </button>
                 
-                <div className="flex gap-4 text-base font-bold drop-shadow-md pointer-events-auto">
-                    <button 
-                        onClick={() => setActiveTab('foryou')}
-                        className={`transition-opacity ${activeTab === 'foryou' ? 'text-white opacity-100' : 'text-gray-300 opacity-60'}`}
-                    >
-                        For You
-                    </button>
-                    <div className="w-[1px] h-4 bg-white/40 self-center"></div>
-                    <button 
-                        onClick={() => setActiveTab('flame')}
-                        className={`flex items-center gap-1 transition-opacity ${activeTab === 'flame' ? 'text-flame-orange opacity-100' : 'text-gray-300 opacity-60'}`}
-                    >
-                        Flame <FlameIcon className="w-3 h-3" />
-                    </button>
-                </div>
+                <h1 className="text-2xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-flame-orange to-flame-red drop-shadow-md pointer-events-auto tracking-wider">
+                    FLAME
+                </h1>
 
                 <button onClick={onOpenSearch} className="text-white drop-shadow-md pointer-events-auto">
                     <SearchIcon className="w-6 h-6" />
                 </button>
             </div>
 
-            {/* Logo Refresh Trigger (Hidden tap area top center) */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 z-50 w-20 h-10 cursor-pointer" onClick={handleLogoClick}></div>
+            {/* Stories Rail - "TikTok Style" */}
+            {/* Only visible when at the very top. Collapses up when scrolling down. */}
+            <div 
+                className={`absolute top-[70px] left-0 right-0 z-30 transition-all duration-500 ease-in-out origin-top ${showStories ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-0 -translate-y-10 pointer-events-none'}`}
+            >
+                <StoryRail currentUser={currentUser} onCreateStory={onCreateStory} />
+            </div>
 
             {/* Vertical Scroll Snap Container */}
             <div 
                 ref={containerRef}
+                onScroll={handleScroll}
                 className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide"
             >
                 {isLoading ? (
@@ -110,16 +181,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
                         <FlameLoader />
                         <p className="mt-4 text-sm animate-pulse">Loading Feed...</p>
                     </div>
-                ) : displayedPosts.length === 0 ? (
+                ) : posts.length === 0 ? (
                     <div className="h-full w-full flex flex-col items-center justify-center text-gray-400">
                         <p>No posts yet.</p>
-                        {activeTab === 'flame' && <p className="text-xs mt-2">Check 'For You' for regular posts.</p>}
                         <button onClick={onCreateStory} className="mt-4 px-4 py-2 bg-flame-orange text-white rounded-full text-sm font-bold">
                             Create First Post
                         </button>
                     </div>
                 ) : (
-                    displayedPosts.map((post) => (
+                    posts.map((post) => (
                         <div key={post.id} className="w-full h-full snap-start">
                             <SinglePostView 
                                 post={post} 

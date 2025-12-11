@@ -58,6 +58,9 @@ const App: React.FC = () => {
   const [showDailyBonus, setShowDailyBonus] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [deepLinkedPostId, setDeepLinkedPostId] = useState<string | null>(null);
+  
+  // New state to trigger refresh on Home
+  const [homeRefreshTrigger, setHomeRefreshTrigger] = useState(0);
 
   const showXpToast = (amount: number) => {
     setXpToast({ amount, key: Date.now() });
@@ -340,7 +343,7 @@ const App: React.FC = () => {
 
             <main className="flex-1 relative overflow-hidden bg-black">
               <div className={`w-full h-full overflow-y-auto ${viewingUserId ? 'hidden' : 'block'}`}>
-                  {activeTab === Tab.Home && <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} onUpdateUser={handleUpdateUser} onOpenSearch={() => setIsSearchOpen(true)} onCreateStory={openStoryCreator} />}
+                  {activeTab === Tab.Home && <HomeScreen currentUser={currentUser} onOpenComments={setViewingPostComments} onOpenNotifications={() => setIsNotificationsOpen(true)} onViewProfile={handleViewProfile} onUpdateUser={handleUpdateUser} onOpenSearch={() => setIsSearchOpen(true)} onCreateStory={openStoryCreator} refreshTrigger={homeRefreshTrigger} />}
                   {activeTab === Tab.Swipe && <SwipeScreen currentUser={currentUser} onNewMatch={handleNewMatch} onUpdateUser={handleUpdateUser}/>}
                   {activeTab === Tab.Chat && <ChatScreen currentUser={currentUser} activeChatPartnerId={activeChatPartnerId} onStartChat={handleStartChat} onCloseChat={() => setActiveChatPartnerId(null)} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} />}
                   {activeTab === Tab.Profile && <ProfileScreen currentUser={currentUser} onUpdateUser={handleUpdateUser} onViewProfile={handleViewProfile} localTint={localTint} setLocalTint={setLocalTint} onViewPostGrid={(posts, index) => setViewingPostGrid({posts, startIndex: index})} />}
@@ -360,6 +363,9 @@ const App: React.FC = () => {
                 <BottomNav 
                   activeTab={activeTab} 
                   setActiveTab={(tab) => {
+                      if (tab === Tab.Home && activeTab === Tab.Home) {
+                          setHomeRefreshTrigger(prev => prev + 1);
+                      }
                       setActiveTab(tab);
                       setViewingUserId(null); 
                   }} 

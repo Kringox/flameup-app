@@ -19,18 +19,22 @@ const WalletScreen: React.FC<WalletScreenProps> = ({ user, onClose, onUpdateUser
     const [isCashOutOpen, setIsCashOutOpen] = useState(false);
     const { t } = useI18n();
     
-    // Sync coins with server to ensure persistence is working and UI is up to date
+    // Explicitly sync coins from server when wallet opens to ensure consistency
     useEffect(() => {
         if (!db) return;
-        getDoc(doc(db, 'users', user.id)).then(snap => {
+        const fetchCoins = async () => {
+            const snap = await getDoc(doc(db, 'users', user.id));
             if (snap.exists()) {
                 const data = snap.data() as User;
-                // If local coin count differs from server, update local state
-                if (data.coins !== undefined && data.coins !== user.coins) {
-                    onUpdateUser({ ...user, coins: data.coins });
+                // If local coin count differs from server, force update
+                // Use default of 0 if undefined to prevent NaN issues
+                const serverCoins = data.coins ?? 0;
+                if (serverCoins !== user.coins) {
+                    onUpdateUser({ ...user, coins: serverCoins });
                 }
             }
-        });
+        }
+        fetchCoins();
     }, []);
     
     const handlePurchase = async (item: 'swipes' | 'superlike') => {

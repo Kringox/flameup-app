@@ -11,7 +11,9 @@ interface ShareModalProps {
 
 const ShareModal: React.FC<ShareModalProps> = ({ onClose, post }) => {
     const [copied, setCopied] = useState(false);
-    const link = `https://flameup.app/post/${post?.id || 'profile'}`;
+    // Use the current origin or fallback
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://flameup.app';
+    const link = `${origin}/post/${post?.id || 'profile'}`;
 
     const handleCopy = () => {
         navigator.clipboard.writeText(link);

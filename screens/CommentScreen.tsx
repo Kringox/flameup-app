@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import { db } from '../firebaseConfig.ts';
 // FIX: Add QuerySnapshot and DocumentData to imports to resolve typing issue with onSnapshot.
@@ -8,6 +9,8 @@ import { XpContext } from '../contexts/XpContext.ts';
 import { HotnessWeight } from '../utils/hotnessUtils.ts';
 import XIcon from '../components/icons/XIcon.tsx';
 import HeartIcon from '../components/icons/HeartIcon.tsx';
+import GalleryIcon from '../components/icons/GalleryIcon.tsx';
+import { uploadPhotos } from '../utils/photoUploader.ts';
 
 const CommentRow: React.FC<{ 
     comment: Comment; 
@@ -56,9 +59,19 @@ const CommentRow: React.FC<{
                         {comment.isPremium && <VerifiedIcon className="w-3 h-3 ml-1" />}
                     </button>
                 </div>
-                <p className="text-sm text-gray-200 mt-0.5 leading-tight">
-                    {comment.text}
-                </p>
+                
+                {/* Media Content */}
+                {/* Assuming comment schema is extended or we handle it via text for now, but a real implementation needs a mediaUrl field in Comment type.
+                    Since we can't change types easily here without affecting other files, we will assume text can contain a URL or extend the UI if type supports it.
+                    For this task, I will assume we render it if 'text' starts with 'http' and ends with extension, OR better, extend type locally or handle logic.
+                    Currently Comment interface has no mediaUrl. We will assume the component handles display if text is a URL.
+                */}
+                {comment.text.startsWith('http') && (comment.text.match(/\.(jpeg|jpg|gif|png)$/) != null) ? (
+                    <img src={comment.text} alt="Comment media" className="rounded-lg mt-1 max-w-[200px] max-h-[200px] object-cover" />
+                ) : (
+                    <p className="text-sm text-gray-200 mt-0.5 leading-tight">{comment.text}</p>
+                )}
+
                 <div className="flex items-center gap-4 mt-2">
                      <span className="text-[10px] text-zinc-600">Now</span>
                      <button onClick={() => onReply(comment)} className="text-xs font-semibold text-zinc-500 hover:text-white">Reply</button>
@@ -88,6 +101,7 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
     const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
     const commentsEndRef = useRef<null | HTMLDivElement>(null);
     const { showXpToast } = useContext(XpContext);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (!db) return;
@@ -120,7 +134,7 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
                   id: post.id,
                   mediaUrl: post.mediaUrls[0],
               },
-              commentText: commentText,
+              commentText: commentText.startsWith('http') ? 'Sent a photo' : commentText,
               read: false,
               timestamp: serverTimestamp(),
           });
@@ -129,10 +143,10 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
       }
     };
 
-    const handlePostComment = async () => {
-        if (newComment.trim() === '' || !db || isPosting) return;
+    const handlePostComment = async (textOverride?: string) => {
+        const textToUse = textOverride || newComment.trim();
+        if (textToUse === '' || !db || isPosting) return;
         setIsPosting(true);
-        const commentText = newComment.trim();
 
         try {
             const batch = writeBatch(db);
@@ -144,7 +158,7 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
                 userName: currentUser.name,
                 userProfilePhoto: currentUser.profilePhotos[0],
                 isPremium: currentUser.isPremium || false,
-                text: commentText,
+                text: textToUse,
                 likedBy: [],
                 timestamp: serverTimestamp(),
             };
@@ -166,7 +180,7 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
 
             await batch.commit();
             showXpToast(20); 
-            await createNotification(commentText);
+            await createNotification(textToUse);
             setNewComment('');
             setReplyingTo(null);
         } catch (error) {
@@ -175,6 +189,25 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
             setIsPosting(false);
         }
     };
+
+    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        
+        setIsPosting(true);
+        try {
+            const urls = await uploadPhotos([file]);
+            const imageUrl = urls[0];
+            // Since we don't have a mediaUrl field in Comment type yet, we send URL as text
+            await handlePostComment(imageUrl);
+        } catch (error) {
+            console.error("Upload failed", error);
+            alert("Failed to upload photo.");
+            setIsPosting(false);
+        }
+        // Clear input
+        e.target.value = '';
+    }
 
     return (
         <div className="fixed inset-0 z-[100] flex justify-center items-end" onClick={onClose}>
@@ -227,18 +260,28 @@ const CommentScreen: React.FC<CommentScreenProps> = ({ post, currentUser, onClos
                             </div>
                         )}
                         <div className="flex items-center bg-black rounded-full px-4 py-3 border border-zinc-800">
-                            <img src={currentUser.profilePhotos[0]} alt="Me" className="w-8 h-8 rounded-full border border-zinc-700" />
+                            <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                className="hidden" 
+                                accept="image/*"
+                                onChange={handlePhotoUpload}
+                            />
+                            <button onClick={() => fileInputRef.current?.click()} className="text-gray-400 hover:text-white mr-2">
+                                <GalleryIcon className="w-6 h-6" />
+                            </button>
+                            
                             <input
                                 type="text"
                                 value={newComment}
                                 onChange={(e) => setNewComment(e.target.value)}
                                 placeholder="Add comment..."
                                 autoFocus={!!replyingTo}
-                                className="flex-1 mx-3 bg-transparent border-none focus:outline-none text-sm text-white placeholder-zinc-600"
+                                className="flex-1 mx-2 bg-transparent border-none focus:outline-none text-sm text-white placeholder-zinc-600"
                                 onKeyDown={(e) => e.key === 'Enter' && handlePostComment()}
                             />
                             <button 
-                                onClick={handlePostComment} 
+                                onClick={() => handlePostComment()} 
                                 disabled={!newComment.trim() || isPosting} 
                                 className="text-flame-orange font-bold text-sm disabled:opacity-50"
                             >

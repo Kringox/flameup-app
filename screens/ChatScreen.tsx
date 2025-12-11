@@ -283,12 +283,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ currentUser, activeChatPartnerI
   const [filterText, setFilterText] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'archived'>('all');
   
-  if (activeChatPartnerId) {
-    return <ConversationScreen currentUser={currentUser} partnerId={activeChatPartnerId} onClose={onCloseChat} onUpdateUser={onUpdateUser} onViewProfile={onViewProfile} />
-  }
-
   return (
-    <div className="w-full h-full flex flex-col bg-white dark:bg-black">
+    <div className="w-full h-full flex flex-col bg-white dark:bg-black relative">
         <header className="p-4 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-black sticky top-0 z-10">
             <h1 className="text-2xl font-bold text-dark-gray dark:text-gray-100 text-center mb-2">{t('chatsTitle')}</h1>
             
@@ -330,6 +326,17 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ currentUser, activeChatPartnerI
                 filterText={filterText}
             />
         </div>
+
+        {/* Conversation Overlay */}
+        {activeChatPartnerId && (
+            <ConversationScreen 
+                currentUser={currentUser} 
+                partnerId={activeChatPartnerId} 
+                onClose={onCloseChat} 
+                onUpdateUser={onUpdateUser} 
+                onViewProfile={onViewProfile} 
+            />
+        )}
     </div>
   );
 };

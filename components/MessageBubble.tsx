@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Message } from '../types.ts';
 import ViewOnceMedia from './ViewOnceMedia.tsx';
@@ -46,6 +47,12 @@ const MessageBubble: React.FC<{
     }
 
     const handleClick = (e: React.MouseEvent) => {
+        // Prevent saving if clicking on interactive elements (audio controls, buttons)
+        const target = e.target as HTMLElement;
+        if (target.closest('button') || target.closest('input') || target.tagName === 'AUDIO') {
+            return;
+        }
+
         if (!isViewOnce) {
             if (!isMedia || isAudio) {
                  onToggleSave(message);
@@ -95,7 +102,9 @@ const MessageBubble: React.FC<{
                     
                     {isMedia ? (
                         isAudio ? (
-                            <AudioPlayer src={message.mediaUrl!} duration={message.duration} isOwnMessage={isOwnMessage && !isSaved} />
+                            <div onClick={(e) => e.stopPropagation()}>
+                                <AudioPlayer src={message.mediaUrl!} duration={message.duration} isOwnMessage={isOwnMessage && !isSaved} />
+                            </div>
                         ) : (
                             isViewOnce ? (
                                 <div onClick={(e) => e.stopPropagation()}>

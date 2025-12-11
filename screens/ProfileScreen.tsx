@@ -1,10 +1,9 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { User, Post, AppTint } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
 // FIX: Add QuerySnapshot and DocumentData to imports to resolve typing issue with onSnapshot.
-import { collection, query, where, orderBy, onSnapshot, QuerySnapshot, DocumentData } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, QuerySnapshot, DocumentData, getDocs } from 'firebase/firestore';
 import SettingsIcon from '../components/icons/SettingsIcon.tsx';
 import EditProfileScreen from './EditProfileScreen.tsx';
 import SettingsScreen from './SettingsScreen.tsx';
@@ -65,6 +64,7 @@ const ChipList: React.FC<{ items: string }> = ({ items }) => {
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser, onViewProfile, localTint, setLocalTint, onViewPostGrid }) => {
     const [posts, setPosts] = useState<Post[]>([]);
+    const [activeTab, setActiveTab] = useState<'posts' | 'reposts' | 'likes'>('posts');
     const [isEditing, setIsEditing] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isWalletOpen, setIsWalletOpen] = useState(false);
@@ -78,18 +78,36 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
     useEffect(() => {
         if (!db) return;
         setIsLoading(true);
-        const q = query(collection(db, 'posts'), where('userId', '==', currentUser.id), orderBy('timestamp', 'desc'));
-        // FIX: Explicitly type snapshot as QuerySnapshot to resolve 'docs' property error.
+        
+        let q;
+        if (activeTab === 'posts' || activeTab === 'reposts') {
+            // Note: In real app, separate reposts. Here we just show all posts for simplicity or filter by caption content as placeholder
+            q = query(collection(db, 'posts'), where('userId', '==', currentUser.id), orderBy('timestamp', 'desc'));
+        } else if (activeTab === 'likes') {
+            q = query(collection(db, 'posts'), where('likedBy', 'array-contains', currentUser.id), orderBy('timestamp', 'desc'));
+        } else {
+            return;
+        }
+
         const unsubscribe = onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
             const userPosts = snapshot.docs.map(doc => {
                 const data = doc.data();
                 return { id: doc.id, ...data, user: data.user || { id: data.userId, name: data.userName, profilePhoto: data.userProfilePhoto } } as Post;
             });
-            setPosts(userPosts);
+            
+            // Client-side filtering for 'reposts' mock (caption starts with RP)
+            if (activeTab === 'reposts') {
+                setPosts(userPosts.filter(p => p.caption.startsWith('RP @')));
+            } else if (activeTab === 'posts') {
+                setPosts(userPosts.filter(p => !p.caption.startsWith('RP @')));
+            } else {
+                setPosts(userPosts);
+            }
+            
             setIsLoading(false);
         });
         return () => unsubscribe();
-    }, [currentUser.id]);
+    }, [currentUser.id, activeTab]);
 
     const handleSaveProfile = (updatedUser: User) => {
         onUpdateUser(updatedUser);
@@ -120,7 +138,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
             </header>
             
             <div className="flex-1 overflow-y-auto pb-32">
-                {isLoading ? <ProfileSkeleton /> : (
+                {isLoading && activeTab === 'posts' ? <ProfileSkeleton /> : (
                     <div className="p-4">
                         <div className="flex items-center">
                             <button onClick={() => setIsImageViewerOpen(true)} className="flex-shrink-0">
@@ -165,13 +183,39 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                             </button>
                         </div>
                         
-                        <div className="grid grid-cols-3 gap-0.5">
-                            {posts.map((post, index) => (
-                                <button key={post.id} onClick={() => onViewPostGrid(posts, index)} className="aspect-square relative group overflow-hidden bg-zinc-900">
-                                    <img src={post.mediaUrls[0]} alt="post" className="w-full h-full object-cover" />
-                                    {post.isPaid && <div className="absolute top-1 right-1 bg-flame-orange text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm">PAID</div>}
-                                </button>
-                            ))}
+                        {/* Tabs */}
+                        <div className="flex justify-around border-b border-zinc-800 mb-2">
+                            <button 
+                                onClick={() => setActiveTab('posts')} 
+                                className={`py-3 flex-1 font-bold text-sm uppercase ${activeTab === 'posts' ? 'text-white border-b-2 border-white' : 'text-gray-500'}`}
+                            >
+                                Posts
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab('reposts')} 
+                                className={`py-3 flex-1 font-bold text-sm uppercase ${activeTab === 'reposts' ? 'text-white border-b-2 border-white' : 'text-gray-500'}`}
+                            >
+                                Reposts
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab('likes')} 
+                                className={`py-3 flex-1 font-bold text-sm uppercase ${activeTab === 'likes' ? 'text-white border-b-2 border-white' : 'text-gray-500'}`}
+                            >
+                                Likes
+                            </button>
+                        </div>
+                        
+                        <div className="grid grid-cols-3 gap-0.5 min-h-[200px]">
+                            {posts.length === 0 ? (
+                                <div className="col-span-3 py-10 text-center text-gray-500 text-sm">Nothing here yet.</div>
+                            ) : (
+                                posts.map((post, index) => (
+                                    <button key={post.id} onClick={() => onViewPostGrid(posts, index)} className="aspect-square relative group overflow-hidden bg-zinc-900">
+                                        <img src={post.mediaUrls[0]} alt="post" className="w-full h-full object-cover" />
+                                        {post.isPaid && <div className="absolute top-1 right-1 bg-flame-orange text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm">PAID</div>}
+                                    </button>
+                                ))
+                            )}
                         </div>
                     </div>
                 )}

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebaseConfig.ts';
 // FIX: Add QuerySnapshot and DocumentData to imports to resolve typing issue with onSnapshot and getDocs.
@@ -113,7 +114,11 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const retentionPolicyRef = useRef<RetentionPolicy>('forever');
     const chatIdRef = useRef<string | null>(null);
     const currentUserIdRef = useRef<string>(currentUser.id);
+    
+    // Swipe State
     const [touchStart, setTouchStart] = useState<number | null>(null);
+    const [translateX, setTranslateX] = useState(0);
+    
     const fileInputRef = useRef<HTMLInputElement>(null);
     
     // Streaks
@@ -297,13 +302,23 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         }
     }, [messages, chatId, currentUser.id]);
     
+    // Smooth Swipe Logic
     const onTouchStart = (e: React.TouchEvent) => setTouchStart(e.targetTouches[0].clientX);
     const onTouchMove = (e: React.TouchEvent) => {
         if (touchStart === null) return;
         const currentTouch = e.targetTouches[0].clientX;
-        if (currentTouch - touchStart > 100) {
-            onClose();
+        const diff = currentTouch - touchStart;
+        if (diff > 0) { // Only swipe right
+            setTranslateX(diff);
         }
+    };
+    const onTouchEnd = () => {
+        if (translateX > 100) {
+            onClose();
+        } else {
+            setTranslateX(0); // Snap back
+        }
+        setTouchStart(null);
     };
 
     const getOrCreateChat = async (): Promise<string> => {
@@ -350,7 +365,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 calleeId: partner.id,
                 calleeName: partner.name,
                 calleePhoto: partner.profilePhotos[0],
-                userIds: [currentUser.id, partner.id].sort(),
+                userIds: [currentUser.id, partner.id], // Just the array, indexless query used in Overlay
                 status: 'ringing',
                 type: type,
                 timestamp: serverTimestamp()
@@ -490,14 +505,20 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
     const updateRetention = async (policy: RetentionPolicy) => {
         if (!chatId || !db) return;
-        await updateDoc(doc(db, 'chats', chatId), { retentionPolicy: policy });
-        setRetentionPolicy(policy);
-        let policyText = 'Messages are kept forever';
-        if (policy === '5min') policyText = 'Messages expire 5 minutes after reading';
-        if (policy === 'read') policyText = 'Messages expire immediately after reading';
-        await addDoc(collection(db, 'chats', chatId, 'messages'), {
-            chatId: chatId, senderId: currentUser.id, text: `${currentUser.name} set chat to: ${policyText}`, timestamp: serverTimestamp(), isSystemMessage: true
-        });
+        try {
+            await updateDoc(doc(db, 'chats', chatId), { retentionPolicy: policy });
+            setRetentionPolicy(policy);
+            let policyText = 'Messages are kept forever';
+            if (policy === '5min') policyText = 'Messages expire 5 minutes after reading';
+            if (policy === 'read') policyText = 'Messages expire immediately after reading';
+            
+            // Just add the system message, do NOT reload
+            await addDoc(collection(db, 'chats', chatId, 'messages'), {
+                chatId: chatId, senderId: currentUser.id, text: `${currentUser.name} set chat to: ${policyText}`, timestamp: serverTimestamp(), isSystemMessage: true
+            });
+        } catch(e) {
+            console.error("Error updating retention:", e);
+        }
     };
     
     const optimisticSendMedia = (file: File, type: 'image' | 'video', isViewOnce = false) => {
@@ -580,9 +601,16 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
     return (
         <div 
-            className="fixed inset-0 z-50 flex flex-col bg-gray-50 dark:bg-black h-[100dvh] w-full max-w-md mx-auto shadow-2xl animate-slide-in-right"
+            className="absolute inset-0 z-50 flex flex-col bg-gray-50 dark:bg-black h-full w-full max-w-md mx-auto shadow-2xl overflow-hidden"
+            style={{ 
+                transform: `translateX(${translateX}px)`, 
+                transition: translateX === 0 ? 'transform 0.3s ease-out' : 'none',
+                // Add left shadow for layering effect when swiping
+                boxShadow: translateX > 0 ? '-10px 0 20px rgba(0,0,0,0.5)' : 'none'
+            }}
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
         >
             {viewingImageUrl && (
                 <div className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center animate-fade-in" onClick={() => setViewingImageUrl(null)}>

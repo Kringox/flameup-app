@@ -1,10 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { User, AppTint } from '../types.ts';
 import { auth, db } from '../firebaseConfig.ts';
 import ManageSubscriptionScreen from './ManageSubscriptionScreen.tsx';
 import WalletScreen from './WalletScreen.tsx';
 import BestFriendsScreen from './BestFriendsScreen.tsx';
-import AchievementsScreen from './AchievementsScreen.tsx';
 import DeleteAccountModal from '../components/DeleteAccountModal.tsx';
 import SecuritySettingsScreen from './SecuritySettingsScreen.tsx';
 import { signOut } from 'firebase/auth';
@@ -82,7 +82,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdate
             case 'flameup_plus': return <FlameUpPlusScreen onClose={() => setActiveSubScreen(null)} />;
             case 'wallet': return <WalletScreen user={user} onClose={() => setActiveSubScreen(null)} onUpdateUser={onUpdateUser} />;
             case 'friends': return <BestFriendsScreen user={user} onClose={() => setActiveSubScreen(null)} />;
-            case 'achievements': return <AchievementsScreen user={user} onClose={() => setActiveSubScreen(null)} />;
             case 'security': return <SecuritySettingsScreen onClose={() => setActiveSubScreen(null)} />;
             case 'privacy': return <PrivacySettingsScreen user={user} onUpdateUser={onUpdateUser} onClose={() => setActiveSubScreen(null)} />;
             case 'support': return <SupportScreen onClose={() => setActiveSubScreen(null)} />;
@@ -166,7 +165,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ user, onClose, onUpdate
                     </div>
                     
                     <SettingsItem onClick={() => setActiveSubScreen('wallet')}>{t('myWallet')}</SettingsItem>
-                    <SettingsItem onClick={() => setActiveSubScreen('achievements')}>{t('achievements')}</SettingsItem>
                     <SettingsItem onClick={() => setActiveSubScreen('friends')}>{t('bestFriends')}</SettingsItem>
                     
                     <div className="p-4 bg-zinc-900 rounded-lg shadow-sm border border-zinc-800">

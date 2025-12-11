@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { Post, User } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
-import { doc, updateDoc, arrayUnion, arrayRemove, increment, runTransaction } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, arrayRemove, increment, runTransaction, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import HeartIcon from './icons/HeartIcon.tsx';
 import CommentIcon from './icons/CommentIcon.tsx';
 import ShareIcon from './icons/ShareIcon.tsx';
@@ -62,6 +63,33 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
             console.error(error);
             setIsLiked(!newLikedState);
             setLikeCount(prev => newLikedState ? prev - 1 : prev + 1);
+        }
+    };
+
+    const handleRepost = async () => {
+        if (!db) return;
+        if (window.confirm("Repost this to your profile?")) {
+            try {
+                // Simplified Repost: Create a new post referencing the original
+                // Ideally, backend supports a 'repostOf' field. For now, we duplicate content with attribution.
+                await addDoc(collection(db, 'posts'), {
+                    userId: currentUser.id,
+                    user: {
+                        id: currentUser.id,
+                        name: currentUser.name,
+                        profilePhoto: currentUser.profilePhotos[0],
+                    },
+                    mediaUrls: post.mediaUrls,
+                    caption: `RP @${post.user.name}: ${post.caption}`,
+                    likedBy: [],
+                    commentCount: 0,
+                    timestamp: serverTimestamp(),
+                    isPaid: false, // Reposts usually free?
+                });
+                alert("Reposted!");
+            } catch (e) {
+                console.error("Repost failed", e);
+            }
         }
     };
 
@@ -186,6 +214,14 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                         </button>
                         <span className="text-white text-xs font-bold drop-shadow-md">{post.commentCount}</span>
                     </div>
+
+                    {isLiked && !isOwnPost && (
+                        <button onClick={handleRepost} className="active:scale-75 transition-transform p-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-white drop-shadow-lg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </button>
+                    )}
 
                     <button onClick={() => setShowShare(true)} className="active:scale-75 transition-transform p-1">
                         <ShareIcon className="w-8 h-8 text-white drop-shadow-lg" />

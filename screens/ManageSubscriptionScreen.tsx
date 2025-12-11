@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { User } from '../types.ts';
 import SparklesIcon from '../components/icons/SparklesIcon.tsx';
@@ -34,7 +35,6 @@ const ManageSubscriptionScreen: React.FC<ManageSubscriptionScreenProps> = ({ use
                 for (const chunk of chunks) {
                      const q = query(collection(db, 'users'), where('__name__', 'in', chunk));
                      const snap = await getDocs(q);
-                     // FIX: Guard against data() being undefined before spreading.
                      snap.forEach(d => subs.push({id: d.id, ...(d.data() || {})} as User));
                 }
                 
@@ -49,7 +49,7 @@ const ManageSubscriptionScreen: React.FC<ManageSubscriptionScreenProps> = ({ use
     }, [user.subscriptions]);
 
     const handleUnsubscribe = async (creatorId: string) => {
-        if (!db || !window.confirm("Are you sure you want to cancel this subscription?")) return;
+        if (!db || !window.confirm("Are you sure you want to cancel this subscription? You will lose access immediately.")) return;
         
         try {
             await updateDoc(doc(db, 'users', user.id), {
@@ -60,6 +60,10 @@ const ManageSubscriptionScreen: React.FC<ManageSubscriptionScreenProps> = ({ use
             console.error("Unsubscribe failed", e);
         }
     };
+
+    // Calculate dates (mocked for now, real app needs a 'subscriptions' collection with timestamps)
+    const startDate = new Date().toLocaleDateString();
+    const renewalDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString();
 
     return (
         <div className="absolute inset-0 bg-gray-100 dark:bg-black z-[80] flex flex-col animate-slide-in">
@@ -87,22 +91,28 @@ const ManageSubscriptionScreen: React.FC<ManageSubscriptionScreenProps> = ({ use
                 ) : (
                     <div className="space-y-3">
                         {subscriptions.map(creator => (
-                            <div key={creator.id} className="flex items-center justify-between p-4 bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-700">
-                                <div className="flex items-center">
-                                    <img src={creator.profilePhotos[0]} alt={creator.name} className="w-12 h-12 rounded-full object-cover border border-gray-200" />
-                                    <div className="ml-3">
-                                        <p className="font-bold dark:text-white">{creator.name}</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                                            {creator.subscriptionPrice} Coins/mo
-                                        </p>
+                            <div key={creator.id} className="p-4 bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-gray-100 dark:border-zinc-700">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center">
+                                        <img src={creator.profilePhotos[0]} alt={creator.name} className="w-12 h-12 rounded-full object-cover border border-gray-200" />
+                                        <div className="ml-3">
+                                            <p className="font-bold dark:text-white">{creator.name}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                {creator.subscriptionPrice} Coins/mo
+                                            </p>
+                                        </div>
                                     </div>
+                                    <button 
+                                        onClick={() => handleUnsubscribe(creator.id)}
+                                        className="px-3 py-1 bg-gray-100 dark:bg-zinc-700 text-red-500 text-xs font-bold rounded-lg hover:bg-red-50"
+                                    >
+                                        Cancel
+                                    </button>
                                 </div>
-                                <button 
-                                    onClick={() => handleUnsubscribe(creator.id)}
-                                    className="px-4 py-2 bg-gray-100 dark:bg-zinc-700 text-red-500 text-sm font-bold rounded-lg hover:bg-red-50"
-                                >
-                                    Cancel
-                                </button>
+                                <div className="text-xs text-gray-500 border-t border-gray-100 dark:border-zinc-700 pt-2 flex justify-between">
+                                    <span>Started: {startDate}</span>
+                                    <span>Renews: {renewalDate}</span>
+                                </div>
                             </div>
                         ))}
                     </div>

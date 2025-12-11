@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 interface ActivityHeatmapProps {
@@ -6,8 +7,6 @@ interface ActivityHeatmapProps {
   title: string;
 }
 
-// This is a simplified placeholder for a GitHub-style activity heatmap.
-// A real implementation would be more complex, often using a dedicated library.
 const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({ data, title }) => {
   const today = new Date();
   const days = Array.from({ length: 90 }, (_, i) => {
@@ -26,7 +25,7 @@ const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({ data, title }) => {
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 shadow-sm w-full border border-gray-100 dark:border-zinc-800">
       <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-4">{title}</h3>
-      <div className="grid grid-cols-15 gap-1">
+      <div className="flex flex-wrap gap-1">
         {days.map(day => {
           const activity = data.find(d => d.date === day);
           const count = activity ? activity.count : 0;
