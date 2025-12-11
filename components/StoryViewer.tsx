@@ -90,8 +90,10 @@ const StoryViewer: React.FC<StoryViewerProps> = ({ stories, currentUser, startIn
         }
     };
 
-    if (!stories || stories.length === 0 || !currentStory) {
-        onClose();
+    if (!stories || stories.length === 0 || !currentStory || !currentStory.user) {
+        // If data is invalid or missing, close viewer safely
+        // Avoid rendering if closing to prevent flash
+        setTimeout(onClose, 0); 
         return null;
     }
 
@@ -113,8 +115,8 @@ const StoryViewer: React.FC<StoryViewerProps> = ({ stories, currentUser, startIn
                 </div>
                 <div className="flex items-center justify-between mt-3">
                     <div className="flex items-center">
-                        <img src={storyUser.profilePhoto} alt={storyUser.name} className="w-8 h-8 rounded-full" />
-                        <span className="text-white font-semibold ml-2">{storyUser.name}</span>
+                        <img src={storyUser.profilePhoto || ''} alt={storyUser.name} className="w-8 h-8 rounded-full border border-white/20" />
+                        <span className="text-white font-semibold ml-2 text-sm drop-shadow-md">{storyUser.name}</span>
                         {isOwnStory && onAddStory && (
                             <button onClick={onAddStory} className="ml-2 bg-white/20 rounded-full p-1 text-white hover:bg-white/30">
                                 <PlusIcon className="w-4 h-4" />
@@ -127,14 +129,22 @@ const StoryViewer: React.FC<StoryViewerProps> = ({ stories, currentUser, startIn
                 </div>
             </div>
             
-            <div className="relative w-full h-full">
+            <div className="relative w-full h-full flex items-center justify-center bg-zinc-900">
                 <img src={currentStory.mediaUrl} alt="Story content" className="w-full h-full object-contain" />
+                
+                {/* Caption Overlay */}
+                {currentStory.caption && (
+                    <div className="absolute bottom-20 left-0 right-0 p-4 text-center">
+                        <p className="text-white font-bold text-xl drop-shadow-lg bg-black/30 p-2 rounded inline-block">{currentStory.caption}</p>
+                    </div>
+                )}
+
                 <div className="absolute inset-0 flex">
                     <div className="w-1/3 h-full" onClick={goToPrevStory}></div>
                     <div className="w-2/3 h-full" onClick={goToNextStory}></div>
                 </div>
             </div>
-            <div className="absolute bottom-4 right-4 z-20">
+            <div className="absolute bottom-6 right-4 z-20">
                  <button onClick={handleLike} className={`transition-transform duration-200 ${isAnimatingLike ? 'animate-like-pop' : ''}`}>
                     <HeartIcon isLiked={isLiked} className="w-8 h-8 text-white drop-shadow-lg" />
                 </button>

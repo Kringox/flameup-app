@@ -29,11 +29,19 @@ const StoryRail: React.FC<{ currentUser: User, onCreateStory: () => void }> = ({
 
     useEffect(() => {
         if (!db) return;
-        // Mocking story fetch: Real implementation needs a query for followed users + own
-        // For now, fetching recent stories
         const q = query(collection(db, 'stories'), orderBy('timestamp', 'desc'), limit(10));
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            setStories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any)));
+            // Safety map to prevent crashes if data is incomplete
+            const fetchedStories = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return { 
+                    id: doc.id, 
+                    ...data,
+                    // Ensure user object exists to prevent crashes
+                    user: data.user || { id: 'unknown', name: 'Unknown', profilePhoto: '' } 
+                } as any;
+            });
+            setStories(fetchedStories);
         });
         return () => unsubscribe();
     }, []);
@@ -41,14 +49,16 @@ const StoryRail: React.FC<{ currentUser: User, onCreateStory: () => void }> = ({
     // Group stories by User
     const userStoriesMap = new Map<string, Story[]>();
     stories.forEach(story => {
-        const uid = story.user?.id || 'unknown';
-        if (!userStoriesMap.has(uid)) userStoriesMap.set(uid, []);
-        userStoriesMap.get(uid)?.push(story);
+        const uid = story.user?.id;
+        if (uid) {
+            if (!userStoriesMap.has(uid)) userStoriesMap.set(uid, []);
+            userStoriesMap.get(uid)?.push(story);
+        }
     });
 
     return (
         <>
-        {activeStoryIndex !== null && (
+        {activeStoryIndex !== null && stories.length > 0 && (
             <StoryViewer 
                 stories={stories} 
                 currentUser={currentUser} 
@@ -59,7 +69,7 @@ const StoryRail: React.FC<{ currentUser: User, onCreateStory: () => void }> = ({
         )}
         <div className="flex space-x-4 p-4 overflow-x-auto scrollbar-hide bg-black/20 backdrop-blur-md w-full">
             {/* My Story */}
-            <div className="flex flex-col items-center space-y-1 cursor-pointer" onClick={onCreateStory}>
+            <div className="flex flex-col items-center space-y-1 cursor-pointer flex-shrink-0" onClick={onCreateStory}>
                 <div className="w-16 h-16 rounded-full border-2 border-gray-500 p-0.5 relative">
                     <img src={currentUser.profilePhotos[0]} className="w-full h-full rounded-full object-cover opacity-80" />
                     <div className="absolute bottom-0 right-0 bg-flame-orange rounded-full p-1 border border-black">
@@ -71,14 +81,17 @@ const StoryRail: React.FC<{ currentUser: User, onCreateStory: () => void }> = ({
 
             {/* Other Stories */}
             {Array.from(userStoriesMap.entries()).map(([uid, userStories], idx) => {
+                const firstStory = userStories[0];
+                if (!firstStory?.user) return null;
+
                 // Find index in flat list for viewer
-                const flatIndex = stories.findIndex(s => s.id === userStories[0].id);
+                const flatIndex = stories.findIndex(s => s.id === firstStory.id);
                 return (
-                    <div key={uid} className="flex flex-col items-center space-y-1 cursor-pointer" onClick={() => setActiveStoryIndex(flatIndex)}>
+                    <div key={uid} className="flex flex-col items-center space-y-1 cursor-pointer flex-shrink-0" onClick={() => setActiveStoryIndex(flatIndex)}>
                         <div className="w-16 h-16 rounded-full border-2 border-flame-orange p-0.5">
-                            <img src={userStories[0].user.profilePhoto} className="w-full h-full rounded-full object-cover" />
+                            <img src={firstStory.user.profilePhoto || ''} className="w-full h-full rounded-full object-cover" />
                         </div>
-                        <span className="text-xs text-white w-16 truncate text-center">{userStories[0].user.name}</span>
+                        <span className="text-xs text-white w-16 truncate text-center">{firstStory.user.name || 'User'}</span>
                     </div>
                 )
             })}
@@ -102,7 +115,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
         // Listen to posts in real-time
         const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'));
         
-        // FIX: Explicitly type snapshot as QuerySnapshot to resolve 'docs' property error.
         const unsubscribe = onSnapshot(postsQuery, (snapshot: QuerySnapshot<DocumentData>) => {
             const postList = snapshot.docs.map(doc => {
                 const data = doc.data();
@@ -163,7 +175,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
             </div>
 
             {/* Stories Rail - "TikTok Style" */}
-            {/* Only visible when at the very top. Collapses up when scrolling down. */}
             <div 
                 className={`absolute top-[70px] left-0 right-0 z-30 transition-all duration-500 ease-in-out origin-top ${showStories ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-0 -translate-y-10 pointer-events-none'}`}
             >
