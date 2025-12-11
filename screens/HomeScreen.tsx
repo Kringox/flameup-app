@@ -107,17 +107,32 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
         setIsLoading(true);
         
         // Listen to posts in real-time
-        const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'));
+        const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'), limit(50));
         
         const unsubscribe = onSnapshot(postsQuery, (snapshot: QuerySnapshot<DocumentData>) => {
-            const postList = snapshot.docs.map(doc => {
+            // Deduplicate posts using a Map (Last write wins or keep existing)
+            // Use a Map to strictly enforce unique IDs
+            const uniquePostsMap = new Map<string, Post>();
+
+            snapshot.docs.forEach(doc => {
                 const data = doc.data();
-                return {
+                const post = {
                     id: doc.id,
                     ...data,
                     user: data.user || { id: data.userId, name: 'User', profilePhoto: '' }
                 } as Post;
+                uniquePostsMap.set(post.id, post);
             });
+
+            const postList = Array.from(uniquePostsMap.values());
+            
+            // Sort again client-side to be safe
+            postList.sort((a, b) => {
+                const tA = a.timestamp?.toMillis ? a.timestamp.toMillis() : 0;
+                const tB = b.timestamp?.toMillis ? b.timestamp.toMillis() : 0;
+                return tB - tA;
+            });
+
             setPosts(postList);
             setIsLoading(false);
         }, (error) => {
@@ -162,7 +177,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
         if (feedType === 'flame') {
             return post.isPaid === true;
         }
-        return true; // "For You" shows all posts (could be algorithmic later)
+        return true; 
     });
 
     return (
@@ -268,8 +283,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
                         )}
                     </div>
                 ) : (
-                    // Removing the intermediate div wrapper that broke the height chain.
-                    // React Fragment or direct array map return is fine here.
+                    // Using map with a stable key (post.id) ensures React reconciles correctly.
                     displayedPosts.map((post) => (
                         <div key={post.id} className="w-full h-full snap-start">
                             <SinglePostView 

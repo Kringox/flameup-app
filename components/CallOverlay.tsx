@@ -43,33 +43,49 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         if (!currentUser || !db) return;
 
         const callsRef = collection(db, 'calls');
-        const q = query(callsRef, where('userIds', 'array-contains', currentUser.id));
+        // Filter strictly for active calls where I am involved
+        const q = query(
+            callsRef, 
+            where('userIds', 'array-contains', currentUser.id)
+        );
         
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const calls = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Call));
-            const activeCall = calls.find(c => c.status === 'connected') || calls.find(c => c.status === 'ringing');
+            
+            // Explicitly look for a call that is NOT ended
+            const activeCall = calls.find(c => ['ringing', 'connected'].includes(c.status));
 
             if (activeCall) {
+                // If we found an active call, update state
+                // Only trigger haptics if status changed to ringing for the callee
                 if (!call || call.id !== activeCall.id || call.status !== activeCall.status) {
                      setCall(activeCall);
                      if (activeCall.calleeId === currentUser.id && activeCall.status === 'ringing') {
                          hapticFeedback('medium');
                      }
                 }
-            } else if (call) {
-                handleEndCall(true);
+            } else {
+                // No active call found.
+                // ONLY end the call if we previously HAD a call that is now gone or ended.
+                if (call) {
+                    // Check if the specific call ID we were in has ended or disappeared
+                    const myCallStillExists = calls.find(c => c.id === call.id);
+                    if (!myCallStillExists || myCallStillExists.status === 'ended' || myCallStillExists.status === 'declined') {
+                        handleEndCall(true);
+                    }
+                }
             }
         });
 
         return () => unsubscribe();
-    }, [currentUser?.id]);
+    }, [currentUser?.id, call]); // Add call to dependency to safely check current state
 
 
     // --- Core Signal Processing ---
     useEffect(() => {
         if (!call || !db) return;
 
-        // I AM THE CALLER
+        // I AM THE CALLER: Set remote description when callee answers
         if (call.callerId === currentUser?.id && call.status === 'connected' && call.answer && pc.current && !pc.current.currentRemoteDescription) {
              const setRemote = async () => {
                 try {
@@ -89,18 +105,17 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
             snapshot.docChanges().forEach((change) => {
                 if (change.type === 'added') {
                     const data = change.doc.data();
-                    // Don't add my own candidates
-                    // Simple hack: assume candidates without 'from' logic need checking, 
-                    // but for 1:1 simplest is just try add. PC ignores own if they loop back usually,
-                    // but ideally we tag candidates with senderId. 
-                    // Here we just try/catch add.
-                    const candidate = new RTCIceCandidate(data);
-                    if (pc.current) {
-                        if (pc.current.remoteDescription) {
-                            pc.current.addIceCandidate(candidate).catch(e => {});
-                        } else {
-                            candidateQueue.current.push(candidate);
+                    try {
+                        const candidate = new RTCIceCandidate(data);
+                        if (pc.current) {
+                            if (pc.current.remoteDescription) {
+                                pc.current.addIceCandidate(candidate).catch(e => console.log("Candidate add failed", e));
+                            } else {
+                                candidateQueue.current.push(candidate);
+                            }
                         }
+                    } catch (e) {
+                        console.error("Error parsing candidate", e);
                     }
                 }
             });
@@ -112,6 +127,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
 
     // --- Start Outgoing Call (Caller logic) ---
     useEffect(() => {
+        // Only start if we are the caller, it's ringing, and we haven't started PC yet
         if (call && call.callerId === currentUser?.id && call.status === 'ringing' && !pc.current) {
             const start = async () => {
                 const stream = await setupSources(call.type === 'video');
@@ -143,8 +159,9 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
             return stream;
         } catch (err) {
             console.error("Error accessing media devices:", err);
+            // Don't kill the call UI immediately, maybe just audio failed?
+            // For now, alert
             alert("Could not access camera/mic.");
-            handleEndCall(true);
             return null;
         }
     };
@@ -154,17 +171,14 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
 
         newPc.onicecandidate = event => {
             if (event.candidate) {
+                // Add candidate to Firestore
                 addDoc(collection(db, 'calls', callId, 'candidates'), event.candidate.toJSON());
             }
         };
         
         newPc.ontrack = event => {
-            // Critical: Ensure remote stream is attached
-            if (remoteVideoRef.current) {
-                const stream = event.streams[0];
-                if (stream) {
-                    remoteVideoRef.current.srcObject = stream;
-                }
+            if (remoteVideoRef.current && event.streams[0]) {
+                remoteVideoRef.current.srcObject = event.streams[0];
             }
         };
 
@@ -205,7 +219,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
 
         if (callData.offer) {
             await pc.current.setRemoteDescription(new RTCSessionDescription(callData.offer));
-            processCandidateQueue(); // Process candidates that arrived before offer
+            processCandidateQueue();
             
             const answer = await pc.current.createAnswer();
             await pc.current.setLocalDescription(answer);
@@ -224,12 +238,14 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     };
 
     const handleEndCall = async (isCleanup = false) => {
+        // Only update DB if we are initiating the end and call is active
         if (!isCleanup && call && db) {
             try {
                 await updateDoc(doc(db, 'calls', call.id), { status: 'ended' });
             } catch(e) {}
         }
         
+        // Cleanup local resources
         if (pc.current) {
             pc.current.close();
             pc.current = null;
@@ -278,6 +294,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     if (!call || !currentUser) return null;
 
     // --- RENDER LOGIC ---
+    // Incoming Call
     if (call.calleeId === currentUser.id && call.status === 'ringing') {
         return (
             <div className="fixed inset-0 z-[200] bg-gray-900/95 backdrop-blur-md flex flex-col items-center justify-center animate-fade-in">
@@ -309,6 +326,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     
     const isVideoCall = call.type === 'video';
     
+    // Connected or Outgoing Call
     return (
         <div className="fixed inset-0 z-[200] bg-black flex justify-center animate-fade-in">
             <div className="w-full max-w-md h-full relative bg-gray-900 flex flex-col">
