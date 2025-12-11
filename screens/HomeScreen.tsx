@@ -100,7 +100,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
 
     // Feed Toggle State
     const [feedType, setFeedType] = useState<'forYou' | 'flame'>('forYou');
-    const [isSwitchingTab, setIsSwitchingTab] = useState(false);
 
     // --- REALTIME FEED LISTENER ---
     useEffect(() => {
@@ -137,19 +136,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
         }
     }, [refreshTrigger]);
 
-    // SCROLL RESET ON FEED TYPE CHANGE
+    // Feed switch effect: Reset is implicit by re-mounting the scroll container via key={feedType}
     useEffect(() => {
-        if (containerRef.current) {
-            // Instant scroll to top to prevent disorientation
-            containerRef.current.scrollTop = 0;
-            // Ensure stories come back
-            setShowStories(true);
-            
-            // Trigger a small animation state
-            setIsSwitchingTab(true);
-            const timer = setTimeout(() => setIsSwitchingTab(false), 300);
-            return () => clearTimeout(timer);
-        }
+        // Reset stories visibility when switching tabs
+        setShowStories(true);
     }, [feedType]);
 
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -235,7 +225,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
             </div>
 
             {/* Stories Rail - "TikTok Style" */}
-            {/* Top margin adjusted to 135px to clear the spacious header */}
             <div 
                 className={`absolute top-[135px] left-0 right-0 z-30 transition-all duration-700 cubic-bezier(0.33, 1, 0.68, 1) origin-top ${showStories ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-0 -translate-y-10 pointer-events-none'}`}
             >
@@ -251,9 +240,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
 
             {/* Vertical Scroll Snap Container */}
             <div 
+                key={feedType} // Key here forces remount on tab change -> resets scroll & animates
                 ref={containerRef}
                 onScroll={handleScroll}
-                className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide scroll-smooth"
+                className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide scroll-smooth animate-fade-in"
             >
                 {isLoading ? (
                     <div className="h-full w-full flex flex-col items-center justify-center text-white bg-black animate-pulse">
@@ -278,22 +268,20 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
                         )}
                     </div>
                 ) : (
-                    // Using a key here forces React to remount the list when feedType changes,
-                    // ensuring a fresh start and triggering the fade-in animation.
-                    <div key={feedType} className={`w-full ${isSwitchingTab ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}>
-                        {displayedPosts.map((post) => (
-                            <div key={post.id} className="w-full h-full snap-start">
-                                <SinglePostView 
-                                    post={post} 
-                                    currentUser={currentUser} 
-                                    isActive={true} 
-                                    onOpenComments={onOpenComments}
-                                    onViewProfile={onViewProfile}
-                                    onUpdateUser={onUpdateUser}
-                                />
-                            </div>
-                        ))}
-                    </div>
+                    // Removing the intermediate div wrapper that broke the height chain.
+                    // React Fragment or direct array map return is fine here.
+                    displayedPosts.map((post) => (
+                        <div key={post.id} className="w-full h-full snap-start">
+                            <SinglePostView 
+                                post={post} 
+                                currentUser={currentUser} 
+                                isActive={true} 
+                                onOpenComments={onOpenComments}
+                                onViewProfile={onViewProfile}
+                                onUpdateUser={onUpdateUser}
+                            />
+                        </div>
+                    ))
                 )}
             </div>
         </div>
