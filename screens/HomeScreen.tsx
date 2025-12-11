@@ -220,7 +220,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
             )}
 
             {/* Floating Header */}
-            <div className="absolute top-0 left-0 right-0 z-40 flex flex-col pointer-events-none">
+            <div className="absolute top-0 pt-[env(safe-area-inset-top)] left-0 right-0 z-40 flex flex-col pointer-events-none">
                 <div className="absolute inset-0 h-[180px] bg-gradient-to-b from-black via-black/70 to-transparent pointer-events-none transition-opacity duration-500" />
 
                 <div className="relative z-10 flex justify-between items-center px-5 pt-8 pb-1 pointer-events-auto">
@@ -262,7 +262,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
 
             {/* Stories Rail */}
             <div 
-                className={`absolute top-[135px] left-0 right-0 z-30 transition-all duration-700 cubic-bezier(0.33, 1, 0.68, 1) origin-top ${showStories ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-0 -translate-y-10 pointer-events-none'}`}
+                className={`absolute top-[135px] pt-[env(safe-area-inset-top)] left-0 right-0 z-30 transition-all duration-700 cubic-bezier(0.33, 1, 0.68, 1) origin-top ${showStories ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-0 -translate-y-10 pointer-events-none'}`}
             >
                 <StoryRail 
                     currentUser={currentUser} 

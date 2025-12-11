@@ -67,8 +67,8 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, onOpenCr
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 p-4 z-50 pointer-events-none flex justify-center">
-      <nav className={`w-full max-w-md backdrop-blur-xl border shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-3xl h-[70px] flex justify-around items-center px-2 pointer-events-auto relative ${bgClass}`}>
+    <div className="fixed bottom-0 left-0 right-0 p-4 z-50 pointer-events-none flex justify-center pb-[env(safe-area-inset-bottom)]">
+      <nav className={`w-full max-w-md backdrop-blur-xl border shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-3xl h-[70px] flex justify-around items-center px-2 pointer-events-auto relative mb-[env(safe-area-inset-bottom)] ${bgClass}`}>
         
         <NavItem
           icon={<HomeIcon />}

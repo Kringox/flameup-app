@@ -29,6 +29,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     const [duration, setDuration] = useState(0);
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+    const [localMediaError, setLocalMediaError] = useState<string | null>(null);
 
     const pc = useRef<RTCPeerConnection | null>(null);
     const localStream = useRef<MediaStream | null>(null);
@@ -140,16 +141,20 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         // Trigger setup only if I am caller, it's ringing, and NO peer connection exists yet
         if (call && call.callerId === currentUser?.id && call.status === 'ringing' && !pc.current) {
             const start = async () => {
-                const stream = await setupSources(call.type === 'video');
-                if (!stream) {
-                    handleEndCall(); // Abort if no media
-                    return; 
-                }
+                const { stream, error } = await setupSources(call.type === 'video');
+                if (error) setLocalMediaError(error);
 
                 pc.current = createPeerConnection(call.id);
+                
+                // Add tracks if we have them
                 stream.getTracks().forEach(track => pc.current?.addTrack(track, stream));
-
-                const offer = await pc.current.createOffer();
+                
+                // Even if no tracks, we create an offer (Receive Only or SendRecv depending on stream)
+                const offer = await pc.current.createOffer({
+                    offerToReceiveAudio: true,
+                    offerToReceiveVideo: true
+                });
+                
                 await pc.current.setLocalDescription(offer);
 
                 const callRef = doc(db, 'calls', call.id);
@@ -161,19 +166,34 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
 
 
     // --- WebRTC Helpers ---
-    const setupSources = async (isVideo: boolean) => {
+    const setupSources = async (isVideo: boolean): Promise<{ stream: MediaStream, error: string | null }> => {
+        let stream: MediaStream;
+        let errorMsg: string | null = null;
+
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
-            localStream.current = stream;
-            if (localVideoRef.current) {
-                localVideoRef.current.srcObject = stream;
-                localVideoRef.current.muted = true; 
-            }
-            return stream;
+            // 1. Try to get Video + Audio
+            stream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
         } catch (err) {
-            console.error("Error accessing media devices:", err);
-            return null;
+            console.warn("Full media access failed:", err);
+            try {
+                // 2. Fallback: Try Audio Only
+                stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+                if (isVideo) errorMsg = "Video failed. Audio only.";
+            } catch (err2) {
+                console.warn("Audio access failed:", err2);
+                // 3. Fallback: No Media (Receive Only / View Only)
+                stream = new MediaStream(); // Create empty stream so connection proceeds
+                errorMsg = "No Microphone/Camera found. View only.";
+            }
         }
+
+        localStream.current = stream;
+        if (localVideoRef.current && stream.active) {
+            localVideoRef.current.srcObject = stream;
+            localVideoRef.current.muted = true; 
+        }
+        
+        return { stream, error: errorMsg };
     };
 
     const createPeerConnection = (callId: string) => {
@@ -210,14 +230,12 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     const handleAccept = async () => {
         if (!call || !db) return;
         
-        const stream = await setupSources(call.type === 'video');
-        if (!stream) {
-             alert("Could not access camera/mic.");
-             handleEndCall(); 
-             return;
-        }
+        const { stream, error } = await setupSources(call.type === 'video');
+        if (error) setLocalMediaError(error);
 
         pc.current = createPeerConnection(call.id);
+        
+        // Add tracks if available
         stream.getTracks().forEach(track => pc.current?.addTrack(track, stream));
 
         const callRef = doc(db, 'calls', call.id);
@@ -264,6 +282,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         setDuration(0);
         setIsMuted(false);
         setIsVideoEnabled(true);
+        setLocalMediaError(null);
         candidateQueue.current = [];
     };
 
@@ -348,6 +367,14 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         <div className="fixed inset-0 z-[200] bg-black flex justify-center animate-fade-in">
             <div className="w-full max-w-md h-full relative bg-gray-900 flex flex-col">
                 <div className="flex-1 w-full relative overflow-hidden bg-black">
+                    
+                    {/* Error Overlay for missing local media */}
+                    {localMediaError && (
+                        <div className="absolute top-4 left-4 right-4 z-50 bg-red-500/80 backdrop-blur-md text-white text-xs px-3 py-2 rounded-lg text-center shadow-lg border border-red-400/50 animate-fade-in">
+                            ⚠️ {localMediaError}
+                        </div>
+                    )}
+
                     {/* Remote Video */}
                     {isVideoCall && (
                          <video 
@@ -367,8 +394,8 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
                          </div>
                     ) : null}
 
-                    {/* Local Video (PIP) */}
-                    {isVideoCall && (
+                    {/* Local Video (PIP) - Only show if we actually have a local stream with tracks */}
+                    {isVideoCall && localStream.current && localStream.current.getVideoTracks().length > 0 && (
                         <div className="absolute top-4 right-4 w-28 h-40 bg-black rounded-xl overflow-hidden shadow-lg border border-white/20 z-20">
                             <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
                         </div>

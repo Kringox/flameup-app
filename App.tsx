@@ -199,12 +199,17 @@ const App: React.FC = () => {
       unsubscribeUser = firestore.onSnapshot(userRef, (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data() || {};
-          // Safely construct user object, ensuring coins has a default if missing
-          // This is critical for keeping wallet in sync
+          
+          // CRITICAL FIX: Ensure 'coins' is read correctly. 
+          // If the field exists in DB (even if 0), use it. If undefined, default to 0.
+          // This prevents overwriting a valid 0 balance or failing to load a positive balance.
+          const dbCoins = data.coins;
+          const safeCoins = typeof dbCoins === 'number' ? dbCoins : 0;
+
           const userData = { 
               id: snapshot.id, 
               ...data,
-              coins: data.coins !== undefined ? data.coins : 0,
+              coins: safeCoins, 
           } as User;
           
           if (!authState.currentUser) {
@@ -316,7 +321,8 @@ const App: React.FC = () => {
     if (deepLinkedPostId) {
         return (
             <I18nProvider language={currentUser.language || 'en'}>
-                <div className="relative w-screen h-screen max-w-md mx-auto flex flex-col bg-black md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)] overflow-hidden">
+                {/* Fixed height to 100dvh for mobile browsers */}
+                <div className="relative w-screen h-[100dvh] max-w-md mx-auto flex flex-col bg-black md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)] overflow-hidden">
                     <DeepLinkedPostHandler
                         postId={deepLinkedPostId}
                         currentUser={currentUser}
@@ -337,7 +343,8 @@ const App: React.FC = () => {
     return (
       <I18nProvider language={currentUser.language || 'en'}>
         <XpContext.Provider value={{ showXpToast }}>
-          <div className="relative w-screen h-screen max-w-md mx-auto flex flex-col bg-black md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)] overflow-hidden">
+          {/* Main App Container: Uses 100dvh to respect mobile browser chrome (address bar) */}
+          <div className="relative w-screen h-[100dvh] max-w-md mx-auto flex flex-col bg-black md:shadow-lg md:rounded-2xl md:my-4 md:h-[calc(100vh-2rem)] overflow-hidden">
             {xpToast && <XPToast key={xpToast.key} amount={xpToast.amount} />}
             
             <CallOverlay currentUser={currentUser} />

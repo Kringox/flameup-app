@@ -175,7 +175,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
             {isRankingOpen && <RankingModal onClose={() => setIsRankingOpen(false)} onViewProfile={onViewProfile} />}
             {isAnalyticsOpen && <AnalyticsScreen user={currentUser} onClose={() => setIsAnalyticsOpen(false)} />}
             
-            <header className="flex justify-between items-center p-4 border-b border-zinc-800 sticky top-0 bg-black/80 backdrop-blur z-10">
+            <header className="flex justify-between items-center p-4 pt-[env(safe-area-inset-top)] border-b border-zinc-800 sticky top-0 bg-black/80 backdrop-blur z-10">
                 <button onClick={() => setIsAnalyticsOpen(true)} className="p-2 bg-zinc-800 rounded-full">
                     <BarChartIcon className="w-5 h-5 text-gray-300" />
                 </button>

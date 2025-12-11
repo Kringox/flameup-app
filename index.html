@@ -1,10 +1,19 @@
+
 <!doctype html>
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/assets/logo-icon.png" />
+    <!-- Flame Favicon (Data URI for immediate availability) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔥</text></svg>">
     <link rel="manifest" href="/manifest.json" />
+    
+    <!-- Viewport for PWA: cover viewport, disable scaling -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    
+    <!-- Theme color for PWA status bar integration -->
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
     <title>FlameUp</title>
     <link href="/index.css" rel="stylesheet" />
     <script type="importmap">
@@ -21,7 +30,7 @@
     </script>
   <link rel="stylesheet" href="/index.css">
 </head>
-  <body class="bg-black text-white overscroll-none">
+  <body class="bg-black text-white overscroll-none select-none touch-pan-y">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
