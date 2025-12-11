@@ -37,6 +37,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     const localStream = useRef<MediaStream | null>(null);
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
+    const remoteCandidatesQueue = useRef<RTCIceCandidate[]>([]);
     
     // --- LISTEN FOR ACTIVE CALLS ---
     useEffect(() => {
@@ -143,6 +144,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
                 const answer = new RTCSessionDescription(call.answer);
                 await pc.current.setRemoteDescription(answer);
                 console.log("Caller set remote description (answer)");
+                processQueuedCandidates();
             }
 
             // Callee Logic: Process Offer when accepting
@@ -150,6 +152,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
                 const offer = new RTCSessionDescription(call.offer);
                 await pc.current.setRemoteDescription(offer);
                 console.log("Callee set remote description (offer)");
+                processQueuedCandidates();
                 
                 const answer = await pc.current.createAnswer();
                 await pc.current.setLocalDescription(answer);
@@ -163,7 +166,6 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         handleSignaling();
 
         // 3. Listen for Remote Candidates
-        // If I am caller, I listen to 'answerCandidates'. If I am callee, I listen to 'offerCandidates'.
         const remoteCandidateCollection = isCaller ? 'answerCandidates' : 'offerCandidates';
         const qCandidates = collection(db, 'calls', call.id, remoteCandidateCollection);
         
@@ -171,9 +173,14 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
             snapshot.docChanges().forEach((change) => {
                 if (change.type === 'added') {
                     const data = change.doc.data();
+                    const candidate = new RTCIceCandidate(data);
+                    
                     if (pc.current && pc.current.remoteDescription) {
-                        const candidate = new RTCIceCandidate(data);
                         pc.current.addIceCandidate(candidate).catch(e => console.error("Error adding candidate", e));
+                    } else {
+                        // Queue candidate if remote description not set yet
+                        console.log("Queueing candidate");
+                        remoteCandidatesQueue.current.push(candidate);
                     }
                 }
             });
@@ -184,6 +191,15 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         };
 
     }, [call?.id, call?.status, call?.offer, call?.answer]);
+
+    const processQueuedCandidates = () => {
+        if (!pc.current) return;
+        console.log(`Processing ${remoteCandidatesQueue.current.length} queued candidates`);
+        remoteCandidatesQueue.current.forEach(candidate => {
+            pc.current?.addIceCandidate(candidate).catch(e => console.error("Error adding queued candidate", e));
+        });
+        remoteCandidatesQueue.current = [];
+    };
 
     const createOffer = async () => {
         if (!pc.current || !db || !call) return;
@@ -228,6 +244,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     useEffect(() => {
         if (remoteVideoRef.current && remoteStream) {
             remoteVideoRef.current.srcObject = remoteStream;
+            remoteVideoRef.current.muted = false; // Ensure not muted
             // Explicitly play to avoid browser block
             remoteVideoRef.current.play().catch(e => console.error("Autoplay failed:", e));
         }
@@ -260,6 +277,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         setDuration(0);
         setLocalMediaError(null);
         setCallStatusDisplay('');
+        remoteCandidatesQueue.current = [];
     };
 
     const toggleMute = () => {

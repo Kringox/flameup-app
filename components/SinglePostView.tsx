@@ -22,7 +22,7 @@ interface SinglePostViewProps {
     onOpenComments: (post: Post) => void;
     onViewProfile: (userId: string) => void;
     onUpdateUser: (user: User) => void;
-    onPostDeleted?: (postId: string) => void; // New optional prop for handling deletion
+    onPostDeleted?: (postId: string) => void; 
 }
 
 const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isActive, onOpenComments, onViewProfile, onUpdateUser, onPostDeleted }) => {
@@ -204,27 +204,20 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
             
             <div className="relative w-full h-full overflow-hidden">
                 
-                {/* Background blurred image to fill space if ratio doesn't match */}
-                <div className="absolute inset-0 z-0">
-                    <img 
-                        src={post.mediaUrls[0]} 
-                        className="w-full h-full object-cover blur-3xl opacity-60" 
-                        alt=""
-                    />
-                    <div className="absolute inset-0 bg-black/30" />
-                </div>
-
-                {/* Main Content Area with Double Tap */}
+                {/* Main Content Area - CHANGED TO OBJECT-COVER */}
                 <div 
-                    className="absolute inset-0 z-10 flex items-center justify-center select-none"
+                    className="absolute inset-0 z-10 flex items-center justify-center select-none bg-zinc-900"
                     onClick={handleDoubleTap}
                 >
                     <img 
                         src={post.mediaUrls[0]} 
                         alt="Post" 
-                        className={`max-w-full max-h-full object-contain shadow-lg ${isLocked ? 'blur-2xl scale-110 brightness-50' : ''}`} 
+                        className={`w-full h-full object-cover shadow-lg ${isLocked ? 'blur-2xl scale-110 brightness-50' : ''}`} 
                     />
                     
+                    {/* Shadow Gradient for Text Readability */}
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/80 pointer-events-none"></div>
+
                     {/* Big Heart Animation */}
                     {showBigHeart && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
@@ -263,8 +256,8 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                     </div>
                 )}
 
-                {/* Info Area - INCREASED BOTTOM PADDING HERE */}
-                <div className="absolute bottom-0 left-0 right-0 p-4 pb-[env(safe-area-inset-bottom,40px)] mb-36 bg-gradient-to-t from-black/90 via-black/50 to-transparent z-20 pointer-events-none">
+                {/* Info Area */}
+                <div className="absolute bottom-0 left-0 right-0 p-4 pb-[env(safe-area-inset-bottom,40px)] mb-36 z-20 pointer-events-none">
                     <div className="pointer-events-auto max-w-[80%]">
                         {isReposted && (
                             <p className="text-xs font-bold text-gray-300 mb-1 flex items-center gap-1">
@@ -284,7 +277,7 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                     </div>
                 </div>
 
-                {/* Right Side Actions - Moved up */}
+                {/* Right Side Actions */}
                 <div className="absolute right-2 bottom-[180px] z-30 flex flex-col items-center gap-5 pb-4">
                     <div className="relative">
                         <button onClick={() => onViewProfile(post.userId)} className="relative">
