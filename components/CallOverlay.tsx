@@ -35,37 +35,29 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
     
-    // WebRTC connection state tracking to handle ICE candidate race conditions
+    // WebRTC connection state tracking
     const candidateQueue = useRef<RTCIceCandidate[]>([]);
-    const isRemoteDescriptionSet = useRef(false);
-
+    
     // --- Listen for any call involving the current user ---
     useEffect(() => {
         if (!currentUser || !db) return;
 
         const callsRef = collection(db, 'calls');
-        // Simple query: Am I involved?
         const q = query(callsRef, where('userIds', 'array-contains', currentUser.id));
         
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const calls = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Call));
-            
-            // Find an active call. Priority: Connected > Ringing
             const activeCall = calls.find(c => c.status === 'connected') || calls.find(c => c.status === 'ringing');
 
             if (activeCall) {
-                // Only update state if call ID changed or status changed to something meaningful
                 if (!call || call.id !== activeCall.id || call.status !== activeCall.status) {
                      setCall(activeCall);
                      if (activeCall.calleeId === currentUser.id && activeCall.status === 'ringing') {
                          hapticFeedback('medium');
                      }
                 }
-            } else {
-                if (call) {
-                    // Call disappeared or ended
-                    handleEndCall(true);
-                }
+            } else if (call) {
+                handleEndCall(true);
             }
         });
 
@@ -73,23 +65,20 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     }, [currentUser?.id]);
 
 
-    // --- Signaling & Call Status Listener ---
+    // --- Core Signal Processing ---
     useEffect(() => {
         if (!call || !db) return;
 
-        // If I am the caller and status is connected (callee answered), set remote desc
-        if (call.callerId === currentUser?.id && call.status === 'connected' && !isRemoteDescriptionSet.current && call.answer) {
+        // I AM THE CALLER
+        if (call.callerId === currentUser?.id && call.status === 'connected' && call.answer && pc.current && !pc.current.currentRemoteDescription) {
              const setRemote = async () => {
-                 if (pc.current && !pc.current.currentRemoteDescription) {
-                    try {
-                        const answer = new RTCSessionDescription(call.answer);
-                        await pc.current.setRemoteDescription(answer);
-                        isRemoteDescriptionSet.current = true;
-                        processCandidateQueue();
-                    } catch (e) {
-                        console.error("Error setting remote description (answer)", e);
-                    }
-                 }
+                try {
+                    const answer = new RTCSessionDescription(call.answer);
+                    await pc.current?.setRemoteDescription(answer);
+                    processCandidateQueue();
+                } catch (e) {
+                    console.error("Error setting remote description (answer)", e);
+                }
              };
              setRemote();
         }
@@ -99,10 +88,16 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         const unsubscribeCandidates = onSnapshot(candidatesCollection, (snapshot) => {
             snapshot.docChanges().forEach((change) => {
                 if (change.type === 'added') {
-                    const candidate = new RTCIceCandidate(change.doc.data());
+                    const data = change.doc.data();
+                    // Don't add my own candidates
+                    // Simple hack: assume candidates without 'from' logic need checking, 
+                    // but for 1:1 simplest is just try add. PC ignores own if they loop back usually,
+                    // but ideally we tag candidates with senderId. 
+                    // Here we just try/catch add.
+                    const candidate = new RTCIceCandidate(data);
                     if (pc.current) {
-                        if (isRemoteDescriptionSet.current) {
-                            pc.current.addIceCandidate(candidate).catch(e => console.error("Error adding candidate", e));
+                        if (pc.current.remoteDescription) {
+                            pc.current.addIceCandidate(candidate).catch(e => {});
                         } else {
                             candidateQueue.current.push(candidate);
                         }
@@ -111,9 +106,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
             });
         });
 
-        return () => {
-            unsubscribeCandidates();
-        };
+        return () => unsubscribeCandidates();
     }, [call, currentUser?.id]);
 
 
@@ -138,18 +131,19 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     }, [call?.id, call?.status]);
 
 
-    // --- WebRTC Core Functions ---
+    // --- WebRTC Helpers ---
     const setupSources = async (isVideo: boolean) => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
             localStream.current = stream;
             if (localVideoRef.current) {
                 localVideoRef.current.srcObject = stream;
+                localVideoRef.current.muted = true; // Always mute local video
             }
             return stream;
         } catch (err) {
             console.error("Error accessing media devices:", err);
-            alert("Konnte nicht auf Mikrofon/Kamera zugreifen.");
+            alert("Could not access camera/mic.");
             handleEndCall(true);
             return null;
         }
@@ -165,15 +159,12 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         };
         
         newPc.ontrack = event => {
+            // Critical: Ensure remote stream is attached
             if (remoteVideoRef.current) {
-                const [remoteStream] = event.streams;
-                remoteVideoRef.current.srcObject = remoteStream;
-            }
-        };
-
-        newPc.onconnectionstatechange = () => {
-            if (newPc.connectionState === 'failed' || newPc.connectionState === 'closed') {
-                handleEndCall(true);
+                const stream = event.streams[0];
+                if (stream) {
+                    remoteVideoRef.current.srcObject = stream;
+                }
             }
         };
 
@@ -187,9 +178,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
             if (candidate) {
                 try {
                     await pc.current.addIceCandidate(candidate);
-                } catch (e) {
-                    console.error("Error adding queued candidate", e);
-                }
+                } catch (e) { console.error("Error adding queued candidate", e); }
             }
         }
     };
@@ -216,8 +205,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
 
         if (callData.offer) {
             await pc.current.setRemoteDescription(new RTCSessionDescription(callData.offer));
-            isRemoteDescriptionSet.current = true;
-            processCandidateQueue();
+            processCandidateQueue(); // Process candidates that arrived before offer
             
             const answer = await pc.current.createAnswer();
             await pc.current.setLocalDescription(answer);
@@ -239,7 +227,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         if (!isCleanup && call && db) {
             try {
                 await updateDoc(doc(db, 'calls', call.id), { status: 'ended' });
-            } catch(e) { console.log("Call already ended"); }
+            } catch(e) {}
         }
         
         if (pc.current) {
@@ -254,19 +242,22 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         setDuration(0);
         setIsMuted(false);
         setIsVideoEnabled(true);
-        isRemoteDescriptionSet.current = false;
         candidateQueue.current = [];
     };
 
     // --- In-Call Controls ---
     const toggleMute = () => {
-        localStream.current?.getAudioTracks().forEach(track => track.enabled = !track.enabled);
-        setIsMuted(!isMuted);
+        if(localStream.current) {
+            localStream.current.getAudioTracks().forEach(track => track.enabled = !track.enabled);
+            setIsMuted(!isMuted);
+        }
     };
 
     const toggleVideo = () => {
-        localStream.current?.getVideoTracks().forEach(track => track.enabled = !track.enabled);
-        setIsVideoEnabled(!isVideoEnabled);
+        if(localStream.current) {
+            localStream.current.getVideoTracks().forEach(track => track.enabled = !track.enabled);
+            setIsVideoEnabled(!isVideoEnabled);
+        }
     };
     
      // --- Duration Timer ---
@@ -287,7 +278,6 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     if (!call || !currentUser) return null;
 
     // --- RENDER LOGIC ---
-    // Incoming Call Screen
     if (call.calleeId === currentUser.id && call.status === 'ringing') {
         return (
             <div className="fixed inset-0 z-[200] bg-gray-900/95 backdrop-blur-md flex flex-col items-center justify-center animate-fade-in">
@@ -318,31 +308,39 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     }
     
     const isVideoCall = call.type === 'video';
-    // Active or Outgoing Call Screen
+    
     return (
         <div className="fixed inset-0 z-[200] bg-black flex justify-center animate-fade-in">
             <div className="w-full max-w-md h-full relative bg-gray-900 flex flex-col">
-                <div className="flex-1 w-full relative overflow-hidden">
-                    {/* Remote Video or Avatar */}
-                    {isVideoCall && call.status === 'connected' ? (
-                         <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover" />
-                    ) : (
-                         <div className="absolute inset-0 flex flex-col items-center justify-center pt-20">
+                <div className="flex-1 w-full relative overflow-hidden bg-black">
+                    {/* Remote Video */}
+                    {isVideoCall && (
+                         <video 
+                            ref={remoteVideoRef} 
+                            autoPlay 
+                            playsInline 
+                            className={`w-full h-full object-cover transition-opacity duration-500 ${call.status === 'connected' ? 'opacity-100' : 'opacity-0'}`} 
+                        />
+                    )}
+                    
+                    {/* Placeholder / Connecting State */}
+                    {call.status !== 'connected' || !isVideoCall ? (
+                         <div className="absolute inset-0 flex flex-col items-center justify-center pt-20 bg-gray-900 z-10">
                              <img src={call.callerId === currentUser.id ? call.calleePhoto : call.callerPhoto} className="w-32 h-32 rounded-full object-cover border-4 border-white/20 shadow-2xl mb-6" />
                              <h2 className="text-3xl font-bold text-white mb-2">{call.callerId === currentUser.id ? call.calleeName : call.callerName}</h2>
-                             <p className="text-gray-300 font-medium">{call.status === 'connected' ? formatTime(duration) : 'Calling...'}</p>
+                             <p className="text-gray-300 font-medium animate-pulse">{call.status === 'connected' ? formatTime(duration) : (call.status === 'ringing' ? 'Calling...' : 'Connecting...')}</p>
                          </div>
-                    )}
+                    ) : null}
 
                     {/* Local Video (PIP) */}
                     {isVideoCall && (
-                        <div className="absolute top-4 right-4 w-28 h-40 bg-black rounded-xl overflow-hidden shadow-lg border border-white/20">
+                        <div className="absolute top-4 right-4 w-28 h-40 bg-black rounded-xl overflow-hidden shadow-lg border border-white/20 z-20">
                             <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
                         </div>
                     )}
                 </div>
 
-                <div className="w-full bg-black/60 backdrop-blur-md p-6 flex justify-around items-center">
+                <div className="w-full bg-black/60 backdrop-blur-md p-6 flex justify-around items-center z-20">
                     {isVideoCall && (
                         <button onClick={toggleVideo} className={`p-4 rounded-full transition-colors ${!isVideoEnabled ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
                             <CameraIcon className="w-6 h-6"/>

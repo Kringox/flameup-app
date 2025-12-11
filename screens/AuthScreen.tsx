@@ -1,10 +1,14 @@
+
 import React, { useState } from 'react';
 import { auth } from '../firebaseConfig';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
-  AuthError
+  AuthError,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence
 } from 'firebase/auth';
 import FlameIcon from '../components/icons/FlameIcon.tsx';
 
@@ -20,6 +24,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
   const [error, setError] = useState(preloadedError || '');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   // FIX: Cast error to 'any' to access the 'code' property, which is present on Firebase auth errors but may not be correctly typed.
   const handleFirebaseError = (err: any) => {
@@ -63,6 +68,9 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
     }
 
     try {
+      // Set persistence before signing in
+      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+
       if (view === 'login') {
         await signInWithEmailAndPassword(auth, email, password);
       } else {
@@ -192,11 +200,26 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ preloadedError }) => {
                 />
               )}
             </div>
+
+            {view !== 'forgot' && (
+                <div className="flex items-center mt-2 px-1">
+                    <input
+                        type="checkbox"
+                        id="rememberMe"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-500 text-flame-orange focus:ring-flame-orange bg-black/20 cursor-pointer"
+                    />
+                    <label htmlFor="rememberMe" className="ml-2 text-sm text-gray-400 cursor-pointer select-none">
+                        Stay signed in
+                    </label>
+                </div>
+            )}
             
             <button 
               type="submit"
               disabled={isLoading || !!preloadedError}
-              className="w-full mt-6 py-3.5 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold text-lg rounded-xl shadow-[0_10px_20px_-10px_rgba(255,107,53,0.5)] hover:shadow-[0_15px_25px_-10px_rgba(255,107,53,0.6)] transform hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full mt-4 py-3.5 bg-gradient-to-r from-flame-orange to-flame-red text-white font-bold text-lg rounded-xl shadow-[0_10px_20px_-10px_rgba(255,107,53,0.5)] hover:shadow-[0_15px_25px_-10px_rgba(255,107,53,0.6)] transform hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                   <span className="flex items-center justify-center">

@@ -75,6 +75,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
     const [isLoading, setIsLoading] = useState(true);
     const { t } = useI18n();
 
+    // Check if we are viewing our own profile to determine access rights
+    // In this component currentUser is the PROFILE being viewed if navigated via bottom nav,
+    // but app structure passes 'currentUser' as the logged in user always?
+    // Wait, App.tsx logic: if activeTab === Profile, passes currentUser.
+    // So this component renders the LOGGED IN user's profile.
+    // 'UserProfileScreen' renders OTHER users.
+    // So here, it's ALWAYS the own profile.
+    const isOwnProfile = true; 
+
     useEffect(() => {
         if (!db) return;
         setIsLoading(true);
@@ -101,9 +110,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
             
             // Client-side filtering and sorting
             if (activeTab === 'reposts') {
-                setPosts(userPosts.filter(p => p.caption.startsWith('RP @')));
+                // Check for 'isRepost' flag OR the old string convention as fallback
+                setPosts(userPosts.filter(p => (p as any).isRepost === true || p.caption.startsWith('RP @')));
             } else if (activeTab === 'posts') {
-                setPosts(userPosts.filter(p => !p.caption.startsWith('RP @')));
+                // Only show original posts (not reposts)
+                setPosts(userPosts.filter(p => (p as any).isRepost !== true && !p.caption.startsWith('RP @')));
             } else {
                 // Likes tab: Sort manually since we removed the orderBy query
                 userPosts.sort((a, b) => {
@@ -210,6 +221,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                             >
                                 Reposts
                             </button>
+                            
+                            {/* Likes Tab - Only visible to self (which is always true in this component) */}
                             <button 
                                 onClick={() => setActiveTab('likes')} 
                                 className={`py-3 flex-1 font-bold text-sm uppercase ${activeTab === 'likes' ? 'text-white border-b-2 border-white' : 'text-gray-500'}`}

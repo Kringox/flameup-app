@@ -32,6 +32,7 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
     const [showShare, setShowShare] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [showBigHeart, setShowBigHeart] = useState(false);
+    const [showRepostToast, setShowRepostToast] = useState(false);
     const lastTap = useRef(0);
     
     const isOwnPost = post.userId === currentUser.id;
@@ -48,8 +49,6 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
         if (!db) return;
         hapticFeedback('light');
         
-        // If already liked, Double Tap does nothing or just shows animation. 
-        // Standard Instagram behavior: Double tap on liked post shows heart but doesn't unlike.
         if (isLiked) {
             setShowBigHeart(true);
             setTimeout(() => setShowBigHeart(false), 800);
@@ -115,26 +114,32 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
 
     const handleRepost = async () => {
         if (!db) return;
-        if (window.confirm("Repost this to your profile?")) {
-            try {
-                await addDoc(collection(db, 'posts'), {
-                    userId: currentUser.id,
-                    user: {
-                        id: currentUser.id,
-                        name: currentUser.name,
-                        profilePhoto: currentUser.profilePhotos[0],
-                    },
-                    mediaUrls: post.mediaUrls,
-                    caption: `RP @${post.user.name}: ${post.caption}`,
-                    likedBy: [],
-                    commentCount: 0,
-                    timestamp: serverTimestamp(),
-                    isPaid: false,
-                });
-                alert("Reposted!");
-            } catch (e) {
-                console.error("Repost failed", e);
-            }
+        
+        // TikTok Style: Direct action, then show toast feedback
+        hapticFeedback('medium');
+        setShowRepostToast(true);
+        setTimeout(() => setShowRepostToast(false), 3000);
+
+        try {
+            await addDoc(collection(db, 'posts'), {
+                userId: currentUser.id,
+                user: {
+                    id: currentUser.id,
+                    name: currentUser.name,
+                    profilePhoto: currentUser.profilePhotos[0],
+                },
+                mediaUrls: post.mediaUrls,
+                caption: `RP @${post.user.name}: ${post.caption}`,
+                likedBy: [],
+                commentCount: 0,
+                timestamp: serverTimestamp(),
+                isPaid: false,
+                isRepost: true, // Flag for easy filtering
+                originalPostId: post.id // Reference to original
+            });
+        } catch (e) {
+            console.error("Repost failed", e);
+            alert("Repost failed due to connection error."); // Only alert on error
         }
     };
 
@@ -214,6 +219,16 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                     )}
                 </div>
 
+                {/* Repost Toast Notification */}
+                {showRepostToast && (
+                    <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-50 bg-black/80 backdrop-blur-md text-white px-4 py-2 rounded-full flex items-center gap-2 shadow-lg animate-fade-in-fast border border-white/10">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <span className="text-xs font-bold">Reposted to your profile</span>
+                    </div>
+                )}
+
                 {isLocked && (
                     <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-8 text-center bg-black/40 backdrop-blur-sm">
                         <div className="bg-white/10 p-6 rounded-3xl backdrop-blur-md border border-white/20 shadow-2xl">
@@ -272,6 +287,7 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                         <span className="text-white text-xs font-bold drop-shadow-md">{post.commentCount}</span>
                     </div>
 
+                    {/* Repost Button */}
                     {isLiked && !isOwnPost && (
                         <button onClick={handleRepost} className="active:scale-75 transition-transform p-1">
                             <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-white drop-shadow-lg" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { db } from '../firebaseConfig.ts';
 import { collection, query, getDocs, limit, doc, writeBatch, serverTimestamp, increment, QuerySnapshot, Timestamp, arrayUnion, updateDoc } from 'firebase/firestore';
@@ -307,7 +308,9 @@ const SwipeScreen: React.FC<SwipeScreenProps> = ({ currentUser, onNewMatch, onUp
                     </span>
                 </div>
                 <div className="w-full text-center">
-                    <img src="/assets/logo-icon.png" alt="FlameUp" className="h-8 dark:invert inline-block" />
+                    <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-flame-orange to-flame-red tracking-wide font-sans italic select-none inline-block">
+                        FlameUp
+                    </h1>
                 </div>
                 <div className="absolute top-3 right-4 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm border border-white/10 flex items-center gap-1.5">
                     <FlameIcon isGradient className="w-4 h-4" />
