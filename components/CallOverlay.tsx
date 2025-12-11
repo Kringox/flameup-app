@@ -26,44 +26,36 @@ const servers = {
 
 const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     const [call, setCall] = useState<Call | null>(null);
+    const [callStatusDisplay, setCallStatusDisplay] = useState('');
     const [duration, setDuration] = useState(0);
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
     const [localMediaError, setLocalMediaError] = useState<string | null>(null);
+    const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
     const pc = useRef<RTCPeerConnection | null>(null);
     const localStream = useRef<MediaStream | null>(null);
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
-    const candidateQueue = useRef<RTCIceCandidate[]>([]);
     
     // --- LISTEN FOR ACTIVE CALLS ---
     useEffect(() => {
         if (!currentUser || !db) return;
 
         const callsRef = collection(db, 'calls');
-        // We listen for any call where the user is a participant
-        const q = query(
-            callsRef, 
-            where('userIds', 'array-contains', currentUser.id)
-        );
+        const q = query(callsRef, where('userIds', 'array-contains', currentUser.id));
         
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const allCalls = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Call));
-            
-            // Helper to handle Firestore Timestamps or null (pending writes)
             const getTime = (c: Call) => c.timestamp?.seconds || (Date.now() / 1000);
 
-            // Find a relevant active call (ringing or connected)
-            // Sort by NEWEST first to catch the one we just started
+            // Find newest active call
             const activeCall = allCalls
                 .filter(c => c.status === 'ringing' || c.status === 'connected')
                 .sort((a, b) => getTime(b) - getTime(a))[0];
 
             if (activeCall) {
-                // Update state if we found an active call
                 setCall(prev => {
-                    // Only update if ID or Status changed to prevent loop, but allow initial set
                     if (!prev || prev.id !== activeCall.id || prev.status !== activeCall.status) {
                         if (activeCall.calleeId === currentUser.id && activeCall.status === 'ringing') {
                             hapticFeedback('medium');
@@ -73,15 +65,11 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
                     return prev;
                 });
             } else {
-                // If the current call we are viewing is no longer in the active list (ended/declined/deleted)
+                // Handle call end
                 setCall(prev => {
                     if (prev) {
-                        const myCallState = allCalls.find(c => c.id === prev.id);
-                        // If it's missing OR marked ended/declined/cancelled
-                        if (!myCallState || ['ended', 'declined', 'cancelled'].includes(myCallState.status)) {
-                            cleanupLocalMedia();
-                            return null;
-                        }
+                        cleanupLocalMedia();
+                        return null;
                     }
                     return prev;
                 });
@@ -91,227 +79,203 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         return () => unsubscribe();
     }, [currentUser?.id]);
 
-
-    // --- Core Signal Processing (Answer & Candidates) ---
+    // --- SETUP CALL (Signaling) ---
     useEffect(() => {
-        if (!call || !db) return;
+        if (!call || !db || !currentUser) return;
 
-        // I AM THE CALLER: Wait for Answer
-        if (call.callerId === currentUser?.id && call.status === 'connected' && call.answer && pc.current && !pc.current.currentRemoteDescription) {
-             const setRemote = async () => {
-                try {
-                    const answer = new RTCSessionDescription(call.answer);
-                    await pc.current?.setRemoteDescription(answer);
-                    processCandidateQueue();
-                } catch (e) {
-                    console.error("Error setting remote description (answer)", e);
+        const isCaller = call.callerId === currentUser.id;
+        
+        // 1. Initialize PeerConnection if not exists
+        if (!pc.current) {
+            console.log("Initializing PeerConnection...");
+            const newPc = new RTCPeerConnection(servers);
+            
+            newPc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    const collectionName = isCaller ? 'offerCandidates' : 'answerCandidates';
+                    addDoc(collection(db, 'calls', call.id, collectionName), event.candidate.toJSON());
                 }
-             };
-             setRemote();
+            };
+
+            newPc.ontrack = (event) => {
+                console.log("Received remote track:", event.streams[0]);
+                event.streams[0].getTracks().forEach(track => {
+                    track.enabled = true;
+                });
+                setRemoteStream(event.streams[0]);
+            };
+            
+            newPc.onconnectionstatechange = () => {
+                console.log("Connection State:", newPc.connectionState);
+                if (newPc.connectionState === 'connected') {
+                    setCallStatusDisplay('Connected');
+                } else if (newPc.connectionState === 'disconnected' || newPc.connectionState === 'failed') {
+                    setCallStatusDisplay('Connection lost');
+                }
+            };
+
+            pc.current = newPc;
+
+            // Start Local Stream
+            setupSources(call.type === 'video').then(({ stream, error }) => {
+                if (error) setLocalMediaError(error);
+                if (stream) {
+                    stream.getTracks().forEach(track => {
+                        if (pc.current) {
+                            pc.current.addTrack(track, stream);
+                        }
+                    });
+                }
+                
+                // If Caller: Create Offer
+                if (isCaller && call.status === 'ringing') {
+                    createOffer();
+                }
+            });
         }
 
-        // ICE Candidates Listener
-        const candidatesCollection = collection(db, 'calls', call.id, 'candidates');
-        const unsubscribeCandidates = onSnapshot(candidatesCollection, (snapshot) => {
+        // 2. Handle Signaling Logic
+        const handleSignaling = async () => {
+            if (!pc.current) return;
+
+            // Caller Logic: Process Answer when available
+            if (isCaller && call.answer && !pc.current.currentRemoteDescription) {
+                const answer = new RTCSessionDescription(call.answer);
+                await pc.current.setRemoteDescription(answer);
+                console.log("Caller set remote description (answer)");
+            }
+
+            // Callee Logic: Process Offer when accepting
+            if (!isCaller && call.offer && !pc.current.currentRemoteDescription && call.status === 'connected') {
+                const offer = new RTCSessionDescription(call.offer);
+                await pc.current.setRemoteDescription(offer);
+                console.log("Callee set remote description (offer)");
+                
+                const answer = await pc.current.createAnswer();
+                await pc.current.setLocalDescription(answer);
+                
+                await updateDoc(doc(db, 'calls', call.id), {
+                    answer: { sdp: answer.sdp, type: answer.type }
+                });
+            }
+        };
+
+        handleSignaling();
+
+        // 3. Listen for Remote Candidates
+        // If I am caller, I listen to 'answerCandidates'. If I am callee, I listen to 'offerCandidates'.
+        const remoteCandidateCollection = isCaller ? 'answerCandidates' : 'offerCandidates';
+        const qCandidates = collection(db, 'calls', call.id, remoteCandidateCollection);
+        
+        const unsubscribeCandidates = onSnapshot(qCandidates, (snapshot) => {
             snapshot.docChanges().forEach((change) => {
                 if (change.type === 'added') {
                     const data = change.doc.data();
-                    try {
+                    if (pc.current && pc.current.remoteDescription) {
                         const candidate = new RTCIceCandidate(data);
-                        if (pc.current) {
-                            if (pc.current.remoteDescription) {
-                                pc.current.addIceCandidate(candidate).catch(e => console.log("Candidate add failed", e));
-                            } else {
-                                candidateQueue.current.push(candidate);
-                            }
-                        }
-                    } catch (e) {
-                        console.error("Error parsing candidate", e);
+                        pc.current.addIceCandidate(candidate).catch(e => console.error("Error adding candidate", e));
                     }
                 }
             });
         });
 
-        return () => unsubscribeCandidates();
-    }, [call?.id, call?.status, currentUser?.id]);
+        return () => {
+            unsubscribeCandidates();
+        };
 
+    }, [call?.id, call?.status, call?.offer, call?.answer]);
 
-    // --- Start Outgoing Call (Caller logic) ---
-    useEffect(() => {
-        // Trigger setup only if I am caller, it's ringing, and NO peer connection exists yet
-        if (call && call.callerId === currentUser?.id && call.status === 'ringing' && !pc.current) {
-            const start = async () => {
-                const { stream, error } = await setupSources(call.type === 'video');
-                if (error) setLocalMediaError(error);
+    const createOffer = async () => {
+        if (!pc.current || !db || !call) return;
+        console.log("Creating offer...");
+        const offer = await pc.current.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true
+        });
+        await pc.current.setLocalDescription(offer);
+        await updateDoc(doc(db, 'calls', call.id), {
+            offer: { sdp: offer.sdp, type: offer.type }
+        });
+    };
 
-                pc.current = createPeerConnection(call.id);
-                
-                // Add tracks if we have them
-                stream.getTracks().forEach(track => pc.current?.addTrack(track, stream));
-                
-                // Even if no tracks, we create an offer (Receive Only or SendRecv depending on stream)
-                const offer = await pc.current.createOffer({
-                    offerToReceiveAudio: true,
-                    offerToReceiveVideo: true
-                });
-                
-                await pc.current.setLocalDescription(offer);
-
-                const callRef = doc(db, 'calls', call.id);
-                await updateDoc(callRef, { offer: { sdp: offer.sdp, type: offer.type } });
-            };
-            start();
-        }
-    }, [call?.id, call?.status]);
-
-
-    // --- WebRTC Helpers ---
-    const setupSources = async (isVideo: boolean): Promise<{ stream: MediaStream, error: string | null }> => {
-        let stream: MediaStream;
+    const setupSources = async (isVideo: boolean): Promise<{ stream: MediaStream | null, error: string | null }> => {
+        let stream: MediaStream | null = null;
         let errorMsg: string | null = null;
 
         try {
-            // 1. Try to get Video + Audio
             stream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
         } catch (err) {
             console.warn("Full media access failed:", err);
             try {
-                // 2. Fallback: Try Audio Only
                 stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
-                if (isVideo) errorMsg = "Video failed. Audio only.";
+                if (isVideo) errorMsg = "No Camera. Audio only.";
             } catch (err2) {
                 console.warn("Audio access failed:", err2);
-                // 3. Fallback: No Media (Receive Only / View Only)
-                stream = new MediaStream(); // Create empty stream so connection proceeds
-                errorMsg = "No Microphone/Camera found. View only.";
+                stream = new MediaStream(); // Empty stream
+                errorMsg = "No Mic/Cam. View only.";
             }
         }
 
         localStream.current = stream;
-        if (localVideoRef.current && stream.active) {
+        if (localVideoRef.current && stream) {
             localVideoRef.current.srcObject = stream;
-            localVideoRef.current.muted = true; 
+            localVideoRef.current.muted = true;
         }
-        
         return { stream, error: errorMsg };
     };
 
-    const createPeerConnection = (callId: string) => {
-        const newPc = new RTCPeerConnection(servers);
-
-        newPc.onicecandidate = event => {
-            if (event.candidate) {
-                addDoc(collection(db, 'calls', callId, 'candidates'), event.candidate.toJSON());
-            }
-        };
-        
-        newPc.ontrack = event => {
-            if (remoteVideoRef.current && event.streams[0]) {
-                remoteVideoRef.current.srcObject = event.streams[0];
-            }
-        };
-
-        return newPc;
-    };
-    
-    const processCandidateQueue = async () => {
-        if (!pc.current) return;
-        while (candidateQueue.current.length > 0) {
-            const candidate = candidateQueue.current.shift();
-            if (candidate) {
-                try {
-                    await pc.current.addIceCandidate(candidate);
-                } catch (e) { console.error("Error adding queued candidate", e); }
-            }
+    // Attach remote stream to video element when state changes
+    useEffect(() => {
+        if (remoteVideoRef.current && remoteStream) {
+            remoteVideoRef.current.srcObject = remoteStream;
+            // Explicitly play to avoid browser block
+            remoteVideoRef.current.play().catch(e => console.error("Autoplay failed:", e));
         }
-    };
+    }, [remoteStream]);
 
-    // --- User Actions ---
     const handleAccept = async () => {
-        if (!call || !db) return;
-        
-        const { stream, error } = await setupSources(call.type === 'video');
-        if (error) setLocalMediaError(error);
-
-        pc.current = createPeerConnection(call.id);
-        
-        // Add tracks if available
-        stream.getTracks().forEach(track => pc.current?.addTrack(track, stream));
-
-        const callRef = doc(db, 'calls', call.id);
-        const callSnap = await getDoc(callRef);
-        
-        if (!callSnap.exists()) {
-            handleEndCall(true);
-            return;
-        }
-        
-        const callData = callSnap.data() as Call;
-
-        if (callData.offer) {
-            await pc.current.setRemoteDescription(new RTCSessionDescription(callData.offer));
-            processCandidateQueue();
-            
-            const answer = await pc.current.createAnswer();
-            await pc.current.setLocalDescription(answer);
-
-            await updateDoc(callRef, {
-                answer: { sdp: answer.sdp, type: answer.type },
-                status: 'connected'
-            });
-        }
+        if (!db || !call) return;
+        setCallStatusDisplay('Connecting...');
+        await updateDoc(doc(db, 'calls', call.id), { status: 'connected' });
     };
 
     const handleDeclineOrCancel = async () => {
-        if (!call || !db) return;
-        // Mark as declined (if I am callee) or cancelled (if I am caller)
-        const newStatus = call.callerId === currentUser?.id ? 'cancelled' : 'declined';
+        if (!call || !db || !currentUser) return;
+        const newStatus = call.callerId === currentUser.id ? 'cancelled' : 'declined';
         await updateDoc(doc(db, 'calls', call.id), { status: newStatus });
-        // The listener will pick up the status and close the UI
-    };
-
-    const cleanupLocalMedia = () => {
-        if (pc.current) {
-            pc.current.close();
-            pc.current = null;
-        }
-        if (localStream.current) {
-            localStream.current.getTracks().forEach(track => track.stop());
-            localStream.current = null;
-        }
-        setDuration(0);
-        setIsMuted(false);
-        setIsVideoEnabled(true);
-        setLocalMediaError(null);
-        candidateQueue.current = [];
-    };
-
-    const handleEndCall = async (isCleanupOnly = false) => {
-        if (!isCleanupOnly && call && db) {
-            try {
-                await updateDoc(doc(db, 'calls', call.id), { status: 'ended' });
-            } catch(e) {}
-        }
         cleanupLocalMedia();
         setCall(null);
     };
 
-    // --- In-Call Controls ---
+    const cleanupLocalMedia = () => {
+        if (localStream.current) {
+            localStream.current.getTracks().forEach(track => track.stop());
+            localStream.current = null;
+        }
+        if (pc.current) {
+            pc.current.close();
+            pc.current = null;
+        }
+        setRemoteStream(null);
+        setDuration(0);
+        setLocalMediaError(null);
+        setCallStatusDisplay('');
+    };
+
     const toggleMute = () => {
-        if(localStream.current) {
-            localStream.current.getAudioTracks().forEach(track => track.enabled = !track.enabled);
+        if (localStream.current) {
+            localStream.current.getAudioTracks().forEach(t => t.enabled = !t.enabled);
             setIsMuted(!isMuted);
         }
     };
 
     const toggleVideo = () => {
-        if(localStream.current) {
-            localStream.current.getVideoTracks().forEach(track => track.enabled = !track.enabled);
+        if (localStream.current) {
+            localStream.current.getVideoTracks().forEach(t => t.enabled = !t.enabled);
             setIsVideoEnabled(!isVideoEnabled);
         }
     };
-    
-     // --- Duration Timer ---
+
     useEffect(() => {
         let interval: number | undefined;
         if (call?.status === 'connected') {
@@ -328,28 +292,28 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
 
     if (!call || !currentUser) return null;
 
-    // --- RENDER LOGIC ---
-    
-    // Incoming Call (I am callee, ringing)
+    // --- RENDER ---
+
+    // Incoming Call (Ringing)
     if (call.calleeId === currentUser.id && call.status === 'ringing') {
         return (
             <div className="fixed inset-0 z-[200] bg-gray-900/95 backdrop-blur-md flex flex-col items-center justify-center animate-fade-in">
-                <div className="w-full max-w-md h-full flex flex-col items-center justify-between py-20 px-6">
-                    <div className="flex-1 flex flex-col items-center justify-center">
+                <div className="flex flex-col items-center justify-between h-[80vh] w-full max-w-md">
+                    <div className="flex flex-col items-center mt-20">
                         <div className="relative mb-8">
                             <div className="absolute inset-0 rounded-full bg-flame-orange/20 animate-ping"></div>
-                            <img src={call.callerPhoto} alt={call.callerName} className="w-32 h-32 rounded-full object-cover border-4 border-white/10 shadow-2xl relative z-10" />
+                            <img src={call.callerPhoto} className="w-32 h-32 rounded-full object-cover border-4 border-white/10 shadow-2xl relative z-10" />
                         </div>
                         <h2 className="text-3xl font-bold text-white mb-2">{call.callerName}</h2>
-                        <p className="text-gray-300 font-medium">{call.type === 'video' ? '📹 Video Call' : '📞 Audio Call'}</p>
+                        <p className="text-gray-300 font-medium">Incoming {call.type === 'video' ? 'Video' : 'Audio'} Call</p>
                     </div>
-                    <div className="w-full flex justify-around items-center">
+                    <div className="flex w-full justify-around px-8">
                         <button onClick={handleDeclineOrCancel} className="flex flex-col items-center gap-2">
-                            <div className="p-5 bg-red-500 rounded-full text-white shadow-xl active:scale-90 transition-transform"><XIcon className="w-8 h-8" /></div>
+                            <div className="p-5 bg-red-500 rounded-full text-white shadow-xl active:scale-95 transition-transform"><XIcon className="w-8 h-8" /></div>
                             <span className="text-white font-semibold">Decline</span>
                         </button>
                         <button onClick={handleAccept} className="flex flex-col items-center gap-2">
-                            <div className="p-5 bg-green-500 rounded-full text-white shadow-xl active:scale-90 transition-transform animate-bounce">
+                            <div className="p-5 bg-green-500 rounded-full text-white shadow-xl active:scale-95 transition-transform animate-bounce">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 fill-current" viewBox="0 0 24 24"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 00-1.01.24l-1.57 1.97c-2.83-1.44-5.15-3.75-6.59-6.59l1.97-1.57c.26-.26.35-.63.24-1.01a11.36 11.36 0 01-.56-3.53C8.96 3.55 8.5 3 7.87 3H4.24C3.56 3 3 3.56 3 4.24c0 9.39 7.61 17 17 17 .68 0 1.24-.56 1.24-1.24v-3.63c0-.63-.55-1.09-1.23-1.09z"/></svg>
                             </div>
                             <span className="text-white font-semibold">Accept</span>
@@ -359,56 +323,58 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
             </div>
         );
     }
-    
+
+    // Active Call
     const isVideoCall = call.type === 'video';
-    
-    // Connected or Outgoing Call (I am caller or I accepted)
+    const partnerName = call.callerId === currentUser.id ? call.calleeName : call.callerName;
+    const partnerPhoto = call.callerId === currentUser.id ? call.calleePhoto : call.callerPhoto;
+
     return (
         <div className="fixed inset-0 z-[200] bg-black flex justify-center animate-fade-in">
             <div className="w-full max-w-md h-full relative bg-gray-900 flex flex-col">
                 <div className="flex-1 w-full relative overflow-hidden bg-black">
                     
-                    {/* Error Overlay for missing local media */}
                     {localMediaError && (
-                        <div className="absolute top-4 left-4 right-4 z-50 bg-red-500/80 backdrop-blur-md text-white text-xs px-3 py-2 rounded-lg text-center shadow-lg border border-red-400/50 animate-fade-in">
+                        <div className="absolute top-4 left-4 right-4 z-50 bg-red-500/80 backdrop-blur-md text-white text-xs px-3 py-2 rounded-lg text-center">
                             ⚠️ {localMediaError}
                         </div>
                     )}
 
-                    {/* Remote Video */}
-                    {isVideoCall && (
-                         <video 
-                            ref={remoteVideoRef} 
-                            autoPlay 
-                            playsInline 
-                            className={`w-full h-full object-cover transition-opacity duration-500 ${call.status === 'connected' ? 'opacity-100' : 'opacity-0'}`} 
-                        />
-                    )}
+                    {/* Remote Video - Always render but control visibility */}
+                    <video 
+                        ref={remoteVideoRef} 
+                        autoPlay 
+                        playsInline 
+                        className={`w-full h-full object-cover transition-opacity duration-500 ${remoteStream ? 'opacity-100' : 'opacity-0'}`} 
+                    />
                     
-                    {/* Placeholder / Connecting State (Overlay until video or audio connects) */}
-                    {call.status !== 'connected' || !isVideoCall ? (
+                    {/* Placeholder / Connecting State */}
+                    {!remoteStream && (
                          <div className="absolute inset-0 flex flex-col items-center justify-center pt-20 bg-gray-900 z-10">
-                             <img src={call.callerId === currentUser.id ? call.calleePhoto : call.callerPhoto} className="w-32 h-32 rounded-full object-cover border-4 border-white/20 shadow-2xl mb-6" />
-                             <h2 className="text-3xl font-bold text-white mb-2">{call.callerId === currentUser.id ? call.calleeName : call.callerName}</h2>
-                             <p className="text-gray-300 font-medium animate-pulse">{call.status === 'connected' ? formatTime(duration) : (call.status === 'ringing' ? 'Calling...' : 'Connecting...')}</p>
+                             <img src={partnerPhoto} className="w-32 h-32 rounded-full object-cover border-4 border-white/20 shadow-2xl mb-6" />
+                             <h2 className="text-3xl font-bold text-white mb-2">{partnerName}</h2>
+                             <p className="text-gray-300 font-medium animate-pulse">
+                                 {call.status === 'connected' ? (callStatusDisplay || formatTime(duration)) : 'Calling...'}
+                             </p>
                          </div>
-                    ) : null}
+                    )}
 
-                    {/* Local Video (PIP) - Only show if we actually have a local stream with tracks */}
-                    {isVideoCall && localStream.current && localStream.current.getVideoTracks().length > 0 && (
+                    {/* Local Video PIP */}
+                    {isVideoCall && !localMediaError && (
                         <div className="absolute top-4 right-4 w-28 h-40 bg-black rounded-xl overflow-hidden shadow-lg border border-white/20 z-20">
                             <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
                         </div>
                     )}
                 </div>
 
-                <div className="w-full bg-black/60 backdrop-blur-md p-6 flex justify-around items-center z-20">
+                {/* Controls */}
+                <div className="w-full bg-black/60 backdrop-blur-md p-6 flex justify-around items-center z-20 pb-10">
                     {isVideoCall && (
                         <button onClick={toggleVideo} className={`p-4 rounded-full transition-colors ${!isVideoEnabled ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
                             <CameraIcon className="w-6 h-6"/>
                         </button>
                     )}
-                    <button onClick={() => handleDeclineOrCancel()} className="p-5 bg-red-600 rounded-full text-white shadow-lg active:scale-95 transition-transform mx-4">
+                    <button onClick={handleDeclineOrCancel} className="p-5 bg-red-600 rounded-full text-white shadow-lg active:scale-95 transition-transform mx-4">
                         <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 fill-current" viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.36 7.46 6 12 6s8.66 2.36 11.71 5.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
                     </button>
                     <button onClick={toggleMute} className={`p-4 rounded-full transition-colors ${isMuted ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>

@@ -1,12 +1,12 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { User } from '../types.ts';
 import FlameIcon from '../components/icons/FlameIcon.tsx';
 import BuyCoinsModal from '../components/BuyCoinsModal.tsx';
 import { useI18n } from '../contexts/I18nContext.ts';
 import CashOutScreen from './CashOutScreen.tsx';
 import { db } from '../firebaseConfig.ts';
-import { doc, updateDoc, increment, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, increment } from 'firebase/firestore';
 
 interface WalletScreenProps {
   user: User;
@@ -19,23 +19,8 @@ const WalletScreen: React.FC<WalletScreenProps> = ({ user, onClose, onUpdateUser
     const [isCashOutOpen, setIsCashOutOpen] = useState(false);
     const { t } = useI18n();
     
-    // Explicitly sync coins from server when wallet opens to ensure consistency
-    useEffect(() => {
-        if (!db) return;
-        const fetchCoins = async () => {
-            const snap = await getDoc(doc(db, 'users', user.id));
-            if (snap.exists()) {
-                const data = snap.data() as User;
-                // If local coin count differs from server, force update
-                // Use default of 0 if undefined to prevent NaN issues
-                const serverCoins = data.coins ?? 0;
-                if (serverCoins !== user.coins) {
-                    onUpdateUser({ ...user, coins: serverCoins });
-                }
-            }
-        }
-        fetchCoins();
-    }, []);
+    // NOTE: Coins are managed via App.tsx real-time listener.
+    // We only trigger Firestore updates here.
     
     const handlePurchase = async (item: 'swipes' | 'superlike') => {
         if (!db) return;
@@ -66,16 +51,10 @@ const WalletScreen: React.FC<WalletScreenProps> = ({ user, onClose, onUpdateUser
                 
                 await updateDoc(userRef, updates);
 
-                // Optimistic update
-                const updatedUser = { ...user };
-                updatedUser.coins = (user.coins || 0) - cost;
-                if (item === 'swipes') {
-                    updatedUser.dailySwipesUsed = Math.max(0, (user.dailySwipesUsed || 0) - 10);
-                } else if (item === 'superlike') {
-                    updatedUser.freeSuperLikes = (user.freeSuperLikes || 0) + 1;
-                }
-                onUpdateUser(updatedUser);
-
+                // FIX: Removed optimistic update for coins to prevent overwriting the source of truth (Firestore listener in App.tsx)
+                // The UI will update automatically when Firestore syncs.
+                // We still optimistically update other props if needed for immediate feedback, but coins is critical.
+                
             } catch (error) {
                 console.error(`Error purchasing ${item}:`, error);
                 alert('Purchase failed. Please try again.');

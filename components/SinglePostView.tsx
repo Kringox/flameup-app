@@ -263,7 +263,8 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                     </div>
                 )}
 
-                <div className="absolute bottom-0 left-0 right-0 p-4 pb-24 pt-24 bg-gradient-to-t from-black/90 via-black/50 to-transparent z-20 pointer-events-none">
+                {/* Info Area - INCREASED BOTTOM PADDING HERE */}
+                <div className="absolute bottom-0 left-0 right-0 p-4 pb-[env(safe-area-inset-bottom,40px)] mb-36 bg-gradient-to-t from-black/90 via-black/50 to-transparent z-20 pointer-events-none">
                     <div className="pointer-events-auto max-w-[80%]">
                         {isReposted && (
                             <p className="text-xs font-bold text-gray-300 mb-1 flex items-center gap-1">
@@ -283,7 +284,8 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                     </div>
                 </div>
 
-                <div className="absolute right-2 bottom-20 z-30 flex flex-col items-center gap-5 pb-4">
+                {/* Right Side Actions - Moved up */}
+                <div className="absolute right-2 bottom-[180px] z-30 flex flex-col items-center gap-5 pb-4">
                     <div className="relative">
                         <button onClick={() => onViewProfile(post.userId)} className="relative">
                             <img src={post.user.profilePhoto} className="w-12 h-12 rounded-full border-2 border-white shadow-md object-cover" />
@@ -309,7 +311,7 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                         <span className="text-white text-xs font-bold drop-shadow-md">{post.commentCount}</span>
                     </div>
 
-                    {/* Repost Button - now modifies existing post */}
+                    {/* Repost Button */}
                     {!isOwnPost && (
                         <button onClick={handleRepost} className={`active:scale-75 transition-transform p-1 ${isReposted ? 'text-green-400' : 'text-white'}`}>
                             <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 drop-shadow-lg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
