@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Post, User } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
 import { doc, updateDoc, arrayUnion, arrayRemove, increment, runTransaction, addDoc, collection, serverTimestamp } from 'firebase/firestore';
@@ -31,6 +31,8 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
     const [isProcessing, setIsProcessing] = useState(false);
     const [showShare, setShowShare] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [showBigHeart, setShowBigHeart] = useState(false);
+    const lastTap = useRef(0);
     
     const isOwnPost = post.userId === currentUser.id;
     const isSubscribed = currentUser.subscriptions?.includes(post.userId);
@@ -42,9 +44,45 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
         setLikeCount(post.likedBy?.length || 0);
     }, [post, currentUser.id]);
 
-    const handleLike = async () => {
+    const performLike = async () => {
         if (!db) return;
         hapticFeedback('light');
+        
+        // If already liked, Double Tap does nothing or just shows animation. 
+        // Standard Instagram behavior: Double tap on liked post shows heart but doesn't unlike.
+        if (isLiked) {
+            setShowBigHeart(true);
+            setTimeout(() => setShowBigHeart(false), 800);
+            return;
+        }
+
+        const newLikedState = true;
+        setIsLiked(newLikedState);
+        setLikeCount(prev => prev + 1);
+        setShowBigHeart(true);
+        setTimeout(() => setShowBigHeart(false), 800);
+
+        const postRef = doc(db, 'posts', post.id);
+        const targetUserRef = doc(db, 'users', post.userId);
+
+        try {
+            await updateDoc(postRef, {
+                likedBy: arrayUnion(currentUser.id)
+            });
+            await updateDoc(targetUserRef, {
+                hotnessScore: increment(HotnessWeight.LIKE)
+            });
+        } catch (error) {
+            console.error(error);
+            setIsLiked(false);
+            setLikeCount(prev => prev - 1);
+        }
+    };
+
+    const toggleLike = async () => {
+        if (!db) return;
+        hapticFeedback('light');
+        
         const newLikedState = !isLiked;
         setIsLiked(newLikedState);
         setLikeCount(prev => newLikedState ? prev + 1 : prev - 1);
@@ -66,12 +104,19 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
         }
     };
 
+    const handleDoubleTap = (e: React.MouseEvent | React.TouchEvent) => {
+        const now = Date.now();
+        const DOUBLE_TAP_DELAY = 300;
+        if (now - lastTap.current < DOUBLE_TAP_DELAY) {
+            performLike();
+        }
+        lastTap.current = now;
+    };
+
     const handleRepost = async () => {
         if (!db) return;
         if (window.confirm("Repost this to your profile?")) {
             try {
-                // Simplified Repost: Create a new post referencing the original
-                // Ideally, backend supports a 'repostOf' field. For now, we duplicate content with attribution.
                 await addDoc(collection(db, 'posts'), {
                     userId: currentUser.id,
                     user: {
@@ -84,7 +129,7 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                     likedBy: [],
                     commentCount: 0,
                     timestamp: serverTimestamp(),
-                    isPaid: false, // Reposts usually free?
+                    isPaid: false,
                 });
                 alert("Reposted!");
             } catch (e) {
@@ -134,7 +179,7 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                 <EditPostModal
                     post={post}
                     onClose={() => setIsEditing(false)}
-                    onSave={() => setIsEditing(false)} // Modal handles DB update, listener handles UI
+                    onSave={() => setIsEditing(false)}
                 />
             )}
             
@@ -149,12 +194,23 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                     <div className="absolute inset-0 bg-black/20" />
                 </div>
 
-                <div className="absolute inset-0 z-10 flex items-center justify-center">
+                {/* Main Content Area with Double Tap */}
+                <div 
+                    className="absolute inset-0 z-10 flex items-center justify-center select-none"
+                    onClick={handleDoubleTap}
+                >
                     <img 
                         src={post.mediaUrls[0]} 
                         alt="Post" 
                         className={`max-w-full max-h-full object-contain shadow-lg ${isLocked ? 'blur-2xl scale-110 brightness-50' : ''}`} 
                     />
+                    
+                    {/* Big Heart Animation */}
+                    {showBigHeart && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
+                            <HeartIcon isLiked={true} className="w-32 h-32 text-white/90 fill-white animate-like-pop drop-shadow-2xl" />
+                        </div>
+                    )}
                 </div>
 
                 {isLocked && (
@@ -202,7 +258,7 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                     </div>
 
                     <div className="flex flex-col items-center gap-1">
-                        <button onClick={handleLike} className="active:scale-75 transition-transform p-1">
+                        <button onClick={toggleLike} className="active:scale-75 transition-transform p-1">
                             <HeartIcon isLiked={isLiked} className={`w-8 h-8 drop-shadow-lg ${isLiked ? 'text-red-500 fill-red-500' : 'text-white'}`} />
                         </button>
                         <span className="text-white text-xs font-bold drop-shadow-md">{likeCount}</span>

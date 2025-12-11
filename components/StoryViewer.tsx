@@ -129,8 +129,9 @@ const StoryViewer: React.FC<StoryViewerProps> = ({ stories, currentUser, startIn
                 </div>
             </div>
             
-            <div className="relative w-full h-full flex items-center justify-center bg-zinc-900">
-                <img src={currentStory.mediaUrl} alt="Story content" className="w-full h-full object-contain" />
+            <div className="relative w-full h-full flex items-center justify-center bg-black">
+                {/* Changed to object-cover to fill the screen (mobile format) */}
+                <img src={currentStory.mediaUrl} alt="Story content" className="w-full h-full object-cover" />
                 
                 {/* Caption Overlay */}
                 {currentStory.caption && (

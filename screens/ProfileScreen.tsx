@@ -78,35 +78,45 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
     useEffect(() => {
         if (!db) return;
         setIsLoading(true);
-        setPosts([]); // Clear previous posts to avoid flash
+        setPosts([]); 
         
         let q;
         if (activeTab === 'posts' || activeTab === 'reposts') {
             q = query(collection(db, 'posts'), where('userId', '==', currentUser.id), orderBy('timestamp', 'desc'));
         } else if (activeTab === 'likes') {
-            q = query(collection(db, 'posts'), where('likedBy', 'array-contains', currentUser.id), orderBy('timestamp', 'desc'));
+            // FIX: Removed orderBy('timestamp', 'desc') here. 
+            // Firestore requires a composite index for 'array-contains' + 'orderBy'.
+            // By removing it, we prevent the query from failing. We sort client-side instead.
+            q = query(collection(db, 'posts'), where('likedBy', 'array-contains', currentUser.id));
         } else {
             setIsLoading(false);
             return;
         }
 
         const unsubscribe = onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
-            const userPosts = snapshot.docs.map(doc => {
+            let userPosts = snapshot.docs.map(doc => {
                 const data = doc.data();
                 return { id: doc.id, ...data, user: data.user || { id: data.userId, name: data.userName, profilePhoto: data.userProfilePhoto } } as Post;
             });
             
+            // Client-side filtering and sorting
             if (activeTab === 'reposts') {
-                // Client-side filtering for 'reposts' mock (caption starts with RP)
                 setPosts(userPosts.filter(p => p.caption.startsWith('RP @')));
             } else if (activeTab === 'posts') {
-                // Filter out reposts from main grid
                 setPosts(userPosts.filter(p => !p.caption.startsWith('RP @')));
             } else {
-                // Likes tab gets everything from query
+                // Likes tab: Sort manually since we removed the orderBy query
+                userPosts.sort((a, b) => {
+                    const tA = a.timestamp?.toMillis ? a.timestamp.toMillis() : 0;
+                    const tB = b.timestamp?.toMillis ? b.timestamp.toMillis() : 0;
+                    return tB - tA; // Descending
+                });
                 setPosts(userPosts);
             }
             
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching profile posts:", error);
             setIsLoading(false);
         });
         return () => unsubscribe();

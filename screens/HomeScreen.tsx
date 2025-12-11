@@ -54,16 +54,16 @@ const StoryRail: React.FC<{ currentUser: User, onCreateStory: () => void, onOpen
     });
 
     return (
-        <div className="flex space-x-4 p-4 overflow-x-auto scrollbar-hide bg-black/20 backdrop-blur-md w-full">
+        <div className="flex space-x-4 px-4 py-2 overflow-x-auto scrollbar-hide w-full">
             {/* My Story */}
-            <div className="flex flex-col items-center space-y-1 cursor-pointer flex-shrink-0" onClick={onCreateStory}>
-                <div className="w-16 h-16 rounded-full border-2 border-gray-500 p-0.5 relative">
+            <div className="flex flex-col items-center space-y-1.5 cursor-pointer flex-shrink-0 transition-transform active:scale-95 duration-200" onClick={onCreateStory}>
+                <div className="w-[68px] h-[68px] rounded-full border-2 border-gray-500 p-0.5 relative">
                     <img src={currentUser.profilePhotos[0]} className="w-full h-full rounded-full object-cover opacity-80" />
-                    <div className="absolute bottom-0 right-0 bg-flame-orange rounded-full p-1 border border-black">
-                        <PlusIcon className="w-3 h-3 text-white" />
+                    <div className="absolute bottom-0 right-0 bg-flame-orange rounded-full p-1.5 border-2 border-black">
+                        <PlusIcon className="w-3 h-3 text-white" strokeWidth={4} />
                     </div>
                 </div>
-                <span className="text-xs text-white">You</span>
+                <span className="text-xs text-white font-medium drop-shadow-md">You</span>
             </div>
 
             {/* Other Stories */}
@@ -75,11 +75,11 @@ const StoryRail: React.FC<{ currentUser: User, onCreateStory: () => void, onOpen
                 const flatIndex = stories.findIndex(s => s.id === firstStory.id);
                 
                 return (
-                    <div key={uid} className="flex flex-col items-center space-y-1 cursor-pointer flex-shrink-0" onClick={() => onOpenStory(flatIndex, stories)}>
-                        <div className="w-16 h-16 rounded-full border-2 border-flame-orange p-0.5">
+                    <div key={uid} className="flex flex-col items-center space-y-1.5 cursor-pointer flex-shrink-0 transition-transform active:scale-95 duration-200" onClick={() => onOpenStory(flatIndex, stories)}>
+                        <div className="w-[68px] h-[68px] rounded-full border-2 border-flame-orange p-0.5">
                             <img src={firstStory.user.profilePhoto || ''} className="w-full h-full rounded-full object-cover" />
                         </div>
-                        <span className="text-xs text-white w-16 truncate text-center">{firstStory.user.name || 'User'}</span>
+                        <span className="text-xs text-white w-16 truncate text-center font-medium drop-shadow-md">{firstStory.user.name || 'User'}</span>
                     </div>
                 )
             })}
@@ -100,6 +100,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
 
     // Feed Toggle State
     const [feedType, setFeedType] = useState<'forYou' | 'flame'>('forYou');
+    const [isSwitchingTab, setIsSwitchingTab] = useState(false);
 
     // --- REALTIME FEED LISTENER ---
     useEffect(() => {
@@ -135,6 +136,21 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
             setShowStories(true);
         }
     }, [refreshTrigger]);
+
+    // SCROLL RESET ON FEED TYPE CHANGE
+    useEffect(() => {
+        if (containerRef.current) {
+            // Instant scroll to top to prevent disorientation
+            containerRef.current.scrollTop = 0;
+            // Ensure stories come back
+            setShowStories(true);
+            
+            // Trigger a small animation state
+            setIsSwitchingTab(true);
+            const timer = setTimeout(() => setIsSwitchingTab(false), 300);
+            return () => clearTimeout(timer);
+        }
+    }, [feedType]);
 
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
         const currentScrollY = e.currentTarget.scrollTop;
@@ -175,44 +191,53 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
             )}
 
             {/* Floating Header */}
-            <div className="absolute top-0 left-0 right-0 z-40 flex flex-col pointer-events-none transition-opacity duration-300">
-                {/* Branding Row */}
-                <div className="flex justify-between items-center px-4 pt-3 pb-1 bg-gradient-to-b from-black/90 via-black/70 to-transparent">
-                    <button onClick={onOpenNotifications} className="text-white drop-shadow-md pointer-events-auto">
-                        <BellIcon />
+            <div className="absolute top-0 left-0 right-0 z-40 flex flex-col pointer-events-none">
+                {/* Extended Gradient for readability - Smooth transition */}
+                <div className="absolute inset-0 h-[180px] bg-gradient-to-b from-black via-black/70 to-transparent pointer-events-none transition-opacity duration-500" />
+
+                {/* Branding Row - More padding top */}
+                <div className="relative z-10 flex justify-between items-center px-5 pt-8 pb-1 pointer-events-auto">
+                    <button onClick={onOpenNotifications} className="text-white drop-shadow-lg p-2 rounded-full hover:bg-white/10 transition-all active:scale-90">
+                        <BellIcon className="w-7 h-7" />
                     </button>
                     
-                    <h1 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-flame-orange to-flame-red drop-shadow-md tracking-wider font-sans">
+                    <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-flame-orange to-flame-red drop-shadow-lg tracking-wide font-sans italic select-none">
                         FlameUp
                     </h1>
 
-                    <button onClick={onOpenSearch} className="text-white drop-shadow-md pointer-events-auto">
-                        <SearchIcon className="w-6 h-6" />
+                    <button onClick={onOpenSearch} className="text-white drop-shadow-lg p-2 rounded-full hover:bg-white/10 transition-all active:scale-90">
+                        <SearchIcon className="w-7 h-7" />
                     </button>
                 </div>
 
-                {/* Tabs Row */}
-                <div className="flex justify-center items-center space-x-8 pb-4 pt-1 bg-gradient-to-b from-black/60 to-transparent pointer-events-auto">
+                {/* Tabs Row - Spaced out from branding */}
+                <div className="relative z-10 flex justify-center items-center space-x-10 pt-3 pb-2 pointer-events-auto select-none">
                     <button
                         onClick={() => setFeedType('forYou')}
-                        className={`text-sm font-bold transition-all duration-200 ${feedType === 'forYou' ? 'text-white scale-110 border-b-2 border-white pb-0.5' : 'text-white/60 hover:text-white/80'}`}
+                        className={`text-base font-bold transition-all duration-300 relative px-2 ${feedType === 'forYou' ? 'text-white scale-110 drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]' : 'text-white/50 hover:text-white/80'}`}
                     >
                         For You
+                        {feedType === 'forYou' && (
+                            <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-6 h-1 bg-white rounded-full shadow-[0_0_8px_rgba(255,255,255,0.8)] animate-fade-in-fast"></div>
+                        )}
                     </button>
                     <button
                         onClick={() => setFeedType('flame')}
-                        className={`text-sm font-bold transition-all duration-200 flex items-center ${feedType === 'flame' ? 'text-flame-orange scale-110 border-b-2 border-flame-orange pb-0.5' : 'text-white/60 hover:text-white/80'}`}
+                        className={`text-base font-bold transition-all duration-300 flex items-center relative px-2 ${feedType === 'flame' ? 'text-flame-orange scale-110 drop-shadow-[0_0_8px_rgba(255,107,53,0.5)]' : 'text-white/50 hover:text-white/80'}`}
                     >
-                        <FlameIcon className="w-3 h-3 mr-1" fill="currentColor" />
+                        <FlameIcon className="w-4 h-4 mr-1 transition-colors duration-300" fill={feedType === 'flame' ? "currentColor" : "none"} />
                         Flame
+                        {feedType === 'flame' && (
+                            <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-6 h-1 bg-flame-orange rounded-full shadow-[0_0_10px_rgba(255,107,53,0.8)] animate-fade-in-fast"></div>
+                        )}
                     </button>
                 </div>
             </div>
 
             {/* Stories Rail - "TikTok Style" */}
-            {/* Top margin adjusted to 100px to accommodate the double-row header */}
+            {/* Top margin adjusted to 135px to clear the spacious header */}
             <div 
-                className={`absolute top-[100px] left-0 right-0 z-30 transition-all duration-500 ease-in-out origin-top ${showStories ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-0 -translate-y-10 pointer-events-none'}`}
+                className={`absolute top-[135px] left-0 right-0 z-30 transition-all duration-700 cubic-bezier(0.33, 1, 0.68, 1) origin-top ${showStories ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-0 -translate-y-10 pointer-events-none'}`}
             >
                 <StoryRail 
                     currentUser={currentUser} 
@@ -228,43 +253,47 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
             <div 
                 ref={containerRef}
                 onScroll={handleScroll}
-                className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide"
+                className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide scroll-smooth"
             >
                 {isLoading ? (
-                    <div className="h-full w-full flex flex-col items-center justify-center text-white bg-black">
+                    <div className="h-full w-full flex flex-col items-center justify-center text-white bg-black animate-pulse">
                         <FlameLoader />
-                        <p className="mt-4 text-sm animate-pulse">Loading Feed...</p>
+                        <p className="mt-4 text-sm font-medium tracking-wide opacity-70">Loading Feed...</p>
                     </div>
                 ) : displayedPosts.length === 0 ? (
-                    <div className="h-full w-full flex flex-col items-center justify-center text-gray-400">
+                    <div className="h-full w-full flex flex-col items-center justify-center text-gray-400 animate-fade-in">
                         {feedType === 'flame' ? (
                             <>
-                                <FlameIcon isGradient className="w-16 h-16 mb-4 opacity-50" />
-                                <p>No paid posts yet.</p>
-                                <p className="text-xs mt-2 opacity-60">Be the first to post exclusive content!</p>
+                                <FlameIcon isGradient className="w-20 h-20 mb-6 opacity-50" />
+                                <p className="text-lg font-semibold">No paid posts yet.</p>
+                                <p className="text-sm mt-2 opacity-60">Be the first to post exclusive content!</p>
                             </>
                         ) : (
                             <>
-                                <p>No posts yet.</p>
-                                <button onClick={onCreateStory} className="mt-4 px-4 py-2 bg-flame-orange text-white rounded-full text-sm font-bold">
+                                <p className="text-lg font-semibold">No posts yet.</p>
+                                <button onClick={onCreateStory} className="mt-6 px-6 py-3 bg-gradient-to-r from-flame-orange to-flame-red text-white rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-transform">
                                     Create First Post
                                 </button>
                             </>
                         )}
                     </div>
                 ) : (
-                    displayedPosts.map((post) => (
-                        <div key={post.id} className="w-full h-full snap-start">
-                            <SinglePostView 
-                                post={post} 
-                                currentUser={currentUser} 
-                                isActive={true} 
-                                onOpenComments={onOpenComments}
-                                onViewProfile={onViewProfile}
-                                onUpdateUser={onUpdateUser}
-                            />
-                        </div>
-                    ))
+                    // Using a key here forces React to remount the list when feedType changes,
+                    // ensuring a fresh start and triggering the fade-in animation.
+                    <div key={feedType} className={`w-full ${isSwitchingTab ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}>
+                        {displayedPosts.map((post) => (
+                            <div key={post.id} className="w-full h-full snap-start">
+                                <SinglePostView 
+                                    post={post} 
+                                    currentUser={currentUser} 
+                                    isActive={true} 
+                                    onOpenComments={onOpenComments}
+                                    onViewProfile={onViewProfile}
+                                    onUpdateUser={onUpdateUser}
+                                />
+                            </div>
+                        ))}
+                    </div>
                 )}
             </div>
         </div>

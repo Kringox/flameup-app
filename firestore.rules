@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -15,6 +16,7 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid in chat.data.userIds;
     }
     function isCallParticipant(callId) {
+        // Allow if user is caller or callee
         let call = get(/databases/$(database)/documents/calls/$(callId));
         return isAuthenticated() && (request.auth.uid == call.data.callerId || request.auth.uid == call.data.calleeId);
     }
@@ -60,32 +62,30 @@ service cloud.firestore {
     }
 
     match /chats/{chatId} {
-      // Allow a user to get/update a specific chat document if they are a participant.
       allow get, update: if isAuthenticated() && request.auth.uid in resource.data.userIds;
-
-      // Allow a user to LIST chats. The client-side query MUST include
-      // a `where('userIds', 'array-contains', request.auth.uid)` clause to be secure.
-      // This is a standard and secure Firestore pattern.
       allow list: if isAuthenticated();
-
-      // Allow a user to create a chat if they are one of the participants.
       allow create: if isAuthenticated() && request.auth.uid in request.resource.data.userIds;
 
       match /messages/{messageId} {
-        // These rules are okay because isChatParticipant uses get() on a specific, non-wildcard chatId.
         allow read, update: if isChatParticipant(chatId);
         allow create: if isChatParticipant(chatId) && request.resource.data.senderId == request.auth.uid;
-        allow delete: if false; // Use soft deletes via 'deletedFor' field
+        allow delete: if false; 
       }
     }
     
     match /calls/{callId} {
-      allow read, update: if isCallParticipant(callId);
-      allow create: if isOwner(request.resource.data.callerId);
-      allow delete: if isCallParticipant(callId);
+      // Allow reading/listening to a call if I am involved (via userIds array)
+      allow list: if isAuthenticated() && request.auth.uid in resource.data.userIds;
+      allow get: if isAuthenticated() && request.auth.uid in resource.data.userIds;
+      
+      // Creating a call is allowed if I am the caller
+      allow create: if isAuthenticated() && request.resource.data.callerId == request.auth.uid;
+      
+      // Updating/Deleting allowed if participant
+      allow update, delete: if isAuthenticated() && request.auth.uid in resource.data.userIds;
     
       match /candidates/{candidateId} {
-        allow read, write: if isCallParticipant(callId);
+        allow read, write: if isAuthenticated(); // Simplified for signaling candidates
       }
     }
 
