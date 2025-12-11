@@ -77,8 +77,10 @@ const StoryRail: React.FC<{ currentUser: User, onCreateStory: () => void, onOpen
         }
     });
 
+    const hasOtherStories = Array.from(userStoriesMap.keys()).some(uid => uid !== currentUser.id);
+
     return (
-        <div className="flex space-x-4 px-4 py-2 overflow-x-auto scrollbar-hide w-full">
+        <div className="flex items-start space-x-4 px-4 py-2 overflow-x-auto scrollbar-hide w-full">
             {/* My Story */}
             <div className="flex flex-col items-center space-y-1.5 cursor-pointer flex-shrink-0 transition-transform active:scale-95 duration-200" onClick={onCreateStory}>
                 <div className="w-[68px] h-[68px] rounded-full border-2 border-gray-500 p-0.5 relative">
@@ -89,6 +91,11 @@ const StoryRail: React.FC<{ currentUser: User, onCreateStory: () => void, onOpen
                 </div>
                 <span className="text-xs text-white font-medium drop-shadow-md">You</span>
             </div>
+
+            {/* Separator / Abteilungsabschnitt */}
+            {hasOtherStories && (
+                <div className="h-[68px] w-[1px] bg-white/15 flex-shrink-0 mx-1 mt-0.5 rounded-full"></div>
+            )}
 
             {/* Other Stories */}
             {Array.from(userStoriesMap.entries()).map(([uid, userStories], idx) => {
