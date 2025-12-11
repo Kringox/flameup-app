@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Story, User } from '../types.ts';
 import HeartIcon from './icons/HeartIcon.tsx';
 import { db } from '../firebaseConfig.ts';
-import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+// FIX: Using namespace import for firestore
+import * as firestore from 'firebase/firestore';
 import PlusIcon from './icons/PlusIcon.tsx';
 
 
@@ -80,9 +81,9 @@ const StoryViewer: React.FC<StoryViewerProps> = ({ stories, currentUser, startIn
         setIsLiked(newLikedState);
 
         try {
-            const storyRef = doc(db, 'stories', currentStory.id);
-            await updateDoc(storyRef, {
-                likedBy: newLikedState ? arrayUnion(currentUser.id) : arrayRemove(currentUser.id)
+            const storyRef = firestore.doc(db, 'stories', currentStory.id);
+            await firestore.updateDoc(storyRef, {
+                likedBy: newLikedState ? firestore.arrayUnion(currentUser.id) : firestore.arrayRemove(currentUser.id)
             });
         } catch (error) {
             console.error("Error liking story:", error);

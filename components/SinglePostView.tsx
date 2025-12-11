@@ -116,24 +116,27 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
     };
 
     const handleRepost = async () => {
-        if (!db || isReposted) return;
+        if (!db) return;
         
-        // TikTok Style: Direct action, then show toast feedback
+        const newRepostState = !isReposted;
         hapticFeedback('medium');
-        setIsReposted(true);
-        setShowRepostToast(true);
-        setTimeout(() => setShowRepostToast(false), 3000);
+        setIsReposted(newRepostState);
+
+        if (newRepostState) {
+            setShowRepostToast(true);
+            setTimeout(() => setShowRepostToast(false), 3000);
+        }
 
         try {
             const postRef = doc(db, 'posts', post.id);
-            // Update the ORIGINAL post to include the reposter ID
             await updateDoc(postRef, {
-                repostedBy: arrayUnion(currentUser.id)
+                repostedBy: newRepostState ? arrayUnion(currentUser.id) : arrayRemove(currentUser.id)
             });
         } catch (e) {
-            console.error("Repost failed", e);
-            setIsReposted(false); // Revert on error
-            alert("Repost failed due to connection error."); 
+            console.error("Repost action failed", e);
+            setIsReposted(!newRepostState); // Revert on error
+            if (newRepostState) setShowRepostToast(false);
+            alert("Action failed due to connection error."); 
         }
     };
 

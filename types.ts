@@ -1,5 +1,5 @@
 
-import { Timestamp } from 'firebase/firestore';
+import * as firestore from 'firebase/firestore';
 
 export enum Tab {
   Home = 'Home',
@@ -47,7 +47,7 @@ export interface User {
   freeSuperLikes?: number;
   
   isOnline?: boolean;
-  lastOnline?: Timestamp;
+  lastOnline?: firestore.Timestamp;
   
   location?: UserLocation;
   
@@ -59,17 +59,17 @@ export interface User {
   xp: number;
   level: number;
   
-  createdAt: Timestamp;
+  createdAt: firestore.Timestamp;
   isPremium?: boolean; // FlameUp+ status
   profileTheme?: AppTint;
-  lastDailyBonus?: Timestamp;
-  lastReviewPrompt?: Timestamp;
+  lastDailyBonus?: firestore.Timestamp;
+  lastReviewPrompt?: firestore.Timestamp;
   swipedLeft?: string[];
   swipedRight?: string[];
   dailySwipesUsed?: number;
-  lastSwipeReset?: Timestamp;
+  lastSwipeReset?: firestore.Timestamp;
   swipeFilters?: SwipeFilters;
-  boostEndTime?: Timestamp;
+  boostEndTime?: firestore.Timestamp;
   blockedUsers?: string[];
   pinnedChats?: string[];
   privacySettings?: {
@@ -107,7 +107,7 @@ export interface Post {
     likedBy: string[];
     repostedBy?: string[]; // IDs of users who reposted this
     commentCount: number;
-    timestamp: Timestamp;
+    timestamp: firestore.Timestamp;
     isPaid?: boolean;
     price?: number;
     unlockedBy?: string[];
@@ -123,13 +123,14 @@ export interface Story {
     id: string;
     mediaUrl: string;
     viewed: string[] | boolean;
-    timestamp: Timestamp | null;
+    timestamp: firestore.Timestamp | null;
     likedBy?: string[];
     user: {
         id: string;
         name: string;
         profilePhoto: string;
     };
+    caption?: string;
 }
 
 export interface Gift {
@@ -143,14 +144,14 @@ export interface Message {
     chatId: string;
     senderId: string;
     text: string;
-    timestamp: Timestamp;
+    timestamp: firestore.Timestamp;
     gift?: Gift;
     mediaUrl?: string;
     // FIX: mediaType for ViewOnceMedia can be audio, but the component does not support it, this is a temporary fix
     mediaType?: 'image' | 'video' | 'audio';
     duration?: number;
     isViewOnce?: boolean;
-    viewedAt?: Timestamp;
+    viewedAt?: firestore.Timestamp;
     viewCount?: number;
     isSaved?: boolean;
     isFavorite?: boolean;
@@ -179,7 +180,7 @@ export interface Chat {
         id?: string;
         text: string;
         senderId: string;
-        timestamp: Timestamp;
+        timestamp: firestore.Timestamp;
         deletedFor?: string[];
     };
     unreadCount?: {
@@ -189,7 +190,7 @@ export interface Chat {
     archivedBy?: string[];
     mutedBy?: string[];
     streak?: number;
-    lastStreakUpdate?: Timestamp;
+    lastStreakUpdate?: firestore.Timestamp;
     retentionPolicy?: RetentionPolicy;
 }
 
@@ -202,7 +203,7 @@ export interface Comment {
     isPremium?: boolean;
     text: string;
     likedBy: string[];
-    timestamp: Timestamp;
+    timestamp: firestore.Timestamp;
     replyTo?: {
         commentId: string;
         userName: string;
@@ -223,7 +224,7 @@ export interface Notification {
     };
     commentText?: string;
     read: boolean;
-    timestamp: Timestamp;
+    timestamp: firestore.Timestamp;
     coinsSpent?: number;
 }
 
@@ -239,7 +240,7 @@ export interface Call {
     userIds: string[];
     status: 'ringing' | 'connected' | 'ended' | 'declined' | 'cancelled';
     type: 'audio' | 'video';
-    timestamp: Timestamp;
+    timestamp: firestore.Timestamp;
     offer?: any;
     answer?: any;
 }

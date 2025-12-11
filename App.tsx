@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { auth, db, firebaseInitializationError } from './firebaseConfig.ts';
-import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-// FIX: Added QuerySnapshot and DocumentData to imports to fix typing issues with onSnapshot.
-import { doc, onSnapshot, getDoc, collection, query, where, Timestamp, updateDoc, serverTimestamp, QuerySnapshot, DocumentData } from 'firebase/firestore';
+import * as firebaseAuth from 'firebase/auth';
+// FIX: Using namespace import to avoid 'no exported member' errors in some environments
+import * as firestore from 'firebase/firestore';
 
 import { User, Tab, Post, Notification, Chat, NotificationType, AppTint, UserLocation } from './types.ts';
 import { I18nProvider } from './contexts/I18nContext.ts';
@@ -34,7 +34,7 @@ import DeepLinkedPostHandler from './screens/DeepLinkedPostHandler.tsx';
 const App: React.FC = () => {
   const [authState, setAuthState] = useState<{
     isLoading: boolean;
-    firebaseUser: FirebaseUser | null;
+    firebaseUser: firebaseAuth.User | null;
     currentUser: User | null | 'not_found';
   }>({
     isLoading: true,
@@ -94,7 +94,7 @@ const App: React.FC = () => {
     }
 
     if (!auth) return;
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    const unsubscribeAuth = firebaseAuth.onAuthStateChanged(auth, (user) => {
       if (user) {
         setAuthState(prev => ({ ...prev, firebaseUser: user }));
       } else {
@@ -110,26 +110,26 @@ const App: React.FC = () => {
     if (!authState.firebaseUser || !db) return;
 
     const userId = authState.firebaseUser.uid;
-    const userRef = doc(db, 'users', userId);
+    const userRef = firestore.doc(db, 'users', userId);
 
     // Set online status when effect runs (on login) and page is visible
     if (document.visibilityState === 'visible') {
-        updateDoc(userRef, { isOnline: true, lastOnline: serverTimestamp() }).catch(console.error);
+        firestore.updateDoc(userRef, { isOnline: true, lastOnline: firestore.serverTimestamp() }).catch(console.error);
     }
 
     // Set up an interval that just updates the timestamp
     const interval = setInterval(() => {
         if (document.visibilityState === 'visible') {
-            updateDoc(userRef, { lastOnline: serverTimestamp() }).catch(console.error);
+            firestore.updateDoc(userRef, { lastOnline: firestore.serverTimestamp() }).catch(console.error);
         }
     }, 120000); // 2 minutes
 
     // Use visibility API for more accurate online status
     const handleVisibilityChange = () => {
         if (document.visibilityState === 'hidden') {
-            updateDoc(userRef, { isOnline: false, lastOnline: serverTimestamp() }).catch(console.error);
+            firestore.updateDoc(userRef, { isOnline: false, lastOnline: firestore.serverTimestamp() }).catch(console.error);
         } else {
-            updateDoc(userRef, { isOnline: true, lastOnline: serverTimestamp() }).catch(console.error);
+            firestore.updateDoc(userRef, { isOnline: true, lastOnline: firestore.serverTimestamp() }).catch(console.error);
         }
     };
     
@@ -140,7 +140,7 @@ const App: React.FC = () => {
         clearInterval(interval);
         document.removeEventListener('visibilitychange', handleVisibilityChange);
         // This updateDoc might run on logout, which is fine.
-        updateDoc(userRef, { isOnline: false, lastOnline: serverTimestamp() }).catch(console.error);
+        firestore.updateDoc(userRef, { isOnline: false, lastOnline: firestore.serverTimestamp() }).catch(console.error);
     }
   }, [authState.firebaseUser]); 
 
@@ -151,7 +151,7 @@ const App: React.FC = () => {
       if (!('geolocation' in navigator)) return;
 
       const userId = authState.firebaseUser.uid;
-      const userRef = doc(db, 'users', userId);
+      const userRef = firestore.doc(db, 'users', userId);
 
       navigator.geolocation.getCurrentPosition(
           async (position) => {
@@ -159,7 +159,7 @@ const App: React.FC = () => {
               const newLng = position.coords.longitude;
               
               // To avoid depending on the looping state, we fetch the document once.
-              const userSnap = await getDoc(userRef);
+              const userSnap = await firestore.getDoc(userRef);
               if (!userSnap.exists()) return;
               const currentLocation = userSnap.data().location as UserLocation | undefined;
               
@@ -170,7 +170,7 @@ const App: React.FC = () => {
               
               if (!currentLocation || dist > 0.001) { // approx 100 meters
                   try {
-                      await updateDoc(userRef, {
+                      await firestore.updateDoc(userRef, {
                           location: {
                               latitude: newLat,
                               longitude: newLng,
@@ -194,9 +194,9 @@ const App: React.FC = () => {
     let unsubscribeChats: () => void = () => {};
 
     if (authState.firebaseUser && db) {
-      const userRef = doc(db, 'users', authState.firebaseUser.uid);
+      const userRef = firestore.doc(db, 'users', authState.firebaseUser.uid);
       
-      unsubscribeUser = onSnapshot(userRef, (snapshot) => {
+      unsubscribeUser = firestore.onSnapshot(userRef, (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data() || {};
           // Safely construct user object, ensuring coins has a default if missing
@@ -221,14 +221,14 @@ const App: React.FC = () => {
 
           setAuthState(prev => ({ ...prev, currentUser: userData, isLoading: false }));
 
-          const chatsRef = collection(db, 'chats');
-          const q = query(
+          const chatsRef = firestore.collection(db, 'chats');
+          const q = firestore.query(
               chatsRef, 
-              where('userIds', 'array-contains', userData.id)
+              firestore.where('userIds', 'array-contains', userData.id)
           );
           // FIX: Explicitly type chatSnapshot as QuerySnapshot to resolve 'docs' property error.
-          unsubscribeChats = onSnapshot(q, 
-            (chatSnapshot: QuerySnapshot<DocumentData>) => {
+          unsubscribeChats = firestore.onSnapshot(q, 
+            (chatSnapshot: firestore.QuerySnapshot<firestore.DocumentData>) => {
                 const anyUnread = chatSnapshot.docs
                   .filter(doc => !doc.data().deletedFor?.includes(userData.id))
                   .some(doc => {
@@ -294,7 +294,7 @@ const App: React.FC = () => {
         profilePhoto: matchedUser.profilePhotos[0],
       },
       read: true,
-      timestamp: Timestamp.now(),
+      timestamp: firestore.Timestamp.now(),
     };
     setMatchNotification(pseudoNotification);
   };
@@ -449,8 +449,8 @@ const App: React.FC = () => {
                     onClose={() => {
                         setShowReviewModal(false);
                         if(db && authState.currentUser && typeof authState.currentUser !== 'string') {
-                            const userRef = doc(db, 'users', authState.currentUser.id);
-                            updateDoc(userRef, { lastReviewPrompt: serverTimestamp() });
+                            const userRef = firestore.doc(db, 'users', authState.currentUser.id);
+                            firestore.updateDoc(userRef, { lastReviewPrompt: firestore.serverTimestamp() });
                         }
                     }}
                     onSubmit={(rating, comment) => {

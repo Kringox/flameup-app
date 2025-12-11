@@ -39,9 +39,10 @@ service cloud.firestore {
     match /posts/{postId} {
       allow list, get: if isAuthenticated();
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      // FIX: Added 'repostedBy' to allowed keys for update so users can repost
       allow update: if isAuthenticated() &&
                      ((resource.data.userId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['caption'])) ||
-                     (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy', 'commentCount', 'unlockedBy'])));
+                     (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy', 'commentCount', 'unlockedBy', 'repostedBy'])));
       allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
 
       match /comments/{commentId} {
