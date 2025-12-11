@@ -1,3 +1,4 @@
+
 import { Timestamp } from 'firebase/firestore';
 
 export enum Tab {
@@ -104,6 +105,7 @@ export interface Post {
     mediaUrls: string[];
     caption: string;
     likedBy: string[];
+    repostedBy?: string[]; // IDs of users who reposted this
     commentCount: number;
     timestamp: Timestamp;
     isPaid?: boolean;

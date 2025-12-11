@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Post, User } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
-import { doc, updateDoc, arrayUnion, arrayRemove, increment, runTransaction, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, arrayRemove, increment, runTransaction, collection, serverTimestamp } from 'firebase/firestore';
 import HeartIcon from './icons/HeartIcon.tsx';
 import CommentIcon from './icons/CommentIcon.tsx';
 import ShareIcon from './icons/ShareIcon.tsx';
@@ -33,6 +33,7 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
     const [isEditing, setIsEditing] = useState(false);
     const [showBigHeart, setShowBigHeart] = useState(false);
     const [showRepostToast, setShowRepostToast] = useState(false);
+    const [isReposted, setIsReposted] = useState(post.repostedBy?.includes(currentUser.id) || false);
     const lastTap = useRef(0);
     
     const isOwnPost = post.userId === currentUser.id;
@@ -43,6 +44,7 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
     useEffect(() => {
         setIsLiked(post.likedBy?.includes(currentUser.id));
         setLikeCount(post.likedBy?.length || 0);
+        setIsReposted(post.repostedBy?.includes(currentUser.id) || false);
     }, [post, currentUser.id]);
 
     const performLike = async () => {
@@ -113,33 +115,24 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
     };
 
     const handleRepost = async () => {
-        if (!db) return;
+        if (!db || isReposted) return;
         
         // TikTok Style: Direct action, then show toast feedback
         hapticFeedback('medium');
+        setIsReposted(true);
         setShowRepostToast(true);
         setTimeout(() => setShowRepostToast(false), 3000);
 
         try {
-            await addDoc(collection(db, 'posts'), {
-                userId: currentUser.id,
-                user: {
-                    id: currentUser.id,
-                    name: currentUser.name,
-                    profilePhoto: currentUser.profilePhotos[0],
-                },
-                mediaUrls: post.mediaUrls,
-                caption: `RP @${post.user.name}: ${post.caption}`,
-                likedBy: [],
-                commentCount: 0,
-                timestamp: serverTimestamp(),
-                isPaid: false,
-                isRepost: true, // Flag for easy filtering
-                originalPostId: post.id // Reference to original
+            const postRef = doc(db, 'posts', post.id);
+            // Update the ORIGINAL post to include the reposter ID
+            await updateDoc(postRef, {
+                repostedBy: arrayUnion(currentUser.id)
             });
         } catch (e) {
             console.error("Repost failed", e);
-            alert("Repost failed due to connection error."); // Only alert on error
+            setIsReposted(false); // Revert on error
+            alert("Repost failed due to connection error."); 
         }
     };
 
@@ -225,7 +218,7 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                         <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-green-400" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                         </svg>
-                        <span className="text-xs font-bold">Reposted to your profile</span>
+                        <span className="text-xs font-bold">Reposted!</span>
                     </div>
                 )}
 
@@ -251,6 +244,14 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
 
                 <div className="absolute bottom-0 left-0 right-0 p-4 pb-24 pt-24 bg-gradient-to-t from-black/90 via-black/50 to-transparent z-20 pointer-events-none">
                     <div className="pointer-events-auto max-w-[80%]">
+                        {isReposted && (
+                            <p className="text-xs font-bold text-gray-300 mb-1 flex items-center gap-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                Reposted by You
+                            </p>
+                        )}
                         <h3 className="text-white font-bold text-lg flex items-center shadow-black drop-shadow-md cursor-pointer mb-1" onClick={() => onViewProfile(post.userId)}>
                             @{post.user.name}
                             {post.user.isPremium && <VerifiedIcon className="w-4 h-4 ml-1" />}
@@ -287,10 +288,10 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                         <span className="text-white text-xs font-bold drop-shadow-md">{post.commentCount}</span>
                     </div>
 
-                    {/* Repost Button */}
-                    {isLiked && !isOwnPost && (
-                        <button onClick={handleRepost} className="active:scale-75 transition-transform p-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-white drop-shadow-lg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    {/* Repost Button - now modifies existing post */}
+                    {!isOwnPost && (
+                        <button onClick={handleRepost} className={`active:scale-75 transition-transform p-1 ${isReposted ? 'text-green-400' : 'text-white'}`}>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 drop-shadow-lg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                             </svg>
                         </button>

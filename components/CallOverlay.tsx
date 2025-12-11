@@ -49,34 +49,49 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const allCalls = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Call));
             
-            // Find a relevant active call
+            // Find a relevant active call (ringing or connected)
             const activeCall = allCalls
                 .filter(c => c.status === 'ringing' || c.status === 'connected')
                 .sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0))[0];
 
             if (activeCall) {
-                // We found a new active call, or an update to our current one
-                if (!call || call.id !== activeCall.id || call.status !== activeCall.status) {
-                     setCall(activeCall);
-                     if (activeCall.calleeId === currentUser.id && activeCall.status === 'ringing') {
-                         hapticFeedback('medium');
-                     }
-                }
+                // Update state if we found an active call
+                // Logic: if current state is null OR id changed OR status changed
+                setCall(prev => {
+                    if (!prev || prev.id !== activeCall.id || prev.status !== activeCall.status) {
+                        if (activeCall.calleeId === currentUser.id && activeCall.status === 'ringing') {
+                            hapticFeedback('medium');
+                        }
+                        return activeCall;
+                    }
+                    return prev;
+                });
             } else {
                 // No active calls found in the snapshot.
-                // CRITICAL: Only close if we *had* a call and it is now gone/ended
-                if (call) {
-                    // Check if our specific call ID is now marked ended/declined/missing
-                    const myCallState = allCalls.find(c => c.id === call.id);
-                    if (!myCallState || myCallState.status === 'ended' || myCallState.status === 'declined') {
-                        handleEndCall(true);
+                // We must check if *our* current call was ended.
+                setCall(prev => {
+                    if (prev) {
+                        // Check if the call we were in is now gone or has a different status in the snapshot
+                        // Actually, if it's not in 'activeCall' (which filters for ringing/connected), it means it ended.
+                        // However, we want to be safe and only close if we are sure.
+                        
+                        // Find our call in the raw list (including ended ones)
+                        const myCallState = allCalls.find(c => c.id === prev.id);
+                        
+                        // If it's missing (deleted) OR marked ended/declined
+                        if (!myCallState || myCallState.status === 'ended' || myCallState.status === 'declined') {
+                            // Trigger cleanup side effects
+                            cleanupLocalMedia();
+                            return null;
+                        }
                     }
-                }
+                    return prev;
+                });
             }
         });
 
         return () => unsubscribe();
-    }, [currentUser?.id, call?.id]); // Depend on call.id to track state transitions correctly
+    }, [currentUser?.id]); // FIX: Removed call?.id to prevent loop/teardown issues
 
 
     // --- Core Signal Processing (Answer & Candidates) ---
@@ -129,7 +144,6 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         if (call && call.callerId === currentUser?.id && call.status === 'ringing' && !pc.current) {
             const start = async () => {
                 const stream = await setupSources(call.type === 'video');
-                // Even if stream fails (user denied), we keep the UI open briefly to show error or let them decline
                 if (!stream) return; 
 
                 pc.current = createPeerConnection(call.id);
@@ -158,7 +172,6 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
             return stream;
         } catch (err) {
             console.error("Error accessing media devices:", err);
-            // Don't kill the call immediately, UI should probably show "Connecting..." still
             return null;
         }
     };
@@ -233,18 +246,11 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
 
     const handleDeclineOrCancel = async () => {
         if (!call || !db) return;
-        // Mark as ended in DB
         await updateDoc(doc(db, 'calls', call.id), { status: 'ended' });
-        // UI closes via snapshot listener
+        // The listener will pick up the 'ended' status and close the UI
     };
 
-    const handleEndCall = async (isCleanupOnly = false) => {
-        if (!isCleanupOnly && call && db) {
-            try {
-                await updateDoc(doc(db, 'calls', call.id), { status: 'ended' });
-            } catch(e) {}
-        }
-        
+    const cleanupLocalMedia = () => {
         if (pc.current) {
             pc.current.close();
             pc.current = null;
@@ -253,11 +259,20 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
             localStream.current.getTracks().forEach(track => track.stop());
             localStream.current = null;
         }
-        setCall(null);
         setDuration(0);
         setIsMuted(false);
         setIsVideoEnabled(true);
         candidateQueue.current = [];
+    };
+
+    const handleEndCall = async (isCleanupOnly = false) => {
+        if (!isCleanupOnly && call && db) {
+            try {
+                await updateDoc(doc(db, 'calls', call.id), { status: 'ended' });
+            } catch(e) {}
+        }
+        cleanupLocalMedia();
+        setCall(null);
     };
 
     // --- In-Call Controls ---

@@ -76,12 +76,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
     const { t } = useI18n();
 
     // Check if we are viewing our own profile to determine access rights
-    // In this component currentUser is the PROFILE being viewed if navigated via bottom nav,
-    // but app structure passes 'currentUser' as the logged in user always?
-    // Wait, App.tsx logic: if activeTab === Profile, passes currentUser.
-    // So this component renders the LOGGED IN user's profile.
-    // 'UserProfileScreen' renders OTHER users.
-    // So here, it's ALWAYS the own profile.
     const isOwnProfile = true; 
 
     useEffect(() => {
@@ -90,12 +84,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
         setPosts([]); 
         
         let q;
-        if (activeTab === 'posts' || activeTab === 'reposts') {
+        if (activeTab === 'posts') {
             q = query(collection(db, 'posts'), where('userId', '==', currentUser.id), orderBy('timestamp', 'desc'));
+        } else if (activeTab === 'reposts') {
+            // FIX: Reposts are now queried by the repostedBy array
+            q = query(collection(db, 'posts'), where('repostedBy', 'array-contains', currentUser.id));
         } else if (activeTab === 'likes') {
-            // FIX: Removed orderBy('timestamp', 'desc') here. 
-            // Firestore requires a composite index for 'array-contains' + 'orderBy'.
-            // By removing it, we prevent the query from failing. We sort client-side instead.
             q = query(collection(db, 'posts'), where('likedBy', 'array-contains', currentUser.id));
         } else {
             setIsLoading(false);
@@ -108,23 +102,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                 return { id: doc.id, ...data, user: data.user || { id: data.userId, name: data.userName, profilePhoto: data.userProfilePhoto } } as Post;
             });
             
-            // Client-side filtering and sorting
-            if (activeTab === 'reposts') {
-                // Check for 'isRepost' flag OR the old string convention as fallback
-                setPosts(userPosts.filter(p => (p as any).isRepost === true || p.caption.startsWith('RP @')));
-            } else if (activeTab === 'posts') {
-                // Only show original posts (not reposts)
-                setPosts(userPosts.filter(p => (p as any).isRepost !== true && !p.caption.startsWith('RP @')));
-            } else {
-                // Likes tab: Sort manually since we removed the orderBy query
+            // Client-side sort for queries where we couldn't use orderBy due to compound index requirements (likes, reposts)
+            if (activeTab === 'likes' || activeTab === 'reposts') {
                 userPosts.sort((a, b) => {
                     const tA = a.timestamp?.toMillis ? a.timestamp.toMillis() : 0;
                     const tB = b.timestamp?.toMillis ? b.timestamp.toMillis() : 0;
                     return tB - tA; // Descending
                 });
-                setPosts(userPosts);
             }
             
+            setPosts(userPosts);
             setIsLoading(false);
         }, (error) => {
             console.error("Error fetching profile posts:", error);

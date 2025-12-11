@@ -28,20 +28,44 @@ const StoryRail: React.FC<{ currentUser: User, onCreateStory: () => void, onOpen
 
     useEffect(() => {
         if (!db) return;
-        const q = query(collection(db, 'stories'), orderBy('timestamp', 'desc'), limit(20));
+        
+        // Fetch more stories initially to filter them client-side effectively
+        const q = query(collection(db, 'stories'), orderBy('timestamp', 'desc'), limit(100));
+        
         const unsubscribe = onSnapshot(q, (snapshot) => {
+            const now = Date.now();
+            const twentyFourHours = 24 * 60 * 60 * 1000;
+
             const fetchedStories = snapshot.docs.map(doc => {
                 const data = doc.data();
                 return { 
                     id: doc.id, 
                     ...data,
-                    user: data.user || { id: 'unknown', name: 'Unknown', profilePhoto: '' } 
-                } as any;
+                } as Story;
+            })
+            .filter(story => {
+                // 1. Data Integrity Check: Must have a user object and a valid ID
+                if (!story.user || !story.user.id || !story.user.name) return false;
+
+                // 2. 24-Hour Check: Must be posted within the last 24 hours
+                if (story.timestamp) {
+                    const storyTime = story.timestamp.toDate().getTime();
+                    if (now - storyTime > twentyFourHours) return false;
+                } else {
+                    return false; // No timestamp means invalid
+                }
+
+                // 3. Privacy/Friends Check: Show my stories OR stories from people I follow
+                const isMyStory = story.user.id === currentUser.id;
+                const isFollowing = currentUser.following?.includes(story.user.id);
+
+                return isMyStory || isFollowing;
             });
+
             setStories(fetchedStories);
         });
         return () => unsubscribe();
-    }, []);
+    }, [currentUser.id, currentUser.following]); // Re-run if following list changes
 
     // Group stories by User to show one bubble per user
     const userStoriesMap = new Map<string, Story[]>();
@@ -69,7 +93,11 @@ const StoryRail: React.FC<{ currentUser: User, onCreateStory: () => void, onOpen
             {/* Other Stories */}
             {Array.from(userStoriesMap.entries()).map(([uid, userStories], idx) => {
                 const firstStory = userStories[0];
-                if (!firstStory?.user) return null;
+                // Double check to ensure we don't render empty users
+                if (!firstStory?.user?.id) return null;
+                
+                // Skip if it's the current user (already shown in "You" bubble)
+                if (firstStory.user.id === currentUser.id) return null;
 
                 const flatIndex = stories.findIndex(s => s.id === firstStory.id);
                 
@@ -78,7 +106,7 @@ const StoryRail: React.FC<{ currentUser: User, onCreateStory: () => void, onOpen
                         <div className="w-[68px] h-[68px] rounded-full border-2 border-flame-orange p-0.5">
                             <img src={firstStory.user.profilePhoto || ''} className="w-full h-full rounded-full object-cover" />
                         </div>
-                        <span className="text-xs text-white w-16 truncate text-center font-medium drop-shadow-md">{firstStory.user.name || 'User'}</span>
+                        <span className="text-xs text-white w-16 truncate text-center font-medium drop-shadow-md">{firstStory.user.name}</span>
                     </div>
                 )
             })}
@@ -119,14 +147,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
             });
 
             // 1. Filter by ID to ensure technical uniqueness
-            const uniqueIdPosts = Array.from(new Map(rawPosts.map((post): [string, Post] => [post.id, post])).values());
+            const uniqueIdPosts: Post[] = Array.from(new Map(rawPosts.map((post): [string, Post] => [post.id, post])).values());
 
             // 2. CONTENT DEDUPLICATION (The Fix)
             // If the user has accidental duplicate posts (same user, same caption), show only one.
             const contentSeen = new Set<string>();
             const cleanedPosts: Post[] = [];
 
-            uniqueIdPosts.forEach(post => {
+            uniqueIdPosts.forEach((post: Post) => {
                 // Create a unique signature for the content
                 const signature = `${post.userId}-${post.caption}-${post.mediaUrls?.[0]}`;
                 
