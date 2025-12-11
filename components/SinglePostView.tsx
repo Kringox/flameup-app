@@ -173,7 +173,7 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
     };
 
     return (
-        <div className="w-full h-full relative snap-start flex items-center justify-center p-3 md:p-4 bg-black">
+        <div className="w-full h-full relative snap-start bg-black">
             {showShare && <ShareModal post={post} onClose={() => setShowShare(false)} />}
             {isEditing && (
                 <EditPostModal
@@ -183,15 +183,16 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                 />
             )}
             
-            <div className="relative w-full h-full max-h-[85vh] aspect-[9/16] md:aspect-[3/4] bg-gray-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10">
+            <div className="relative w-full h-full overflow-hidden">
                 
+                {/* Background blurred image to fill space if ratio doesn't match */}
                 <div className="absolute inset-0 z-0">
                     <img 
                         src={post.mediaUrls[0]} 
                         className="w-full h-full object-cover blur-3xl opacity-60" 
                         alt=""
                     />
-                    <div className="absolute inset-0 bg-black/20" />
+                    <div className="absolute inset-0 bg-black/30" />
                 </div>
 
                 {/* Main Content Area with Double Tap */}
@@ -233,7 +234,7 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                     </div>
                 )}
 
-                <div className="absolute bottom-0 left-0 right-0 p-4 pb-16 pt-24 bg-gradient-to-t from-black/90 via-black/50 to-transparent z-20 pointer-events-none">
+                <div className="absolute bottom-0 left-0 right-0 p-4 pb-24 pt-24 bg-gradient-to-t from-black/90 via-black/50 to-transparent z-20 pointer-events-none">
                     <div className="pointer-events-auto max-w-[80%]">
                         <h3 className="text-white font-bold text-lg flex items-center shadow-black drop-shadow-md cursor-pointer mb-1" onClick={() => onViewProfile(post.userId)}>
                             @{post.user.name}
@@ -245,7 +246,7 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                     </div>
                 </div>
 
-                <div className="absolute right-2 bottom-12 z-30 flex flex-col items-center gap-6 pb-4">
+                <div className="absolute right-2 bottom-20 z-30 flex flex-col items-center gap-5 pb-4">
                     <div className="relative">
                         <button onClick={() => onViewProfile(post.userId)} className="relative">
                             <img src={post.user.profilePhoto} className="w-12 h-12 rounded-full border-2 border-white shadow-md object-cover" />
