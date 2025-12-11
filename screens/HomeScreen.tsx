@@ -147,7 +147,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
             });
 
             // 1. Filter by ID to ensure technical uniqueness
-            const uniqueIdPosts: Post[] = Array.from(new Map(rawPosts.map((post): [string, Post] => [post.id, post])).values());
+            const uniqueIdPosts: Post[] = Array.from(new Map(rawPosts.map((post): [string, Post] => [post.id, post])).values()) as Post[];
 
             // 2. CONTENT DEDUPLICATION (The Fix)
             // If the user has accidental duplicate posts (same user, same caption), show only one.

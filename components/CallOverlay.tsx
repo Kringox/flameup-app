@@ -41,6 +41,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         if (!currentUser || !db) return;
 
         const callsRef = collection(db, 'calls');
+        // We listen for any call where the user is a participant
         const q = query(
             callsRef, 
             where('userIds', 'array-contains', currentUser.id)
@@ -49,15 +50,19 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const allCalls = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Call));
             
+            // Helper to handle Firestore Timestamps or null (pending writes)
+            const getTime = (c: Call) => c.timestamp?.seconds || (Date.now() / 1000);
+
             // Find a relevant active call (ringing or connected)
+            // Sort by NEWEST first to catch the one we just started
             const activeCall = allCalls
                 .filter(c => c.status === 'ringing' || c.status === 'connected')
-                .sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0))[0];
+                .sort((a, b) => getTime(b) - getTime(a))[0];
 
             if (activeCall) {
                 // Update state if we found an active call
-                // Logic: if current state is null OR id changed OR status changed
                 setCall(prev => {
+                    // Only update if ID or Status changed to prevent loop, but allow initial set
                     if (!prev || prev.id !== activeCall.id || prev.status !== activeCall.status) {
                         if (activeCall.calleeId === currentUser.id && activeCall.status === 'ringing') {
                             hapticFeedback('medium');
@@ -67,20 +72,12 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
                     return prev;
                 });
             } else {
-                // No active calls found in the snapshot.
-                // We must check if *our* current call was ended.
+                // If the current call we are viewing is no longer in the active list (ended/declined/deleted)
                 setCall(prev => {
                     if (prev) {
-                        // Check if the call we were in is now gone or has a different status in the snapshot
-                        // Actually, if it's not in 'activeCall' (which filters for ringing/connected), it means it ended.
-                        // However, we want to be safe and only close if we are sure.
-                        
-                        // Find our call in the raw list (including ended ones)
                         const myCallState = allCalls.find(c => c.id === prev.id);
-                        
-                        // If it's missing (deleted) OR marked ended/declined
-                        if (!myCallState || myCallState.status === 'ended' || myCallState.status === 'declined') {
-                            // Trigger cleanup side effects
+                        // If it's missing OR marked ended/declined/cancelled
+                        if (!myCallState || ['ended', 'declined', 'cancelled'].includes(myCallState.status)) {
                             cleanupLocalMedia();
                             return null;
                         }
@@ -91,7 +88,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         });
 
         return () => unsubscribe();
-    }, [currentUser?.id]); // FIX: Removed call?.id to prevent loop/teardown issues
+    }, [currentUser?.id]);
 
 
     // --- Core Signal Processing (Answer & Candidates) ---
@@ -144,7 +141,10 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         if (call && call.callerId === currentUser?.id && call.status === 'ringing' && !pc.current) {
             const start = async () => {
                 const stream = await setupSources(call.type === 'video');
-                if (!stream) return; 
+                if (!stream) {
+                    handleEndCall(); // Abort if no media
+                    return; 
+                }
 
                 pc.current = createPeerConnection(call.id);
                 stream.getTracks().forEach(track => pc.current?.addTrack(track, stream));
@@ -246,8 +246,10 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
 
     const handleDeclineOrCancel = async () => {
         if (!call || !db) return;
-        await updateDoc(doc(db, 'calls', call.id), { status: 'ended' });
-        // The listener will pick up the 'ended' status and close the UI
+        // Mark as declined (if I am callee) or cancelled (if I am caller)
+        const newStatus = call.callerId === currentUser?.id ? 'cancelled' : 'declined';
+        await updateDoc(doc(db, 'calls', call.id), { status: newStatus });
+        // The listener will pick up the status and close the UI
     };
 
     const cleanupLocalMedia = () => {
@@ -308,6 +310,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     if (!call || !currentUser) return null;
 
     // --- RENDER LOGIC ---
+    
     // Incoming Call (I am callee, ringing)
     if (call.calleeId === currentUser.id && call.status === 'ringing') {
         return (
@@ -340,7 +343,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     
     const isVideoCall = call.type === 'video';
     
-    // Connected or Outgoing Call
+    // Connected or Outgoing Call (I am caller or I accepted)
     return (
         <div className="fixed inset-0 z-[200] bg-black flex justify-center animate-fade-in">
             <div className="w-full max-w-md h-full relative bg-gray-900 flex flex-col">
@@ -355,7 +358,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
                         />
                     )}
                     
-                    {/* Placeholder / Connecting State */}
+                    {/* Placeholder / Connecting State (Overlay until video or audio connects) */}
                     {call.status !== 'connected' || !isVideoCall ? (
                          <div className="absolute inset-0 flex flex-col items-center justify-center pt-20 bg-gray-900 z-10">
                              <img src={call.callerId === currentUser.id ? call.calleePhoto : call.callerPhoto} className="w-32 h-32 rounded-full object-cover border-4 border-white/20 shadow-2xl mb-6" />
@@ -378,7 +381,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
                             <CameraIcon className="w-6 h-6"/>
                         </button>
                     )}
-                    <button onClick={() => handleEndCall(false)} className="p-5 bg-red-600 rounded-full text-white shadow-lg active:scale-95 transition-transform mx-4">
+                    <button onClick={() => handleDeclineOrCancel()} className="p-5 bg-red-600 rounded-full text-white shadow-lg active:scale-95 transition-transform mx-4">
                         <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 fill-current" viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.36 7.46 6 12 6s8.66 2.36 11.71 5.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
                     </button>
                     <button onClick={toggleMute} className={`p-4 rounded-full transition-colors ${isMuted ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>

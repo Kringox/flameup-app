@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Post, User } from '../types.ts';
 import SinglePostView from './SinglePostView.tsx';
 
@@ -11,17 +11,20 @@ interface PostGridViewerProps {
   onOpenComments: (post: Post) => void;
   onViewProfile: (userId: string) => void;
   onUpdateUser: (user: User) => void;
+  onPostDeleted?: (postId: string) => void; // Passed from parent (ProfileScreen)
 }
 
 const PostGridViewer: React.FC<PostGridViewerProps> = ({ 
-    posts, 
+    posts: initialPosts, 
     startIndex, 
     currentUser, 
     onClose, 
     onOpenComments, 
     onViewProfile, 
-    onUpdateUser 
+    onUpdateUser,
+    onPostDeleted
 }) => {
+  const [localPosts, setLocalPosts] = useState(initialPosts);
   const containerRef = useRef<HTMLDivElement>(null);
   const postRefs = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -31,6 +34,20 @@ const PostGridViewer: React.FC<PostGridViewerProps> = ({
         postRefs.current[startIndex]?.scrollIntoView({ behavior: 'auto' });
     }
   }, [startIndex]);
+
+  const handleLocalDelete = (deletedPostId: string) => {
+      const updatedPosts = localPosts.filter(p => p.id !== deletedPostId);
+      if (updatedPosts.length === 0) {
+          onClose();
+      } else {
+          setLocalPosts(updatedPosts);
+      }
+      
+      // Notify parent to update the grid source
+      if (onPostDeleted) {
+          onPostDeleted(deletedPostId);
+      }
+  };
 
   return (
     <div className="fixed inset-0 bg-black z-[75] flex justify-center animate-fade-in">
@@ -52,7 +69,7 @@ const PostGridViewer: React.FC<PostGridViewerProps> = ({
             ref={containerRef}
             className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide"
           >
-            {posts.map((post, index) => (
+            {localPosts.map((post, index) => (
               <div 
                 key={post.id} 
                 // FIX: Ensure ref callback does not return a value.
@@ -66,6 +83,7 @@ const PostGridViewer: React.FC<PostGridViewerProps> = ({
                   onOpenComments={onOpenComments}
                   onViewProfile={onViewProfile} 
                   onUpdateUser={onUpdateUser} 
+                  onPostDeleted={handleLocalDelete}
                 />
               </div>
             ))}

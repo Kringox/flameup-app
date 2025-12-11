@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Post, User } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
-import { doc, updateDoc, arrayUnion, arrayRemove, increment, runTransaction, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, arrayRemove, increment, runTransaction, collection, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import HeartIcon from './icons/HeartIcon.tsx';
 import CommentIcon from './icons/CommentIcon.tsx';
 import ShareIcon from './icons/ShareIcon.tsx';
@@ -22,9 +22,10 @@ interface SinglePostViewProps {
     onOpenComments: (post: Post) => void;
     onViewProfile: (userId: string) => void;
     onUpdateUser: (user: User) => void;
+    onPostDeleted?: (postId: string) => void; // New optional prop for handling deletion
 }
 
-const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isActive, onOpenComments, onViewProfile, onUpdateUser }) => {
+const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isActive, onOpenComments, onViewProfile, onUpdateUser, onPostDeleted }) => {
     const [isLiked, setIsLiked] = useState(post.likedBy?.includes(currentUser.id));
     const [likeCount, setLikeCount] = useState(post.likedBy?.length || 0);
     const [isUnlocked, setIsUnlocked] = useState(false);
@@ -170,6 +171,22 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
         }
     };
 
+    const handleDelete = async () => {
+        if (!db) return;
+        if (window.confirm("Are you sure you want to delete this post?")) {
+            try {
+                await deleteDoc(doc(db, 'posts', post.id));
+                setIsEditing(false);
+                if (onPostDeleted) {
+                    onPostDeleted(post.id);
+                }
+            } catch (error) {
+                console.error("Error deleting post:", error);
+                alert("Could not delete post. Please try again.");
+            }
+        }
+    };
+
     return (
         <div className="w-full h-full relative snap-start bg-black">
             {showShare && <ShareModal post={post} onClose={() => setShowShare(false)} />}
@@ -178,6 +195,7 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                     post={post}
                     onClose={() => setIsEditing(false)}
                     onSave={() => setIsEditing(false)}
+                    onDelete={handleDelete}
                 />
             )}
             
