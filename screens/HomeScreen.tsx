@@ -167,9 +167,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
 
     return (
         <div className="relative w-full h-full bg-black">
-            {/* Story Viewer Overlay - Rendered at Root of Home to prevent distortion */}
+            {/* Story Viewer Overlay - Changed from fixed to absolute to respect parent container (phone frame) */}
             {activeStoryIndex !== null && storyList.length > 0 && (
-                <div className="fixed inset-0 z-[200]">
+                <div className="absolute inset-0 z-[200]">
                     <StoryViewer 
                         stories={storyList} 
                         currentUser={currentUser} 

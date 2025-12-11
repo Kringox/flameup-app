@@ -34,6 +34,10 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     const localStream = useRef<MediaStream | null>(null);
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
+    
+    // WebRTC connection state tracking to handle ICE candidate race conditions
+    const candidateQueue = useRef<RTCIceCandidate[]>([]);
+    const isRemoteDescriptionSet = useRef(false);
 
     // --- Listen for any call involving the current user ---
     useEffect(() => {
@@ -73,12 +77,18 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     useEffect(() => {
         if (!call || !db) return;
 
-        // If I am the caller and status is ringing, wait for answer
-        if (call.callerId === currentUser?.id && call.status === 'connected' && !pc.current?.currentRemoteDescription && call.answer) {
+        // If I am the caller and status is connected (callee answered), set remote desc
+        if (call.callerId === currentUser?.id && call.status === 'connected' && !isRemoteDescriptionSet.current && call.answer) {
              const setRemote = async () => {
-                 if (pc.current) {
-                    const answer = new RTCSessionDescription(call.answer);
-                    await pc.current.setRemoteDescription(answer);
+                 if (pc.current && !pc.current.currentRemoteDescription) {
+                    try {
+                        const answer = new RTCSessionDescription(call.answer);
+                        await pc.current.setRemoteDescription(answer);
+                        isRemoteDescriptionSet.current = true;
+                        processCandidateQueue();
+                    } catch (e) {
+                        console.error("Error setting remote description (answer)", e);
+                    }
                  }
              };
              setRemote();
@@ -90,7 +100,13 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
             snapshot.docChanges().forEach((change) => {
                 if (change.type === 'added') {
                     const candidate = new RTCIceCandidate(change.doc.data());
-                    pc.current?.addIceCandidate(candidate).catch(e => console.error("Error adding candidate", e));
+                    if (pc.current) {
+                        if (isRemoteDescriptionSet.current) {
+                            pc.current.addIceCandidate(candidate).catch(e => console.error("Error adding candidate", e));
+                        } else {
+                            candidateQueue.current.push(candidate);
+                        }
+                    }
                 }
             });
         });
@@ -101,7 +117,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     }, [call, currentUser?.id]);
 
 
-    // --- Start Outgoing Call ---
+    // --- Start Outgoing Call (Caller logic) ---
     useEffect(() => {
         if (call && call.callerId === currentUser?.id && call.status === 'ringing' && !pc.current) {
             const start = async () => {
@@ -163,6 +179,20 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
 
         return newPc;
     };
+    
+    const processCandidateQueue = async () => {
+        if (!pc.current) return;
+        while (candidateQueue.current.length > 0) {
+            const candidate = candidateQueue.current.shift();
+            if (candidate) {
+                try {
+                    await pc.current.addIceCandidate(candidate);
+                } catch (e) {
+                    console.error("Error adding queued candidate", e);
+                }
+            }
+        }
+    };
 
     // --- User Actions ---
     const handleAccept = async () => {
@@ -186,6 +216,9 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
 
         if (callData.offer) {
             await pc.current.setRemoteDescription(new RTCSessionDescription(callData.offer));
+            isRemoteDescriptionSet.current = true;
+            processCandidateQueue();
+            
             const answer = await pc.current.createAnswer();
             await pc.current.setLocalDescription(answer);
 
@@ -198,7 +231,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
 
     const handleDeclineOrCancel = async () => {
         if (!call || !db) return;
-        await updateDoc(doc(db, 'calls', call.id), { status: 'ended' }); // Simply end it
+        await updateDoc(doc(db, 'calls', call.id), { status: 'ended' });
         handleEndCall(true);
     };
 
@@ -221,6 +254,8 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         setDuration(0);
         setIsMuted(false);
         setIsVideoEnabled(true);
+        isRemoteDescriptionSet.current = false;
+        candidateQueue.current = [];
     };
 
     // --- In-Call Controls ---
@@ -283,8 +318,6 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     }
     
     const isVideoCall = call.type === 'video';
-    const isOutgoingRinging = call.callerId === currentUser.id && call.status === 'ringing';
-
     // Active or Outgoing Call Screen
     return (
         <div className="fixed inset-0 z-[200] bg-black flex justify-center animate-fade-in">
