@@ -378,7 +378,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                 type: type,
                 timestamp: serverTimestamp()
             });
-            // CallOverlay will handle UI. Set timeout as a failsafe to re-enable buttons.
+            // Keep button disabled long enough for Overlay to mount and connect
             setTimeout(() => setIsInitiatingCall(false), 8000);
         } catch (error) {
             console.error("Error starting call:", error);
@@ -631,7 +631,6 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             style={{ 
                 transform: `translateX(${translateX}px)`, 
                 transition: translateX === 0 ? 'transform 0.3s ease-out' : 'none',
-                // Add left shadow for layering effect when swiping
                 boxShadow: translateX > 0 ? '-10px 0 20px rgba(0,0,0,0.5)' : 'none'
             }}
             onTouchStart={onTouchStart}
@@ -696,8 +695,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
                         onLongPress={(e, m) => { e.preventDefault(); setContextMenu({ message: m, position: { x: e.clientX, y: e.clientY } }); }}
                         onViewMedia={handleViewMedia}
                         onToggleSave={handleToggleSave}
-                        onResend={() => {}} // Placeholder
-                        onDelete={() => {}} // Placeholder
+                        onResend={() => {}} 
+                        onDelete={() => {}} 
                         onImageClick={setViewingImageUrl}
                     />
                 ))}

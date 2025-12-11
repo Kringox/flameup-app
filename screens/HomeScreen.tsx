@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebaseConfig.ts';
 // FIX: Add QuerySnapshot and DocumentData to imports to resolve typing issue with onSnapshot.
-import { collection, query, orderBy, onSnapshot, getDocs, QuerySnapshot, DocumentData, where, limit } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, limit, QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { Post, User, Story } from '../types.ts';
 import BellIcon from '../components/icons/BellIcon.tsx';
 import SearchIcon from '../components/icons/SearchIcon.tsx';
@@ -71,7 +71,6 @@ const StoryRail: React.FC<{ currentUser: User, onCreateStory: () => void, onOpen
                 const firstStory = userStories[0];
                 if (!firstStory?.user) return null;
 
-                // Find index in the flat 'stories' array to start viewer correctly
                 const flatIndex = stories.findIndex(s => s.id === firstStory.id);
                 
                 return (
@@ -94,7 +93,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
     const [showStories, setShowStories] = useState(true);
     const lastScrollY = useRef(0);
     
-    // Story Viewer State lifted to HomeScreen to avoid clipping
+    // Story Viewer State
     const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
     const [storyList, setStoryList] = useState<Story[]>([]);
 
@@ -110,30 +109,22 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
         const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'), limit(50));
         
         const unsubscribe = onSnapshot(postsQuery, (snapshot: QuerySnapshot<DocumentData>) => {
-            // Deduplicate posts using a Map (Last write wins or keep existing)
-            // Use a Map to strictly enforce unique IDs
-            const uniquePostsMap = new Map<string, Post>();
-
-            snapshot.docs.forEach(doc => {
+            // COMPLETE RESET: Map purely what is in the snapshot.
+            // This guarantees deleted posts are gone and new posts are added.
+            const rawPosts = snapshot.docs.map(doc => {
                 const data = doc.data();
-                const post = {
+                return {
                     id: doc.id,
                     ...data,
                     user: data.user || { id: data.userId, name: 'User', profilePhoto: '' }
                 } as Post;
-                uniquePostsMap.set(post.id, post);
             });
 
-            const postList = Array.from(uniquePostsMap.values());
-            
-            // Sort again client-side to be safe
-            postList.sort((a, b) => {
-                const tA = a.timestamp?.toMillis ? a.timestamp.toMillis() : 0;
-                const tB = b.timestamp?.toMillis ? b.timestamp.toMillis() : 0;
-                return tB - tA;
-            });
+            // Filter out any duplicates just in case (though mapping docs directly usually avoids this)
+            // and ensure valid data.
+            const uniquePosts = Array.from(new Map(rawPosts.map(post => [post.id, post])).values());
 
-            setPosts(postList);
+            setPosts(uniquePosts);
             setIsLoading(false);
         }, (error) => {
             console.error("Error fetching feed:", error);
@@ -151,24 +142,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
         }
     }, [refreshTrigger]);
 
-    // Feed switch effect: Reset is implicit by re-mounting the scroll container via key={feedType}
+    // Feed switch effect
     useEffect(() => {
-        // Reset stories visibility when switching tabs
         setShowStories(true);
     }, [feedType]);
 
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
         const currentScrollY = e.currentTarget.scrollTop;
-        
-        // Only show stories if perfectly at top or bouncing (negative scroll on iOS)
         if (currentScrollY <= 10) {
             setShowStories(true);
-        } 
-        // Hide stories as soon as we scroll down past a small threshold
-        else if (currentScrollY > 50 && currentScrollY > lastScrollY.current) {
+        } else if (currentScrollY > 50 && currentScrollY > lastScrollY.current) {
             setShowStories(false);
         }
-        
         lastScrollY.current = currentScrollY;
     };
 
@@ -182,7 +167,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
 
     return (
         <div className="relative w-full h-full bg-black">
-            {/* Story Viewer Overlay - Changed from fixed to absolute to respect parent container (phone frame) */}
             {activeStoryIndex !== null && storyList.length > 0 && (
                 <div className="absolute inset-0 z-[200]">
                     <StoryViewer 
@@ -197,10 +181,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
 
             {/* Floating Header */}
             <div className="absolute top-0 left-0 right-0 z-40 flex flex-col pointer-events-none">
-                {/* Extended Gradient for readability - Smooth transition */}
                 <div className="absolute inset-0 h-[180px] bg-gradient-to-b from-black via-black/70 to-transparent pointer-events-none transition-opacity duration-500" />
 
-                {/* Branding Row - More padding top */}
                 <div className="relative z-10 flex justify-between items-center px-5 pt-8 pb-1 pointer-events-auto">
                     <button onClick={onOpenNotifications} className="text-white drop-shadow-lg p-2 rounded-full hover:bg-white/10 transition-all active:scale-90">
                         <BellIcon className="w-7 h-7" />
@@ -215,7 +197,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
                     </button>
                 </div>
 
-                {/* Tabs Row - Spaced out from branding */}
                 <div className="relative z-10 flex justify-center items-center space-x-10 pt-3 pb-2 pointer-events-auto select-none">
                     <button
                         onClick={() => setFeedType('forYou')}
@@ -239,7 +220,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
                 </div>
             </div>
 
-            {/* Stories Rail - "TikTok Style" */}
+            {/* Stories Rail */}
             <div 
                 className={`absolute top-[135px] left-0 right-0 z-30 transition-all duration-700 cubic-bezier(0.33, 1, 0.68, 1) origin-top ${showStories ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-0 -translate-y-10 pointer-events-none'}`}
             >
@@ -255,7 +236,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
 
             {/* Vertical Scroll Snap Container */}
             <div 
-                key={feedType} // Key here forces remount on tab change -> resets scroll & animates
+                key={feedType} 
                 ref={containerRef}
                 onScroll={handleScroll}
                 className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide scroll-smooth animate-fade-in"
@@ -283,7 +264,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
                         )}
                     </div>
                 ) : (
-                    // Using map with a stable key (post.id) ensures React reconciles correctly.
                     displayedPosts.map((post) => (
                         <div key={post.id} className="w-full h-full snap-start">
                             <SinglePostView 

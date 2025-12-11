@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { User, Call } from '../types.ts';
 import { db } from '../firebaseConfig.ts';
-import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, getDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, addDoc, getDoc } from 'firebase/firestore';
 import MicIcon from './icons/MicIcon.tsx';
 import XIcon from './icons/XIcon.tsx';
 import CameraIcon from './icons/CameraIcon.tsx';
@@ -34,30 +34,31 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     const localStream = useRef<MediaStream | null>(null);
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
-    
-    // WebRTC connection state tracking
     const candidateQueue = useRef<RTCIceCandidate[]>([]);
     
-    // --- Listen for any call involving the current user ---
+    // --- LISTEN FOR ACTIVE CALLS ---
     useEffect(() => {
         if (!currentUser || !db) return;
 
         const callsRef = collection(db, 'calls');
-        // Filter strictly for active calls where I am involved
+        // We only care about calls where I am involved
         const q = query(
             callsRef, 
             where('userIds', 'array-contains', currentUser.id)
         );
         
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const calls = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Call));
+            const allCalls = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Call));
             
-            // Explicitly look for a call that is NOT ended
-            const activeCall = calls.find(c => ['ringing', 'connected'].includes(c.status));
+            // CRITICAL FIX: Only look for calls that are ACTIVE.
+            // Ignore ended, declined, or cancelled calls completely in this filter.
+            // Sort by timestamp desc to get the newest one if multiple exist (rare)
+            const activeCall = allCalls
+                .filter(c => c.status === 'ringing' || c.status === 'connected')
+                .sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0))[0];
 
             if (activeCall) {
-                // If we found an active call, update state
-                // Only trigger haptics if status changed to ringing for the callee
+                // If we found an active call, show it.
                 if (!call || call.id !== activeCall.id || call.status !== activeCall.status) {
                      setCall(activeCall);
                      if (activeCall.calleeId === currentUser.id && activeCall.status === 'ringing') {
@@ -65,27 +66,23 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
                      }
                 }
             } else {
-                // No active call found.
-                // ONLY end the call if we previously HAD a call that is now gone or ended.
+                // No active call found in DB.
+                // If we currently have a call in state, it means it just ended or was deleted.
                 if (call) {
-                    // Check if the specific call ID we were in has ended or disappeared
-                    const myCallStillExists = calls.find(c => c.id === call.id);
-                    if (!myCallStillExists || myCallStillExists.status === 'ended' || myCallStillExists.status === 'declined') {
-                        handleEndCall(true);
-                    }
+                    handleEndCall(true); // Cleanup local state
                 }
             }
         });
 
         return () => unsubscribe();
-    }, [currentUser?.id, call]); // Add call to dependency to safely check current state
+    }, [currentUser?.id, call?.id]); // Depend on call.id to avoid unnecessary re-runs but keep logic consistent
 
 
-    // --- Core Signal Processing ---
+    // --- Core Signal Processing (Answer & Candidates) ---
     useEffect(() => {
         if (!call || !db) return;
 
-        // I AM THE CALLER: Set remote description when callee answers
+        // I AM THE CALLER: Wait for Answer
         if (call.callerId === currentUser?.id && call.status === 'connected' && call.answer && pc.current && !pc.current.currentRemoteDescription) {
              const setRemote = async () => {
                 try {
@@ -122,16 +119,20 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         });
 
         return () => unsubscribeCandidates();
-    }, [call, currentUser?.id]);
+    }, [call?.id, call?.status, currentUser?.id]);
 
 
     // --- Start Outgoing Call (Caller logic) ---
     useEffect(() => {
-        // Only start if we are the caller, it's ringing, and we haven't started PC yet
+        // Trigger setup only if I am caller, it's ringing, and NO peer connection exists yet
         if (call && call.callerId === currentUser?.id && call.status === 'ringing' && !pc.current) {
             const start = async () => {
                 const stream = await setupSources(call.type === 'video');
-                if (!stream) return;
+                if (!stream) {
+                    // If source fails, end call immediately to avoid stuck state
+                    await updateDoc(doc(db, 'calls', call.id), { status: 'ended' });
+                    return;
+                }
 
                 pc.current = createPeerConnection(call.id);
                 stream.getTracks().forEach(track => pc.current?.addTrack(track, stream));
@@ -154,14 +155,12 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
             localStream.current = stream;
             if (localVideoRef.current) {
                 localVideoRef.current.srcObject = stream;
-                localVideoRef.current.muted = true; // Always mute local video
+                localVideoRef.current.muted = true; 
             }
             return stream;
         } catch (err) {
             console.error("Error accessing media devices:", err);
-            // Don't kill the call UI immediately, maybe just audio failed?
-            // For now, alert
-            alert("Could not access camera/mic.");
+            alert("Could not access camera/mic. Please check permissions.");
             return null;
         }
     };
@@ -171,7 +170,6 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
 
         newPc.onicecandidate = event => {
             if (event.candidate) {
-                // Add candidate to Firestore
                 addDoc(collection(db, 'calls', callId, 'candidates'), event.candidate.toJSON());
             }
         };
@@ -202,7 +200,10 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         if (!call || !db) return;
         
         const stream = await setupSources(call.type === 'video');
-        if (!stream) return; 
+        if (!stream) {
+             handleEndCall(); // Cleanup if hardware fails
+             return;
+        }
 
         pc.current = createPeerConnection(call.id);
         stream.getTracks().forEach(track => pc.current?.addTrack(track, stream));
@@ -233,19 +234,18 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
 
     const handleDeclineOrCancel = async () => {
         if (!call || !db) return;
+        // Mark as ended in DB
         await updateDoc(doc(db, 'calls', call.id), { status: 'ended' });
-        handleEndCall(true);
+        // Local cleanup happens via snapshot listener seeing the update
     };
 
-    const handleEndCall = async (isCleanup = false) => {
-        // Only update DB if we are initiating the end and call is active
-        if (!isCleanup && call && db) {
+    const handleEndCall = async (isCleanupOnly = false) => {
+        if (!isCleanupOnly && call && db) {
             try {
                 await updateDoc(doc(db, 'calls', call.id), { status: 'ended' });
             } catch(e) {}
         }
         
-        // Cleanup local resources
         if (pc.current) {
             pc.current.close();
             pc.current = null;
@@ -294,7 +294,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     if (!call || !currentUser) return null;
 
     // --- RENDER LOGIC ---
-    // Incoming Call
+    // Incoming Call (I am callee, ringing)
     if (call.calleeId === currentUser.id && call.status === 'ringing') {
         return (
             <div className="fixed inset-0 z-[200] bg-gray-900/95 backdrop-blur-md flex flex-col items-center justify-center animate-fade-in">
