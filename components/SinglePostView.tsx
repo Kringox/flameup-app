@@ -256,8 +256,8 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                     </div>
                 )}
 
-                {/* Info Area */}
-                <div className="absolute bottom-0 left-0 right-0 p-4 pb-[env(safe-area-inset-bottom,40px)] mb-36 z-20 pointer-events-none">
+                {/* Info Area - REDUCED MARGIN TO FIX DESKTOP VIEW */}
+                <div className="absolute bottom-0 left-0 right-0 p-4 pb-[env(safe-area-inset-bottom,20px)] mb-20 z-20 pointer-events-none">
                     <div className="pointer-events-auto max-w-[80%]">
                         {isReposted && (
                             <p className="text-xs font-bold text-gray-300 mb-1 flex items-center gap-1">
@@ -278,7 +278,7 @@ const SinglePostView: React.FC<SinglePostViewProps> = ({ post, currentUser, isAc
                 </div>
 
                 {/* Right Side Actions */}
-                <div className="absolute right-2 bottom-[180px] z-30 flex flex-col items-center gap-5 pb-4">
+                <div className="absolute right-2 bottom-[140px] z-30 flex flex-col items-center gap-5 pb-4">
                     <div className="relative">
                         <button onClick={() => onViewProfile(post.userId)} className="relative">
                             <img src={post.user.profilePhoto} className="w-12 h-12 rounded-full border-2 border-white shadow-md object-cover" />

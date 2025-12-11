@@ -32,6 +32,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
     const [localMediaError, setLocalMediaError] = useState<string | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+    const [isLocalMediaReady, setIsLocalMediaReady] = useState(false);
 
     const pc = useRef<RTCPeerConnection | null>(null);
     const localStream = useRef<MediaStream | null>(null);
@@ -128,16 +129,19 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
                     });
                 }
                 
-                // If Caller: Create Offer
-                if (isCaller && call.status === 'ringing') {
-                    createOffer();
-                }
+                // IMPORTANT: Signal that media is ready before proceeding to Offer/Answer
+                setIsLocalMediaReady(true);
             });
         }
 
-        // 2. Handle Signaling Logic
+        // 2. Handle Signaling Logic - Only if local media is ready (tracks added)
         const handleSignaling = async () => {
-            if (!pc.current) return;
+            if (!pc.current || !isLocalMediaReady) return;
+
+            // Caller Logic: Create Offer if not done yet
+            if (isCaller && call.status === 'ringing' && !call.offer) {
+                 createOffer();
+            }
 
             // Caller Logic: Process Answer when available
             if (isCaller && call.answer && !pc.current.currentRemoteDescription) {
@@ -154,6 +158,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
                 console.log("Callee set remote description (offer)");
                 processQueuedCandidates();
                 
+                // Create Answer ONLY after local tracks are ready (ensured by isLocalMediaReady dependency)
                 const answer = await pc.current.createAnswer();
                 await pc.current.setLocalDescription(answer);
                 
@@ -179,7 +184,6 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
                         pc.current.addIceCandidate(candidate).catch(e => console.error("Error adding candidate", e));
                     } else {
                         // Queue candidate if remote description not set yet
-                        console.log("Queueing candidate");
                         remoteCandidatesQueue.current.push(candidate);
                     }
                 }
@@ -190,11 +194,10 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
             unsubscribeCandidates();
         };
 
-    }, [call?.id, call?.status, call?.offer, call?.answer]);
+    }, [call?.id, call?.status, call?.offer, call?.answer, isLocalMediaReady]); // Added isLocalMediaReady dependency
 
     const processQueuedCandidates = () => {
         if (!pc.current) return;
-        console.log(`Processing ${remoteCandidatesQueue.current.length} queued candidates`);
         remoteCandidatesQueue.current.forEach(candidate => {
             pc.current?.addIceCandidate(candidate).catch(e => console.error("Error adding queued candidate", e));
         });
@@ -245,7 +248,6 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         if (remoteVideoRef.current && remoteStream) {
             remoteVideoRef.current.srcObject = remoteStream;
             remoteVideoRef.current.muted = false; // Ensure not muted
-            // Explicitly play to avoid browser block
             remoteVideoRef.current.play().catch(e => console.error("Autoplay failed:", e));
         }
     }, [remoteStream]);
@@ -277,6 +279,7 @@ const CallOverlay: React.FC<CallOverlayProps> = ({ currentUser }) => {
         setDuration(0);
         setLocalMediaError(null);
         setCallStatusDisplay('');
+        setIsLocalMediaReady(false); // Reset readiness
         remoteCandidatesQueue.current = [];
     };
 
