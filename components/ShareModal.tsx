@@ -11,9 +11,10 @@ interface ShareModalProps {
 
 const ShareModal: React.FC<ShareModalProps> = ({ onClose, post }) => {
     const [copied, setCopied] = useState(false);
-    // Use the current origin or fallback
+    // Use the current origin
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://flameup.app';
-    const link = `${origin}/post/${post?.id || 'profile'}`;
+    // Use query parameter to avoid 404s on static hosting/previews
+    const link = `${origin}/?post=${post?.id || 'profile'}`;
 
     const handleCopy = () => {
         navigator.clipboard.writeText(link);

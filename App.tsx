@@ -73,11 +73,11 @@ const App: React.FC = () => {
     // Force Dark Mode Class
     document.documentElement.classList.add('dark');
 
-    // Deep Link Handling
-    const path = window.location.pathname;
-    const match = path.match(/^\/post\/([a-zA-Z0-9]+)/);
-    if (match && match[1]) {
-        setDeepLinkedPostId(match[1]);
+    // Deep Link Handling with Query Param ?post=123 (More robust for simple hosting)
+    const urlParams = new URLSearchParams(window.location.search);
+    const postId = urlParams.get('post');
+    if (postId) {
+        setDeepLinkedPostId(postId);
     }
   }, []);
 
@@ -200,10 +200,11 @@ const App: React.FC = () => {
         if (snapshot.exists()) {
           const data = snapshot.data() || {};
           // Safely construct user object, ensuring coins has a default if missing
+          // This is critical for keeping wallet in sync
           const userData = { 
               id: snapshot.id, 
               ...data,
-              coins: data.coins ?? 0
+              coins: data.coins !== undefined ? data.coins : 0,
           } as User;
           
           if (!authState.currentUser) {
@@ -320,7 +321,7 @@ const App: React.FC = () => {
                         postId={deepLinkedPostId}
                         currentUser={currentUser}
                         onClose={() => {
-                            window.history.replaceState({}, document.title, '/');
+                            window.history.replaceState({}, document.title, window.location.pathname); // Clear search params
                             setDeepLinkedPostId(null);
                         }}
                         onUpdateUser={handleUpdateUser}

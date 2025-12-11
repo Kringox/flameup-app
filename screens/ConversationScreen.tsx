@@ -145,6 +145,7 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         currentUserIdRef.current = currentUser.id;
     }, [currentUser.id]);
 
+    // Cleanup and Read Receipts
     useEffect(() => {
         return () => {
             const policy = retentionPolicyRef.current;
@@ -255,19 +256,26 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         const unsubscribe = onSnapshot(messagesQuery, (snapshot: QuerySnapshot<DocumentData>) => {
             const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
             setMessages(currentMsgs => {
-                // Merge server messages with any optimistic 'sending' messages
-                const newMsgs = [...currentMsgs.filter(m => m.status === 'sending')];
-                msgs.forEach(serverMsg => {
-                    // Replace temp message if real one arrives
-                    const tempIndex = newMsgs.findIndex(m => m.id === `temp-${serverMsg.timestamp?.toMillis()}`);
-                    if (tempIndex > -1) {
-                         newMsgs.splice(tempIndex, 1);
-                    }
-                    if (!newMsgs.some(m => m.id === serverMsg.id)) {
-                        newMsgs.push(serverMsg);
+                // Remove successful optimistic messages that have been replaced by real ones
+                // Keep pending optimistic messages
+                const pendingMsgs = currentMsgs.filter(m => m.status === 'sending');
+                
+                const combined = [...msgs];
+                
+                // Add back any pending that aren't in the server list yet
+                pendingMsgs.forEach(pm => {
+                    // Check if a real message with same content/time exists (simplified) or if tempId still relevant
+                    // Here we simply keep it if not found by ID, but logic in handleSendMessage cleans up usually.
+                    if (!combined.some(m => m.id === pm.id)) {
+                        combined.push(pm);
                     }
                 });
-                return newMsgs.sort((a,b) => a.timestamp.toMillis() - b.timestamp.toMillis());
+
+                return combined.sort((a,b) => {
+                    const tA = a.timestamp?.toMillis ? a.timestamp.toMillis() : Date.now();
+                    const tB = b.timestamp?.toMillis ? b.timestamp.toMillis() : Date.now();
+                    return tA - tB;
+                });
             });
         });
         return () => unsubscribe();
@@ -389,6 +397,25 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
         if(!tempId) setNewMessage('');
         setReplyingTo(null);
 
+        // Optimistic UI for text messages (if not media)
+        let optimisticId = tempId;
+        if (!optimisticId && !mediaFile) {
+             optimisticId = `temp-${Date.now()}`;
+             const optimisticMsg: Message = {
+                 id: optimisticId,
+                 chatId: chatId || 'pending',
+                 senderId: currentUser.id,
+                 text: textToSend,
+                 timestamp: Timestamp.now(),
+                 status: 'sending',
+                 isViewOnce: !!isViewOnce,
+                 isSaved: false,
+                 isFavorite: false,
+                 replyTo: replyContext || undefined
+             };
+             setMessages(prev => [...prev, optimisticMsg]);
+        }
+
         try {
             const currentChatId = await getOrCreateChat();
             let mediaUrl = '';
@@ -414,6 +441,12 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
             if (replyContext) messagePayload.replyTo = replyContext;
             
             const msgRef = await addDoc(collection(db, 'chats', currentChatId, 'messages'), messagePayload);
+            
+            // Remove optimistic message once sent (snapshot listener will add real one)
+            if (optimisticId) {
+                setMessages(prev => prev.filter(m => m.id !== optimisticId));
+            }
+
             let lastMsgText = textToSend;
             if (mediaUrl) {
                 if (mediaType === 'audio') lastMsgText = '🎤 Voice Message';
@@ -445,8 +478,8 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
 
         } catch (error) { 
             console.error("Error sending:", error); 
-            if (tempId) {
-                setMessages(prev => prev.map(m => m.id === tempId ? {...m, status: 'failed'} : m));
+            if (optimisticId) {
+                setMessages(prev => prev.map(m => m.id === optimisticId ? {...m, status: 'failed'} : m));
             }
         } finally { 
             if (!tempId) setIsSending(false); 
@@ -506,16 +539,9 @@ const ConversationScreen: React.FC<ConversationScreenProps> = ({ currentUser, pa
     const updateRetention = async (policy: RetentionPolicy) => {
         if (!chatId || !db) return;
         try {
+            // Only update doc, rely on snapshot listener to update UI
             await updateDoc(doc(db, 'chats', chatId), { retentionPolicy: policy });
             setRetentionPolicy(policy);
-            let policyText = 'Messages are kept forever';
-            if (policy === '5min') policyText = 'Messages expire 5 minutes after reading';
-            if (policy === 'read') policyText = 'Messages expire immediately after reading';
-            
-            // Just add the system message, do NOT reload
-            await addDoc(collection(db, 'chats', chatId, 'messages'), {
-                chatId: chatId, senderId: currentUser.id, text: `${currentUser.name} set chat to: ${policyText}`, timestamp: serverTimestamp(), isSystemMessage: true
-            });
         } catch(e) {
             console.error("Error updating retention:", e);
         }

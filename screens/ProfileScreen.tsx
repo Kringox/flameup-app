@@ -78,14 +78,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
     useEffect(() => {
         if (!db) return;
         setIsLoading(true);
+        setPosts([]); // Clear previous posts to avoid flash
         
         let q;
         if (activeTab === 'posts' || activeTab === 'reposts') {
-            // Note: In real app, separate reposts. Here we just show all posts for simplicity or filter by caption content as placeholder
             q = query(collection(db, 'posts'), where('userId', '==', currentUser.id), orderBy('timestamp', 'desc'));
         } else if (activeTab === 'likes') {
             q = query(collection(db, 'posts'), where('likedBy', 'array-contains', currentUser.id), orderBy('timestamp', 'desc'));
         } else {
+            setIsLoading(false);
             return;
         }
 
@@ -95,12 +96,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                 return { id: doc.id, ...data, user: data.user || { id: data.userId, name: data.userName, profilePhoto: data.userProfilePhoto } } as Post;
             });
             
-            // Client-side filtering for 'reposts' mock (caption starts with RP)
             if (activeTab === 'reposts') {
+                // Client-side filtering for 'reposts' mock (caption starts with RP)
                 setPosts(userPosts.filter(p => p.caption.startsWith('RP @')));
             } else if (activeTab === 'posts') {
+                // Filter out reposts from main grid
                 setPosts(userPosts.filter(p => !p.caption.startsWith('RP @')));
             } else {
+                // Likes tab gets everything from query
                 setPosts(userPosts);
             }
             
@@ -138,7 +141,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
             </header>
             
             <div className="flex-1 overflow-y-auto pb-32">
-                {isLoading && activeTab === 'posts' ? <ProfileSkeleton /> : (
+                {isLoading ? <ProfileSkeleton /> : (
                     <div className="p-4">
                         <div className="flex items-center">
                             <button onClick={() => setIsImageViewerOpen(true)} className="flex-shrink-0">

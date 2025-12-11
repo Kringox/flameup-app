@@ -26,12 +26,12 @@ interface Prize {
 }
 
 const PRIZES: Prize[] = [
-    { id: 0, type: 'coin', amount: 1, label: '+1 Coin', color: '#FFD700', weight: 40 },
-    { id: 1, type: 'coin', amount: 2, label: '+2 Coins', color: '#FFA500', weight: 30 },
-    { id: 2, type: 'superlike', amount: 1, label: '1x Free Super', color: '#3B82F6', weight: 15 },
-    { id: 3, type: 'coin', amount: 5, label: '+5 Coins', color: '#FF4500', weight: 10 },
-    { id: 4, type: 'superlike', amount: 2, label: '2x Free Super', color: '#8B5CF6', weight: 4 },
-    { id: 5, type: 'coin', amount: 15, label: '+15 JACKPOT', color: '#FF0000', weight: 1 },
+    { id: 0, type: 'coin', amount: 10, label: '+10 Coins', color: '#FFD700', weight: 40 },
+    { id: 1, type: 'coin', amount: 25, label: '+25 Coins', color: '#FFA500', weight: 30 },
+    { id: 2, type: 'superlike', amount: 1, label: '1x Superlike', color: '#3B82F6', weight: 15 },
+    { id: 3, type: 'coin', amount: 50, label: '+50 Coins', color: '#FF4500', weight: 10 },
+    { id: 4, type: 'superlike', amount: 3, label: '3x Superlike', color: '#8B5CF6', weight: 4 },
+    { id: 5, type: 'coin', amount: 500, label: 'JACKPOT', color: '#EF4444', weight: 1 },
 ];
 
 const DailyBonusWheel: React.FC<DailyBonusWheelProps> = ({ currentUser, onClose, onUpdateUser }) => {
@@ -71,14 +71,15 @@ const DailyBonusWheel: React.FC<DailyBonusWheelProps> = ({ currentUser, onClose,
         const selectedPrize = getWeightedRandomPrize();
         const segmentAngle = 360 / PRIZES.length;
         
-        const baseSpins = 360 * 5;
+        // Spin multiple times
+        const baseSpins = 360 * 8;
         const prizeAngle = selectedPrize.id * segmentAngle;
-        const randomOffset = Math.floor(Math.random() * (segmentAngle - 10)) + 5; 
-        const targetRotation = baseSpins + (360 - prizeAngle) + randomOffset;
+        // Adjust for pointer at top (rotate backwards)
+        const targetRotation = baseSpins + (360 - prizeAngle) + (segmentAngle / 2); // Center on segment
 
         setRotation(targetRotation);
 
-        // Wait for animation to finish (3s)
+        // Wait for animation to finish (4s)
         setTimeout(async () => {
             setPrize(selectedPrize);
             setIsSpinning(false);
@@ -111,38 +112,41 @@ const DailyBonusWheel: React.FC<DailyBonusWheelProps> = ({ currentUser, onClose,
                 console.error("Error saving bonus:", error);
             }
 
-        }, 3000);
+        }, 4000);
     };
 
     return (
-        <div className="fixed inset-0 bg-black/80 z-[150] flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 w-full max-w-sm relative overflow-hidden flex flex-col items-center shadow-2xl border border-flame-orange/30">
+        <div className="fixed inset-0 bg-black/90 z-[150] flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm">
+            <div className="bg-gradient-to-br from-gray-900 to-black rounded-3xl p-8 w-full max-w-sm relative overflow-hidden flex flex-col items-center shadow-2xl border-2 border-flame-orange/50">
                 
-                <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-gray-800 dark:text-gray-400">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                {/* Decorative Lights */}
+                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse" />
+                
+                <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
 
-                <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-flame-orange to-flame-red mb-2">{t('dailyBonusTitle')}</h2>
-                <p className="text-gray-500 text-sm mb-6 dark:text-gray-400">{t('spinTheWheel')}</p>
+                <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 mb-2 drop-shadow-md uppercase tracking-wider">{t('dailyBonusTitle')}</h2>
+                <p className="text-gray-400 text-sm mb-8">{t('spinTheWheel')}</p>
 
                 {/* Wheel Container */}
-                <div className="relative w-64 h-64 mb-8">
+                <div className="relative w-72 h-72 mb-10">
                     {/* Pointer */}
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 text-flame-red filter drop-shadow-lg">
-                        <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 21L1 2h22L12 21z" />
+                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 z-20 text-white filter drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor" className="text-flame-red">
+                            <path d="M12 22L1 2h22L12 22z" />
                         </svg>
                     </div>
 
                     {/* The Wheel */}
                     <div 
-                        className="w-full h-full rounded-full border-4 border-white dark:border-zinc-700 shadow-xl overflow-hidden relative"
+                        className="w-full h-full rounded-full border-8 border-gray-800 shadow-[0_0_20px_rgba(255,107,53,0.3)] overflow-hidden relative"
                         style={{ 
                             transform: `rotate(${rotation}deg)`, 
-                            transition: 'transform 3s cubic-bezier(0.2, 0.8, 0.2, 1)' 
+                            transition: 'transform 4s cubic-bezier(0.15, 0.9, 0.3, 1)' 
                         }}
                     >
-                        {/* Render Segments via Conic Gradient for background colors */}
+                        {/* Segments */}
                         <div 
                             className="absolute inset-0 w-full h-full rounded-full"
                             style={{
@@ -152,21 +156,21 @@ const DailyBonusWheel: React.FC<DailyBonusWheelProps> = ({ currentUser, onClose,
                             }}
                         />
                         
-                        {/* Render Labels/Icons */}
+                        {/* Divider Lines & Icons */}
                         {PRIZES.map((p, i) => {
                             const angle = i * 60 + 30; // Center of segment
                             return (
                                 <div 
                                     key={p.id}
-                                    className="absolute top-1/2 left-1/2 w-full h-full origin-top-left flex justify-center pt-4"
+                                    className="absolute top-1/2 left-1/2 w-full h-full origin-top-left flex justify-center pt-2"
                                     style={{ transform: `rotate(${angle}deg) translate(-50%, -50%)` }}
                                 >
-                                    <div className="flex flex-col items-center" style={{ transform: 'translateY(-35px)' }}>
-                                        <span className="text-white font-bold text-xs drop-shadow-md">{p.label}</span>
+                                    <div className="flex flex-col items-center" style={{ transform: 'translateY(-60px)' }}>
+                                        <span className="text-black font-extrabold text-xs drop-shadow-sm bg-white/30 px-1 rounded">{p.label}</span>
                                         {p.type === 'coin' ? (
-                                            <FlameIcon className="w-5 h-5 text-white drop-shadow-md mt-1" fill="currentColor" />
+                                            <FlameIcon className="w-6 h-6 text-black drop-shadow-sm mt-1" fill="currentColor" />
                                         ) : (
-                                            <StarIcon className="w-5 h-5 text-white drop-shadow-md mt-1" fill="currentColor" />
+                                            <StarIcon className="w-6 h-6 text-white drop-shadow-md mt-1" fill="currentColor" />
                                         )}
                                     </div>
                                 </div>
@@ -175,8 +179,8 @@ const DailyBonusWheel: React.FC<DailyBonusWheelProps> = ({ currentUser, onClose,
                     </div>
                     
                     {/* Center Knob */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 bg-white dark:bg-zinc-800 rounded-full shadow-inner border-2 border-gray-200 dark:border-zinc-600 flex items-center justify-center z-10">
-                        <span className="font-bold text-lg">🎁</span>
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-gradient-to-br from-gray-700 to-black rounded-full shadow-inner border-4 border-gray-600 flex items-center justify-center z-10">
+                        <span className="text-2xl">🎰</span>
                     </div>
                 </div>
 
@@ -185,18 +189,17 @@ const DailyBonusWheel: React.FC<DailyBonusWheelProps> = ({ currentUser, onClose,
                     <button 
                         onClick={spinWheel} 
                         disabled={isSpinning || !canSpin}
-                        className={`w-full py-3 rounded-xl font-bold text-lg shadow-lg transition-all transform active:scale-95 ${!canSpin ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-gradient-to-r from-flame-orange to-flame-red text-white hover:shadow-xl'}`}
+                        className={`w-full py-4 rounded-xl font-bold text-xl shadow-lg transition-all transform active:scale-95 ${!canSpin ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gradient-to-r from-flame-orange via-red-500 to-flame-red text-white hover:shadow-flame-orange/50 hover:scale-105'}`}
                     >
                         {isSpinning ? t('spinning') : (!canSpin ? t('comeBackTomorrow') : t('spinNow'))}
                     </button>
                 ) : (
-                    <div className="text-center animate-scale-up">
-                        <p className="text-lg font-bold dark:text-white">{t('youWon')}</p>
-                        <div className="text-3xl font-black text-flame-orange my-2 flex items-center justify-center gap-2">
+                    <div className="text-center animate-scale-up w-full">
+                        <p className="text-xl font-bold text-white mb-2">{t('youWon')}</p>
+                        <div className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 my-4 flex items-center justify-center gap-3">
                             {prize.label}
-                            {prize.type === 'coin' ? <FlameIcon isGradient className="w-8 h-8" /> : <StarIcon className="w-8 h-8 text-blue-500" />}
                         </div>
-                        <button onClick={onClose} className="mt-4 px-8 py-2 bg-gray-200 dark:bg-zinc-700 text-gray-800 dark:text-white font-bold rounded-full">
+                        <button onClick={onClose} className="w-full mt-2 px-8 py-3 bg-white text-black font-bold rounded-xl shadow-lg hover:bg-gray-200 transition-colors">
                             {t('awesome')}
                         </button>
                     </div>
