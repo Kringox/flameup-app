@@ -80,7 +80,7 @@ const StoryRail: React.FC<{ currentUser: User, onCreateStory: () => void, onOpen
     const hasOtherStories = Array.from(userStoriesMap.keys()).some(uid => uid !== currentUser.id);
 
     return (
-        <div className="flex items-start space-x-4 px-4 py-2 overflow-x-auto scrollbar-hide w-full">
+        <div className="flex items-start space-x-4 px-4 py-3 overflow-x-auto scrollbar-hide w-full relative z-10">
             {/* My Story */}
             <div className="flex flex-col items-center space-y-1.5 cursor-pointer flex-shrink-0 transition-transform active:scale-95 duration-200" onClick={onCreateStory}>
                 <div className="w-[68px] h-[68px] rounded-full border-2 border-gray-500 p-0.5 relative">
@@ -94,7 +94,7 @@ const StoryRail: React.FC<{ currentUser: User, onCreateStory: () => void, onOpen
 
             {/* Separator / Abteilungsabschnitt */}
             {hasOtherStories && (
-                <div className="h-[68px] w-[1px] bg-white/15 flex-shrink-0 mx-1 mt-0.5 rounded-full"></div>
+                <div className="h-[68px] w-[1px] bg-white/20 flex-shrink-0 mx-2 rounded-full self-center"></div>
             )}
 
             {/* Other Stories */}
@@ -228,9 +228,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
 
             {/* Floating Header */}
             <div className="absolute top-0 pt-[env(safe-area-inset-top)] left-0 right-0 z-40 flex flex-col pointer-events-none">
-                <div className="absolute inset-0 h-[180px] bg-gradient-to-b from-black via-black/70 to-transparent pointer-events-none transition-opacity duration-500" />
+                <div className="absolute inset-0 h-[120px] bg-gradient-to-b from-black/90 via-black/60 to-transparent pointer-events-none transition-opacity duration-500" />
 
-                <div className="relative z-10 flex justify-between items-center px-5 pt-8 pb-1 pointer-events-auto">
+                <div className="relative z-10 flex justify-between items-center px-5 pt-4 pb-1 pointer-events-auto">
                     <button onClick={onOpenNotifications} className="text-white drop-shadow-lg p-2 rounded-full hover:bg-white/10 transition-all active:scale-90">
                         <BellIcon className="w-7 h-7" />
                     </button>
@@ -267,10 +267,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
                 </div>
             </div>
 
-            {/* Stories Rail */}
+            {/* Stories Rail with Separated Background */}
             <div 
-                className={`absolute top-[135px] pt-[env(safe-area-inset-top)] left-0 right-0 z-30 transition-all duration-700 cubic-bezier(0.33, 1, 0.68, 1) origin-top ${showStories ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-0 -translate-y-10 pointer-events-none'}`}
+                className={`absolute top-[120px] pt-[env(safe-area-inset-top)] left-0 right-0 z-30 transition-all duration-700 cubic-bezier(0.33, 1, 0.68, 1) origin-top ${showStories ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-0 -translate-y-10 pointer-events-none'}`}
             >
+                {/* Blur/Gradient Background for Stories */}
+                <div className="absolute top-0 left-0 right-0 h-[110px] bg-gradient-to-b from-black/80 via-black/40 to-transparent backdrop-blur-[2px] pointer-events-none -mt-4" />
+                
                 <StoryRail 
                     currentUser={currentUser} 
                     onCreateStory={onCreateStory} 
