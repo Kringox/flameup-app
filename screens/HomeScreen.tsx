@@ -226,8 +226,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
                 </div>
             )}
 
-            {/* Header Background Gradient (Distinct for readability) */}
-            <div className="absolute top-0 left-0 right-0 h-[140px] z-20 pointer-events-none bg-gradient-to-b from-black/90 via-black/70 to-transparent" />
+            {/* 
+               MASTER GRADIENT BACKGROUND (z-20)
+               - Covers Header AND Stories area
+               - Starts BLACK/90 at top, stays dark through middle, fades to transparent at bottom
+               - Adds BLUR to obfuscate the video behind the UI
+            */}
+            <div className="absolute top-0 left-0 right-0 h-[280px] z-20 pointer-events-none bg-gradient-to-b from-black via-black/80 to-transparent backdrop-blur-md" />
 
             {/* Floating Header (z-40) */}
             <div className="absolute top-0 pt-[env(safe-area-inset-top)] left-0 right-0 z-40 flex flex-col pointer-events-none">
@@ -272,15 +277,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
             <div 
                 className={`absolute top-[120px] pt-[env(safe-area-inset-top)] left-0 right-0 z-30 transition-all duration-700 cubic-bezier(0.33, 1, 0.68, 1) origin-top ${showStories ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-0 -translate-y-10 pointer-events-none'}`}
             >
-                {/* 
-                   DEDICATED STORY BACKGROUND 
-                   - from-black/90 creates a strong separation at the top of the stories
-                   - via-black/50 keeps the stories readable but starts fading
-                   - to-transparent allows the video feed to bleed through at the bottom
-                   - backdrop-blur-[2px] slightly blurs the video behind the stories for better focus
-                */}
-                <div className="absolute -top-6 left-0 right-0 h-[150px] bg-gradient-to-b from-black/90 via-black/50 to-transparent backdrop-blur-[2px] pointer-events-none" />
-                
                 <StoryRail 
                     currentUser={currentUser} 
                     onCreateStory={onCreateStory} 
