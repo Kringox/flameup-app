@@ -227,12 +227,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
             )}
 
             {/* 
-               MASTER GRADIENT BACKGROUND (z-20)
-               - Covers Header AND Stories area
-               - Starts BLACK/90 at top, stays dark through middle, fades to transparent at bottom
-               - Adds BLUR to obfuscate the video behind the UI
+               SIMPLE TOP GRADIENT (z-20)
+               - Just dark, not too big, no heavy blur
+               - Ensures header text and stories are legible against the video feed
             */}
-            <div className="absolute top-0 left-0 right-0 h-[280px] z-20 pointer-events-none bg-gradient-to-b from-black via-black/80 to-transparent backdrop-blur-md" />
+            <div className="absolute top-0 left-0 right-0 h-[220px] z-20 pointer-events-none bg-gradient-to-b from-black/95 via-black/50 to-transparent" />
 
             {/* Floating Header (z-40) */}
             <div className="absolute top-0 pt-[env(safe-area-inset-top)] left-0 right-0 z-40 flex flex-col pointer-events-none">
