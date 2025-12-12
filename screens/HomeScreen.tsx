@@ -227,11 +227,24 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
             )}
 
             {/* 
-               SIMPLE TOP GRADIENT (z-20)
-               - Just dark, not too big, no heavy blur
-               - Ensures header text and stories are legible against the video feed
+               1. SOLID HEADER BACKGROUND
+               - Completely opaque black to hide video behind the header (Notification, Title, Search).
+               - Uses CSS calc() to exactly match the header area height plus the device's safe area.
             */}
-            <div className="absolute top-0 left-0 right-0 h-[220px] z-20 pointer-events-none bg-gradient-to-b from-black/95 via-black/50 to-transparent" />
+            <div 
+                className="absolute top-0 left-0 right-0 bg-black z-20 pointer-events-none" 
+                style={{ height: 'calc(120px + env(safe-area-inset-top))' }}
+            />
+
+            {/* 
+               2. STORIES GRADIENT BACKGROUND
+               - Starts exactly where the solid header ends.
+               - Smoothly fades from black to transparent to show the video behind stories partially.
+            */}
+            <div 
+                className="absolute left-0 right-0 h-[100px] bg-gradient-to-b from-black to-transparent z-20 pointer-events-none"
+                style={{ top: 'calc(120px + env(safe-area-inset-top))' }}
+            />
 
             {/* Floating Header (z-40) */}
             <div className="absolute top-0 pt-[env(safe-area-inset-top)] left-0 right-0 z-40 flex flex-col pointer-events-none">
