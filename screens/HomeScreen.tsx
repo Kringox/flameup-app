@@ -226,10 +226,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
                 </div>
             )}
 
-            {/* Floating Header */}
-            <div className="absolute top-0 pt-[env(safe-area-inset-top)] left-0 right-0 z-40 flex flex-col pointer-events-none">
-                <div className="absolute inset-0 h-[120px] bg-gradient-to-b from-black/90 via-black/60 to-transparent pointer-events-none transition-opacity duration-500" />
+            {/* UNIFIED TOP GRADIENT BACKGROUND (z-20) */}
+            {/* This ensures the gradient is behind stories and header, but over the video */}
+            <div className="absolute top-0 left-0 right-0 h-[240px] z-20 pointer-events-none bg-gradient-to-b from-black/90 via-black/60 to-transparent backdrop-blur-[2px]" />
 
+            {/* Floating Header (z-40) */}
+            <div className="absolute top-0 pt-[env(safe-area-inset-top)] left-0 right-0 z-40 flex flex-col pointer-events-none">
                 <div className="relative z-10 flex justify-between items-center px-5 pt-4 pb-1 pointer-events-auto">
                     <button onClick={onOpenNotifications} className="text-white drop-shadow-lg p-2 rounded-full hover:bg-white/10 transition-all active:scale-90">
                         <BellIcon className="w-7 h-7" />
@@ -267,13 +269,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
                 </div>
             </div>
 
-            {/* Stories Rail with Separated Background */}
+            {/* Stories Rail (z-30) */}
             <div 
                 className={`absolute top-[120px] pt-[env(safe-area-inset-top)] left-0 right-0 z-30 transition-all duration-700 cubic-bezier(0.33, 1, 0.68, 1) origin-top ${showStories ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-0 -translate-y-10 pointer-events-none'}`}
             >
-                {/* Blur/Gradient Background for Stories */}
-                <div className="absolute top-0 left-0 right-0 h-[110px] bg-gradient-to-b from-black/80 via-black/40 to-transparent backdrop-blur-[2px] pointer-events-none -mt-4" />
-                
                 <StoryRail 
                     currentUser={currentUser} 
                     onCreateStory={onCreateStory} 
