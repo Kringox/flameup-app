@@ -226,9 +226,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
                 </div>
             )}
 
-            {/* UNIFIED TOP GRADIENT BACKGROUND (z-20) */}
-            {/* This ensures the gradient is behind stories and header, but over the video */}
-            <div className="absolute top-0 left-0 right-0 h-[240px] z-20 pointer-events-none bg-gradient-to-b from-black/90 via-black/60 to-transparent backdrop-blur-[2px]" />
+            {/* Top Gradient for Header Readability (z-20) - Distinct from Story BG */}
+            <div className="absolute top-0 left-0 right-0 h-[140px] z-20 pointer-events-none bg-gradient-to-b from-black/80 to-transparent" />
 
             {/* Floating Header (z-40) */}
             <div className="absolute top-0 pt-[env(safe-area-inset-top)] left-0 right-0 z-40 flex flex-col pointer-events-none">
@@ -273,6 +272,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ currentUser, onOpenComments, on
             <div 
                 className={`absolute top-[120px] pt-[env(safe-area-inset-top)] left-0 right-0 z-30 transition-all duration-700 cubic-bezier(0.33, 1, 0.68, 1) origin-top ${showStories ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-0 -translate-y-10 pointer-events-none'}`}
             >
+                {/* Specific Background for Story Area (The "Abgrenzung") */}
+                <div className="absolute top-0 left-0 right-0 h-[110px] bg-gradient-to-b from-black/60 to-transparent pointer-events-none -mt-2" />
+                
                 <StoryRail 
                     currentUser={currentUser} 
                     onCreateStory={onCreateStory} 
